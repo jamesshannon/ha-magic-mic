@@ -1,0 +1,13 @@
+{
+  "domain": "magic_mic",
+  "name": "Magic Mic",
+  "codeowners": ["@jamesshannon"],
+  "config_flow": true,
+  "documentation": "https://github.com/jamesshannon/ha-magic-mic",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/jamesshannon/ha-magic-mic/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.0.1"
+}

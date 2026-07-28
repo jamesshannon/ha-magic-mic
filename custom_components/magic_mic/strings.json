@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Magic Mic",
+        "description": "Magic Mic is an early scaffold. Installing it now lets you receive capabilities as they are released — there is nothing to configure yet. Select **Submit** to add it."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Already configured. Only a single instance of Magic Mic is supported."
+    }
+  }
+}
