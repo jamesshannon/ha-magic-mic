@@ -156,6 +156,10 @@ is what *makes that safe*, so it's a dependency of all of them:
   ones). Undo only ever reverses the assistant's **own recent** actions, so it isn't a new
   injection sink.
 
+- `ephemeral-automations.md`'s **ephemeral overrides** ("lights to 100% for 15 min") reuse
+  the same `scene.create` snapshot as their revert target, applied on a boundary trigger
+  rather than on an "undo" utterance. Same capture mechanism, scheduled instead of on-demand.
+
 Stated once here so those docs can lean on "undoable" without each re-deriving it.
 
 ---

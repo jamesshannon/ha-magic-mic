@@ -110,7 +110,12 @@ gets its own file there. Current docs:
   Reuse HA's engine (`async_initialize_triggers` + `condition.async_from_config`),
   **not** automation entities. Two trigger backends → one condition→delivery
   pipeline: time (our watermark) + state (HA's engine; watermark is time-only).
-  LLM-at-fire survives only for non-compilable fuzzy conditions.
+  LLM-at-fire survives only for non-compilable fuzzy conditions. **Ephemeral overrides**
+  ("lights to 100% for 15 min") are a worked case of this engine, not a new feature =
+  snapshot ([`undo.md`](docs/undo.md)) + apply + reverting one-shot on a boundary trigger;
+  revert is **literal/unconditional** (no silent world-moved-on check), mechanics
+  (snapshot-ordering, scene cleanup, restart-durability) live in the authoring primitive
+  not SKILL prose, no dedicated path until observability shows the shape earns one.
 - [`docs/find-entities.md`](docs/find-entities.md) — fuzzy entity resolution →
   **canonical `entity_id`**, fixing the LLM path's **exact** name match
   (`_filter_by_name`, §2.4; `entity_id` accepted verbatim at `intent.py:428` = the
