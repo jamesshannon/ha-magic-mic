@@ -34,6 +34,11 @@
 - **Not everything is undoable.** Irreversible side-effects (a sent message, a purchase,
   a spoken announcement), a world that **moved on** since the action, and read-only ops
   (web_search) have no clean inverse — decline **legibly**.
+- **This journal covers only *assistant-caused* actions.** Reversing a change the assistant
+  didn't make (a physical switch, an automation) by reconstructing it from logs is a
+  different, **functionally impossible** problem — see [`explainability.md`](explainability.md):
+  not for missing data (history has prior values) but because attribution is partial and
+  "undo" against a live/recurring external cause is ill-posed.
 - **No undo exists in core** (verified) — greenfield.
 
 ---

@@ -347,6 +347,27 @@ gets its own file there. Current docs:
   legibly. v1 = single-level; "declare your inverse" becomes part of the capability
   contract (§5.5). No undo in core (verified).
 
+- [`docs/explainability.md`](docs/explainability.md) — **cross-cutting trust/debugging
+  capability.** "Why is the thermostat at 67?" / "Why did the hallway light turn on?"
+  **HA structurally enables this and Google/Alexa can't** (same "already-built, wrap it"
+  shape as web-search): every `State` carries a `Context(user_id, parent_id, id)`
+  (`core.py:1246`) and the **logbook** already resolves those into named "triggered by X"
+  causes (`ContextAugmenter`, `logbook/processor.py`), while **recorder history** retains
+  prior values *with attributes* (`get_significant_states`/`state_changes_during_period`,
+  `include_start_time_state`/`no_attributes=False`). **Determinism-in-tools:** the tool
+  emits a **structured causal record** (incl. **`unattributable` as a first-class value**);
+  the LLM **only narrates** — anti-confabulation is the load-bearing guardrail ("not enough
+  in the logs to say why" is a *returned value*, not a guess). **Three layers, two
+  voice-free *and* LLM-free** (retrieval/resolution → interpretation → voice) → needs an
+  **interpreter, not a mic** → strong §6.2 **split-JIT** candidate with non-Assist
+  consumers (card, notification, REST). **Attribution gradient:** assistant-caused (undo
+  journal, perfect) → automation/user (context chain) → device/cloud (opaque →
+  unattributable). **State reversal is out of scope / functionally impossible** — *not* for
+  missing data (history has prior values) but because attribution is partial and "undo"
+  against a live/recurring external cause is ill-posed; only the **assistant-caused** half
+  survives, and that's [`undo.md`](docs/undo.md)'s journal. Value = low-freq/high-trust
+  (like undo); **Wave 3–4** (needs recorder). No such feature in core (verified).
+
 _All planned topic docs now written._
 
 ---

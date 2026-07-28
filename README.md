@@ -95,6 +95,8 @@ on):
 
 **Cross-cutting concerns:**
 
+- [`explainability.md`](docs/explainability.md): "why is it at 67 / why did the light turn
+  on?" — narrate the cause from logbook + history; state reversal is out of scope.
 - [`security.md`](docs/security.md): prompt injection; blast-radius control, taint model.
 - [`offline.md`](docs/offline.md): graceful degradation when the cloud (or HA) is down.
 - [`speaker-identification.md`](docs/speaker-identification.md): voice-ID as an input to

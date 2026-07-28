@@ -104,6 +104,18 @@ The mic stays open when it makes sense, so you can keep talking:
 No wake word between turns, and the follow-up reaches for real-world knowledge when the
 answer isn't in your house.
 
+### Tells you why something happened
+
+> **You:** "Why did the hallway light just turn on?"
+>
+> **Magic Mic:** "Your Hallway Motion automation turned it on a moment ago."
+
+Home Assistant already records what caused each change in your house. Magic Mic reads that
+record and answers in plain language, so a light that surprised you gets a reason instead of
+a shrug. And when nothing recorded a cause, say a thermostat that followed its own schedule
+in the cloud, it tells you that rather than making something up. A guess dressed as an answer
+would be worse than admitting it doesn't know.
+
 ### Takes it back when you change your mind
 
 > **You:** "Undo that."
@@ -172,7 +184,7 @@ path too, not just the cloud one.
 
 ## Where this is going
 
-The design phase is done: twenty deep-dive docs, a full architecture, and a build plan.
+The design phase is done: two dozen deep-dive docs, a full architecture, and a build plan.
 Next it gets built, as a Home Assistant custom component running on cloud Claude to start,
 with each capability shaped so it can move into Home Assistant core and reach everyone. The
 order is fuzzy entity resolution first, then calendar writes, then persistent reminders,
