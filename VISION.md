@@ -124,10 +124,11 @@ would be worse than admitting it doesn't know.
 
 More on why that undo is trustworthy below.
 
-Music that follows you between rooms, weather that knows tomorrow's forecast, timers and
-alarms that escalate to fit the situation: those round it out. The moments above are the
-point. Everything you already expect from a smart speaker still works, with the assistant
-features layered on top.
+Music that follows you between rooms, weather that knows tomorrow's forecast, and timers and
+alarms that escalate to fit the situation round it out. So do the basics you'd expect from
+any smart speaker, and a few of those come with a twist: white noise and sleep sounds, for
+one, play straight from the device with no cloud stream and no subscription, so they don't
+stop when the internet does. The moments above are the point; the rest just works.
 
 ---
 
