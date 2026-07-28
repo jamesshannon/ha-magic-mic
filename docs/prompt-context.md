@@ -2,9 +2,9 @@
 
 > Shared-primitive doc (PRODUCT_PLAN §5.6: "prompt-context / taxonomy skeleton +
 > retrieval"). Two halves, both here now: **the output/interaction contract**
-> (§§ below — how the model returns speech, actions, meta-signals; the
+> (§§ below: how the model returns speech, actions, meta-signals; the
 > generation-count economics; verbal behavior) and **the input/prompt-budget
-> design** (§"Prompt budget: request-conditioned context" — what entity context we
+> design** (§"Prompt budget: request-conditioned context": what entity context we
 > inject, the cache model, and how we measure it). Grounded in the `anthropic`
 > conversation loop and `helpers/llm.py`. Cross-refs
 > [`voice-streaming.md`](voice-streaming.md) (streaming/TTFT latency),
@@ -216,7 +216,7 @@ Beyond mic-open, expect more back-channel signals (confidence vs guessing,
 "multi-part answer — keep listening," detected sentiment). The delivery rule:
 
 1. **Deterministically infer whatever you can.** Mic-open after a command is
-   inferable from "did a control intent fire this turn" — more robust than trusting
+   inferable from "did a control intent fire this turn" — more reliable than trusting
    the model to set a field ([`conversation-loop.md`](conversation-loop.md) §1).
 2. **Struct field on the final response for model-only signals** — things with no
    deterministic source. Costs no extra generation (the final turn happens anyway).

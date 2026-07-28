@@ -1,7 +1,7 @@
 # Web Search by Voice
 
 > Feature doc. The surprising finding: on the **cloud (Anthropic) backend, web search
-> is essentially already built** — the stock `anthropic` component wires Anthropic's
+> is essentially already built**: the stock `anthropic` component wires Anthropic's
 > **server-side** `web_search` + `web_fetch`, and our delivery forks that component's
 > shape. The real work is a **portability seam** and **enablement/defaults**, not a
 > retrieval engine. See [`../PRODUCT_PLAN.md`](../PRODUCT_PLAN.md),

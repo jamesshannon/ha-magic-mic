@@ -1,7 +1,7 @@
 # SKILLs (gated instructional payloads)
 
-> A **SKILL** is a block of *procedural instruction* — how to reason through a
-> multi-step, rare, or reasoning-heavy task — injected into the prompt only when
+> A **SKILL** is a block of *procedural instruction* (how to reason through a
+> multi-step, rare, or reasoning-heavy task) injected into the prompt only when
 > relevant, the way Claude Code's own skills load on demand. This doc separates the
 > two mechanisms that both look like "load instructions when needed," names the
 > **three gating classes by who owns the gate**, and scopes what's v1. Cross-refs:
@@ -94,7 +94,7 @@ trust-and-budget problem:
 A publisher keyword gate ("wear" ∈ request) is a **lossy semantic proxy**, not
 determinism: it misses "what should I put on tomorrow" and false-fires on "wear and
 tear on the compressor." The resident-header + model-selects route is
-paraphrase-robust and is the same mechanism as the §6.2 budget arbiter — **one
+paraphrase-tolerant and is the same mechanism as the §6.2 budget arbiter — **one
 filter, two payoffs.**
 
 ---

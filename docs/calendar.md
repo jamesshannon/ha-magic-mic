@@ -1,8 +1,8 @@
-# Calendar — Read & Write
+# Calendar: Read & Write
 
 > Calendar as a capability: the existing **read** tool, and the **write** surface we
-> add (create/update/delete events). The *scheduling* side of calendars —
-> reminders/alarms landing in a native store, the calendar-**trigger**, delivery — is
+> add (create/update/delete events). The *scheduling* side of calendars
+> (reminders/alarms landing in a native store, the calendar-**trigger**, delivery) is
 > [`scheduling-model.md`](scheduling-model.md); this doc is the **event CRUD tool**
 > that the "add it to my calendar" branch of that model calls. Grounded in
 > `ha-core/`. Cross-refs: [`find-entities.md`](find-entities.md) (disambiguation

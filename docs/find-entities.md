@@ -4,10 +4,10 @@
 > name-resolution failure (§2.4). **Key reframe (see §"Where fuzzy belongs"):** the
 > device-control fix is a **fuzzy fallback inside the intent match layer**, *not* a
 > mandatory front-loaded `find_entities` tool. `find_entities`-the-tool survives for
-> a narrower job — **resolution decoupled from immediate execution** (ephemeral
+> a narrower job: **resolution decoupled from immediate execution** (ephemeral
 > automations, reminders, browsing). Both share one **scorer + ambiguity-guard**
 > primitive. Depended on by device control, music search
-> ([`music-playback.md`](music-playback.md) — disambiguation *inverts* there),
+> ([`music-playback.md`](music-playback.md), where disambiguation *inverts*),
 > ephemeral automations ([`ephemeral-automations.md`](ephemeral-automations.md)),
 > reminder targeting ([`scheduling-model.md`](scheduling-model.md)). First core PR (§7).
 

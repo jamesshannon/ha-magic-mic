@@ -151,7 +151,7 @@ weekend") usually carry through and are what place-qualified asks mean → **acc
 ask.
 
 **If the soft spot ever matters, the fix is a structured weather API — not `web_fetch`.**
-`web_fetch` of a JS weather page hits the *same* extraction problem. The robust
+`web_fetch` of a JS weather page hits the *same* extraction problem. The reliable
 weather-anywhere answer is a **client-side weather-API tool** (Open-Meteo / met.no +
 geocoding) returning exact, current, *structured* data by contract — the reason to
 prefer it over `web_search` is **not** "search is stale" but that **scraping prose off

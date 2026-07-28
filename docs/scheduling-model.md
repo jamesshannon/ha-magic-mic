@@ -1,4 +1,4 @@
-# Scheduling Model — Timers, Alarms, Reminders, Todos, Calendar
+# Scheduling Model: Timers, Alarms, Reminders, Todos, Calendar
 
 > Architecture spine for all time-based features. The concepts overlap heavily
 > and share a substrate; this doc defines the shared model so `timers.md`,

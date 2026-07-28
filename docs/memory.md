@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-> The Phase-2 differentiator (PRODUCT_PLAN §8) — and the most over-scoped word in
+> The Phase-2 differentiator (PRODUCT_PLAN §8), and the most over-scoped word in
 > the plan. This doc's job is to **shrink** "memory" to what real users actually
 > ask for and what survives the interaction profile, then route everything else to
 > a more structured home. Grounded in shipping community artifacts, not the
@@ -9,7 +9,7 @@
 > [`ephemeral-automations.md`](ephemeral-automations.md), [`learning.md`](learning.md).
 >
 > **Scope note:** the *offer machinery* worked out below (recognize friction → offer a
-> durable fix → confirm → persist) turned out **not to be memory-specific** — it's been
+> durable fix → confirm → persist) turned out **not to be memory-specific**; it's been
 > factored into [`learning.md`](learning.md) as a cross-feature primitive (the offer engine +
 > a `FrictionResolver` registry) shared by aliases, **command aliases**, annotations, and
 > threshold edits. This doc keeps the **notebook** (user-writes / user-recalls) and the

@@ -1,4 +1,4 @@
-# Conversation Loop — Continued Conversation, Turn Reopening & Multi-turn
+# Conversation Loop: Continued Conversation, Turn Reopening & Multi-turn
 
 > Feature/mechanics doc. How HA keeps the mic open for follow-ups ("continued
 > conversation"), the timeouts that close it, and our design for free-flowing
@@ -119,7 +119,7 @@ that's the point:
   fire this turn (a `tool_use` for an IntentTool) and end without a question?" is
   computable in the shell — a rock-solid *stop* with **zero** LLM judgment. This is
   the mic-open case of the general rule "infer what you can deterministically"
-  ([`prompt-context.md`](prompt-context.md) §Meta-signals). More robust than
+  ([`prompt-context.md`](prompt-context.md) §Meta-signals). More reliable than
   trusting the model to remember a flag, and it covers the *bulk* of traffic.
 - **Informational turn → a genuine model-only signal.** "The user seems done"
   ("thanks, that's all") has no deterministic source, so the LLM must emit it. This

@@ -1,7 +1,7 @@
 # Ambient Noise / White Noise (Feature Request)
 
 > Distinct FR. Play white/pink/brown noise (and eventually nature sounds) through
-> speakers, on endless repeat, by voice — locally, without depending on Music
+> speakers, on endless repeat, by voice, locally, without depending on Music
 > Assistant or cloud streams. See [`music-playback.md`](music-playback.md) (this
 > is deliberately *not* part of the music path) and
 > [`../PRODUCT_PLAN.md`](../PRODUCT_PLAN.md).
@@ -109,12 +109,12 @@ device can't reach HA" footgun.
   ESPHome/cast players don't implement `REPEAT`), and not voice-exposed. Not
   universal.
 - **Looping stream view (recommended)** — a small `HomeAssistantView` (or aiohttp
-  response) that reads the seamless-loop file and yields it on repeat forever. The
+  response) that reads the gapless-loop file and yields it on repeat forever. The
   player connects like internet radio and plays until stopped. **Player-agnostic,
   needs no `REPEAT` support, and doubles as the URL exposer** — one piece that
   serves *and* loops.
 
-So: **ship small seamless-loop noise files + serve via a looping stream view +
+So: **ship small gapless-loop noise files + serve via a looping stream view +
 `play_media` to any speaker.** No MA, endless, no 12 h file, fully local, works on
 any player.
 

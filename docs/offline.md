@@ -2,7 +2,7 @@
 
 > Cross-cutting concern. The plan locks **cloud Claude** (PRODUCT_PLAN §3) into a
 > project whose whole ethos is **local-first**. This doc owns the question no
-> per-feature doc does: what happens when the model is unreachable — and how much of
+> per-feature doc does: what happens when the model is unreachable, and how much of
 > the assistant keeps working anyway. Builds on `prefer_local_intents` (§2.9) and the
 > `assist_satellite` delivery primitive (§2.8). Cross-refs
 > [`scheduling-model.md`](scheduling-model.md), [`ephemeral-automations.md`](ephemeral-automations.md),
@@ -35,7 +35,7 @@
   **LLM-authors-once / deterministic-runtime** split means timers, alarms, reminders,
   and ephemeral automations **fire with zero LLM involvement.** But *delivery* still
   needs TTS to speak **content**: the content-free **earcon** ding is a media file (TTS-
-  independent → robust), while reading the reminder text needs TTS. So a reminder set
+  independent → resilient), while reading the reminder text needs TTS. So a reminder set
   yesterday still **dings** offline; whether it can be **read** depends on TTS (fixable by
   pre-rendering content at creation — below).
 - **The residual that genuinely needs the model at runtime** (conversational Q&A, web
@@ -122,7 +122,7 @@ keyed by text + engine + language + voice). Two moves:
   simply miss).
 - **Earcons need no TTS.** The content-free announce ding (`PREANNOUNCE_URL`, a bundled
   media file, §2.8) plays regardless — so the *alert* half of delivery is inherently
-  offline-robust; only *spoken content* needs TTS. Another point in favor of
+  offline-resilient; only *spoken content* needs TTS. Another point in favor of
   content-free-announce + pull.
 
 (Precedent for shipping/serving fixed audio: the bundled `acknowledge.mp3` and

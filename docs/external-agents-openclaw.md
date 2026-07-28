@@ -1,4 +1,4 @@
-# External Agent Platforms (OpenClaw) — Build vs. Delegate
+# External Agent Platforms (OpenClaw): Build vs. Delegate
 
 > Topic/decision doc. Captures the discussion on whether to delegate memory /
 > conversation / orchestration to an external agent platform (OpenClaw) instead

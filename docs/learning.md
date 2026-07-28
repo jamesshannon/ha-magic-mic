@@ -1,10 +1,10 @@
 # Learning (the friction-resolution primitive)
 
 > Split out of [`memory.md`](memory.md): the machinery that lets the assistant
-> **recognize friction and offer a durable, deterministic fix** is not memory-specific —
+> **recognize friction and offer a durable, deterministic fix** is not memory-specific;
 > it's a cross-feature primitive that several capabilities plug into. This doc defines that
 > primitive (the **offer engine** + a **`FrictionResolver` provider registry**) and the
-> family of fixes that ride it — entity aliases, **command aliases** (new), annotations,
+> family of fixes that ride it: entity aliases, **command aliases** (new), annotations,
 > threshold edits, todo-default resolution. Cross-refs: [`memory.md`](memory.md),
 > [`find-entities.md`](find-entities.md), [`undo.md`](undo.md),
 > [`conversation-loop.md`](conversation-loop.md), [`prompt-context.md`](prompt-context.md),

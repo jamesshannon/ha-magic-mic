@@ -4,7 +4,7 @@
 > back," "never mind, put it how it was," "forget that." Invoked piecemeal across
 > [`memory.md`](memory.md) ("say 'forget that' to undo"), [`music-playback.md`](music-playback.md)
 > ("no, the other one / next"), [`prompt-context.md`](prompt-context.md) (optimistic-
-> execute + fallback), [`find-entities.md`](find-entities.md) — designed nowhere. It's the
+> execute + fallback), and [`find-entities.md`](find-entities.md), yet designed nowhere. It's the
 > safety net that makes every *optimistic* execution path tolerable, so it deserves to be
 > factored once. Grounded in `ha-core/`. Cross-refs [`scheduling-model.md`](scheduling-model.md),
 > [`offline.md`](offline.md), [`security.md`](security.md).

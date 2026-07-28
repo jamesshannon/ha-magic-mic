@@ -1,6 +1,6 @@
 # Ephemeral (LLM-Authored) Automations
 
-> Distinct FR — timer-adjacent but separate. Transient, LLM-authored
+> Distinct FR, timer-adjacent but separate. Transient, LLM-authored
 > `{trigger, condition, action}` rules: "remind me in 5 minutes **if** the door is
 > still open," "tell me **when** the laundry's done," "turn off the heater in
 > 30 min **unless** someone's in the garage." Builds on

@@ -1,4 +1,4 @@
-# Security — Prompt Injection & Untrusted Content
+# Security: Prompt Injection & Untrusted Content
 
 > Cross-cutting security doc. The assistant is an LLM with **tools that actuate the
 > physical home** and read private data, fed content from sources the user doesn't
@@ -101,7 +101,7 @@ Don't expose security-critical entities (locks, garage, alarm panel, anything
 irreversible) to the assistant unless the user opts in — and even then, gate them (L2).
 If the lock isn't a tool, **no injection can unlock it.** Recommend conservative default
 exposure for high-consequence domains. This is policy/config, not code, and it's the
-highest-leverage move.
+highest-impact move.
 
 ### L2 — High-consequence actions behind an injection-independent gate
 The docs already say **behavioral writes confirm first** (memory / find-entities /

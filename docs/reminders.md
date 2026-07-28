@@ -1,7 +1,7 @@
 # Reminders & Alarms by Voice
 
 > Feature doc over the spine. Reminders and alarms are the **primary consumers of the
-> durable delivery engine** defined in [`scheduling-model.md`](scheduling-model.md) —
+> durable delivery engine** defined in [`scheduling-model.md`](scheduling-model.md);
 > this doc is thin: it records the two **presets**, the **create/write tool shape**, and
 > the **recurrence** surface. All the architecture (durable store, trigger + watermark +
 > catch-up, targeting resolver, content-free announce + pull-to-read acks, escalation →
