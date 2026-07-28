@@ -207,6 +207,21 @@ gets its own file there. Current docs:
   declares its **inverse** ([`undo.md`](docs/undo.md)); SKILL text biases hard to **silence**
   and is a **localization** gate (§5.7) for core.
 
+- [`docs/skills.md`](docs/skills.md) — **gated instructional payloads.** Separates the
+  **two mechanisms** that both "load instructions when relevant": **machinery-gated
+  injection** (*we* see deterministic state → inject the block whole, zero extra gen —
+  this is `learning.md`'s Resolve-Friction text) vs. a **SKILL registry** (~25-tok
+  headers resident in the cached prefix, model pulls a body via **`read_file`** — named
+  for the trained affordance but sandboxed to skills — one gen). Which one is set by whether a deterministic gate exists. **Gating classes by
+  gate-owner:** (1) machinery-gated (us) (2) LLM-signaled (the model, via resident
+  header — **ephemeral-automation authoring** is the v1 case, no deterministic gate)
+  (3) provider-declared (a third party ships the gate → **over-inclusion incentive**,
+  needs the §6.2 header-budget arbiter → **v2**). Publisher keyword gates are a **lossy
+  semantic proxy**; resident-header + model-selects is paraphrase-robust and *is* the
+  §6.2 filter (one filter, two payoffs). Pull tool is **named `read_file`** (trained
+  affordance) but **sandboxed to skills** (authority = the resolver, not the name; §security). **v1 = the registry with one consumer (automation authoring)**;
+  compile-once/run-deterministic means the pull-generation amortizes to zero at fire.
+
 - [`docs/calendar.md`](docs/calendar.md) — calendar as a capability: the existing
   read tool (`calendar_get_events`) + the **write** surface we add. Verified `ha-core/`
   CRUD asymmetry: **CREATE** is a proper service (`calendar.create_event`) broadly
@@ -653,6 +668,7 @@ Primitives identified so far, with their dependents:
 | **Prompt-context — I/O contract + taxonomy skeleton + retrieval** | entity context (TTFT, §5.2), memory injection, mic-open/meta-signals (conversation-loop), generation-count-aware output shaping. *Two halves:* output/I/O contract ([`docs/prompt-context.md`](docs/prompt-context.md), done) + input taxonomy/retrieval (§5.2, pending). |
 | **Undo journal** (each mutating tool declares its inverse; deterministic replay) | device control (snapshot/restore), memory/alias writes, reminder/calendar/todo creates, calendar delete, ephemeral automations — and it underwrites every *optimistic* execution path + [`security.md`](docs/security.md)'s reversibility ([`docs/undo.md`](docs/undo.md)) |
 | **Offer / learning engine** (detect friction → offer a durable fix → confirm → persist; `FrictionResolver` registry gated via `async_get_tools` §2.5) | entity aliases, **command aliases**, annotations, threshold edits, todo-default resolution — storage is per-sink (registry / YAML / FTS), only the *offer flow* is shared ([`docs/learning.md`](docs/learning.md)) |
+| **Dynamic prompt-assembly seam** (§2.5 `async_get_tools` + §5.2 injection) — carries **three gated payload types: tools, context data, and instructions**; the instruction payload is a **SKILL**, injected two ways (machinery-gated whole vs. `load_skill`-pulled from a resident-header registry) | tool gating (§2.5), tier-2 context injection (§5.2), the offer engine (above), and the **SKILL registry** — v1 consumer = ephemeral-automation authoring; v2 = provider-published skills ([`docs/skills.md`](docs/skills.md)) |
 
 **Build-order implication:** the **delivery engine**, **`find_entities`**, the
 **scheduling/trigger substrate**, and the **identity + user-keyed store** each
@@ -801,6 +817,12 @@ cheaper to explore now than to retrofit onto a frozen core seam. (Note: tool/pro
 selection is a *different* filtering problem from entity resolution — tool descriptions are
 free-text/semantic, so **embeddings may earn their keep here where §5.3 rejected them for
 bounded/structured entities**; don't over-read §5.3 as forbidding embeddings everywhere.)
+The same seam governs **provider-published SKILLs** (instruction payloads, not just tools —
+[`docs/skills.md`](docs/skills.md) v2): a resident ~25-tok header per third-party skill has
+the *same* incentive-to-over-include and cost-scales-with-installed-add-ons shape, so the
+relevance filter over descriptions is **one arbiter for both** payload types. SKILL headers
+are why this must be settled here before the contract freezes — v2 provider skills are
+publishing **+** this filter, never publishing alone.
 
 ---
 

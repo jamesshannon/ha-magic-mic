@@ -76,6 +76,9 @@ authoritative index; this is a reading-order map.
 - [`undo.md`](docs/undo.md) — deterministic reversal by journaling each tool's own inverse.
 - [`conversation-loop.md`](docs/conversation-loop.md) — continued conversation / mic-open,
   barge-in, the multi-turn session.
+- [`skills.md`](docs/skills.md) — gated instructional payloads: machinery-gated injection
+  vs. a resident-header SKILL registry the model pulls from; the seam that carries
+  instructions alongside tools and context.
 
 **Capabilities & features:**
 

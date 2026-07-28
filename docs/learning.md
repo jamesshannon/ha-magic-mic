@@ -85,7 +85,7 @@ A resolver is the unit third parties / future features register. It declares fiv
 | Field | What it is |
 |---|---|
 | **signal** | the friction it answers to (match-miss, repair-turn, model-contradiction, install-collision) — this is also its routing key |
-| **tool + SKILL text** | the fix tool the LLM calls, plus the "when to use me / default to silence" prose injected on eligibility |
+| **tool + SKILL text** | the fix tool the LLM calls, plus the "when to use me / default to silence" prose injected on eligibility. **This is the *machinery-gated* SKILL** ([`skills.md`](skills.md)) — HA sees the friction and injects the block **whole**, zero extra generation; it is *not* the resident-header `load_skill` registry. The etiquette half (silence-bias, ≤1/turn, confirm-policy, undo-mention) is **one shared block** across resolvers; a resolver adds only a tiny tool-specific note. (Resolves the shared-vs-per-resolver open question below.) |
 | **sink + store** | where the fix is written — and it owns that store (registry / YAML / FTS column) |
 | **confirm-policy** | *behavioral* fix (changes future resolution → confirm-first) vs *inert* fix (changes nothing → optimistic-and-mention) |
 | **inverse** | its undo, per [`undo.md`](undo.md)'s "declare your inverse" — `add_command_alias` is reversible like every other write; learning is not the one un-undoable thing |
@@ -211,6 +211,7 @@ hatch, not a black box.
     threshold (reuse the `find_entities` scorer over registered phrasings).
   - Rewrite-table match: exact vs. fuzzy on the incoming utterance (fuzzy risks
     over-capture; likely exact/near-exact only, scorer as guard).
-  - SKILL-text calibration for silence-bias, shared across resolvers vs per-resolver.
+  - SKILL-text calibration for silence-bias (**resolved: shared block, not per-resolver** —
+    see the contract table / [`skills.md`](skills.md); remaining work is wording, not shape).
   - Whether the offer engine and its registry live beside `capabilities/` or as their own
     module (they gate *other* capabilities' fixes).

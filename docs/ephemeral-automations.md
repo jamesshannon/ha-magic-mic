@@ -30,6 +30,14 @@
 - **This split is also the offline story.** Compile-at-creation → the rule **fires with
   no model at runtime**, so it works with the cloud unreachable; it's the archetype of
   [`offline.md`](offline.md)'s Layer 2 (LLM-at-fire is, by contrast, offline-fragile).
+- **Authoring is the v1 [`SKILL`](skills.md) consumer.** The `{trigger, condition, action}`
+  grammar + entity-id discipline + examples the LLM needs to *author* a rule are too big for
+  the base prompt and needed only rarely — and there's **no deterministic gate** ("start the
+  dryer when the laundry's done" is an automation vs. reminder vs. one-shot is semantic). So
+  it's the LLM-signaled class: a resident ~25-tok header, model pulls the body via
+  `read_file` (skill-sandboxed). The pull costs one generation, but authoring is already multi-gen/deliberate,
+  and **compile-once/run-deterministic amortizes it to zero at fire** — you pay to *build*
+  the rule, never to run it. This is the single case that earns the SKILL registry in v1.
 
 ---
 
