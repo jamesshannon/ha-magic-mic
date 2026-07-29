@@ -1050,18 +1050,22 @@ class ClaudeBaseLLMEntity(CoordinatorEntity[ClaudeCoordinator]):
             if options[CONF_WEB_SEARCH_USER_LOCATION]:
                 # Country and timezone come free from hass.config; city and region are
                 # not in hass.config (only lat/lon, which Anthropic's approximate-location
-                # schema has no field for), so they stay manual and blank unless set.
-                web_search["user_location"] = {
-                    "type": "approximate",
-                    "city": options.get(CONF_WEB_SEARCH_CITY, ""),
-                    "region": options.get(CONF_WEB_SEARCH_REGION, ""),
-                    "country": options.get(CONF_WEB_SEARCH_COUNTRY)
-                    or self.hass.config.country
-                    or "",
-                    "timezone": options.get(CONF_WEB_SEARCH_TIMEZONE)
-                    or self.hass.config.time_zone
-                    or "",
-                }
+                # schema has no field for), so they stay manual. Anthropic rejects empty
+                # strings, so include only fields that have a value.
+                location: dict[str, str] = {"type": "approximate"}
+                if city := options.get(CONF_WEB_SEARCH_CITY):
+                    location["city"] = city
+                if region := options.get(CONF_WEB_SEARCH_REGION):
+                    location["region"] = region
+                if country := (
+                    options.get(CONF_WEB_SEARCH_COUNTRY) or self.hass.config.country
+                ):
+                    location["country"] = country
+                if timezone := (
+                    options.get(CONF_WEB_SEARCH_TIMEZONE) or self.hass.config.time_zone
+                ):
+                    location["timezone"] = timezone
+                web_search["user_location"] = location
             tools.append(web_search)
 
         if options[CONF_WEB_FETCH]:
