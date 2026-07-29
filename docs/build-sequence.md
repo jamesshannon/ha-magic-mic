@@ -7,6 +7,9 @@
 > [`prompt-context.md`](prompt-context.md), [`find-entities.md`](find-entities.md),
 > [`learning.md`](learning.md), [`scheduling-model.md`](scheduling-model.md).
 
+> **Progress (2026-07-29):** **Wave 0 is complete** and merged to `main` (see the Wave 0
+> section for the exit number). **Wave 1 — Prove the thesis** is next.
+
 ---
 
 ## The three prioritization axes
@@ -96,8 +99,16 @@ Each wave carries something from all three axes, so there's always a measured re
 something demonstrable. Tags: **[C]** component · **[core]** needs a core change/PR ·
 **[HA]** HA-owned toggle we depend on.
 
-### Wave 0 — Skeleton + instrument + baseline
+### Wave 0 — Skeleton + instrument + baseline ✅ complete (2026-07-29)
 *Axis 1; the instrument for axis 2.*
+
+**Status: complete.** Every bullet below landed. The locked baseline is
+`evals/results/wave0_baseline.json` (`claude-haiku-4-5`, `prefer_local` OFF, pre-magic
+roster): **21 correct / 4 wrong / 0 unresolved**, 44 generations. Delivered beyond the plan:
+the eval's fixture home is backed by executable entities plus a mocked satellite (so timers
+and the full tool roster run headless), the scorer takes `any_of` acceptable outcomes to
+absorb LLM non-determinism, and `web_search`/`web_fetch` ship on with `user_location` off
+(privacy-first, config-supplied).
 
 - **[C]** Stand up the **Testbed Proxy** ([`testbed-proxy.md`](testbed-proxy.md)):
   `magic_mic.internal.claude` (near-upstream copy of the `anthropic` component, registered as

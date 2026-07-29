@@ -17,10 +17,16 @@ does and how it differs.
 
 ## Status
 
-**Early scaffold: installable, but it does nothing yet.** The design phase is done (a full
-architecture plus deep-dive docs); the code is just starting. What's in the repo today is a
-**placeholder integration that installs via HACS and loads cleanly but adds no
-capabilities.** Install it now to follow along and get features automatically as they land.
+**Walking skeleton: a working LLM voice agent; the differentiated capabilities land next.**
+Wave 0 is complete. With a Claude API key, Magic Mic installs and runs as an LLM-backed Home
+Assistant conversation agent: it controls devices through Assist and can search the web, at
+parity with the stock Anthropic integration, wrapped in a neutral "testbed" proxy that adds
+the tracing and tool-interception seams the later work builds on. It also ships an offline
+evaluation harness with a locked baseline, so every later change is a measured delta.
+
+What it does **not** have yet is the differentiated part: the reminders, long-term memory,
+learned phrasing, and one-sentence automations from [`VISION.md`](VISION.md). Those are
+Wave 1 and beyond. Install it now to follow along and get features automatically as they land.
 
 To evaluate the *ideas*, read the docs below. To **install it today** and get updates as
 they're committed, see **[Install](#install-hacs)**.
@@ -33,15 +39,16 @@ The shell is disposable on purpose; the capabilities are the point.
 
 ## Install (HACS)
 
-> **Heads-up:** this currently installs a *placeholder that does nothing.* It's here so you
-> can add it once and get capabilities automatically as they ship, and so early testers can
-> follow along.
+> **Heads-up:** this installs a **baseline LLM assistant** (device control + web search) that
+> needs a Claude API key; the differentiated capabilities are still landing. Add it once to
+> get them automatically as they ship, and to follow along.
 
 1. In Home Assistant, open **HACS**.
 2. Top-right **⋮ → Custom repositories**.
 3. Repository `https://github.com/jamesshannon/ha-magic-mic`, type **Integration** → **Add**.
 4. Find **Magic Mic** in HACS, **Download**, then **restart** Home Assistant.
-5. **Settings → Devices & Services → Add Integration → Magic Mic** (nothing to configure yet).
+5. **Settings → Devices & Services → Add Integration → Magic Mic**, then enter your Claude
+   API key. Select the **Magic Mic** conversation agent in your Assist pipeline to use it.
 
 Requires [HACS](https://hacs.xyz). Until a tagged release exists, HACS tracks the `main`
 branch, so an update appears whenever new commits land.
