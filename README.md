@@ -144,7 +144,3 @@ most useful contributions right now:
   cases, or interest in **beta testing / contributing**.
 
 Setup, the dev/test harness, and PR guidance will land here as the first capabilities do.
-
-> **Working name.** *Magic Mic* is a nod to the internal code name for the "keep the mic
-> open" feature this assistant leans on. The component's technical domain will be something
-> neutral; the name isn't load-bearing.
