@@ -1,4 +1,4 @@
-# Magic Mic
+# <img src="custom_components/magic_mic/brand/icon.png" alt="Magic Mic Home Logo" width="45"> Magic Mic
 
 **An LLM-backed voice assistant for Home Assistant that does more than switch devices on
 and off.**
