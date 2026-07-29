@@ -66,7 +66,11 @@ working around it.
   implementation: `.venv/lib/python3.14/site-packages/homeassistant/`. Read the real HA
   source before inventing an API, especially `homeassistant/helpers/llm.py`,
   `components/conversation/`, and `components/anthropic/` (the shell this project mirrors).
-- Tooling is in `.venv/bin/`: `ruff`, `pytest`, `hass`.
+- The Home Assistant **developer docs** are cloned at `references/developers.home-assistant/`
+  (gitignored). Consult them for conventions before guessing: test file structure, debugging,
+  the integration quality scale. `references/developers.home-assistant/sidebars.js` indexes them.
+- Tooling is in `.venv/bin/`: `ruff`, `pytest`, `hass`. Install test-only packages with
+  `.venv/bin/pip install -r requirements_test.txt`.
 
 Common commands, run from the repo root:
 
@@ -74,13 +78,15 @@ Common commands, run from the repo root:
 .venv/bin/ruff format .        # format
 .venv/bin/ruff check .         # lint
 .venv/bin/ruff check --fix .   # lint + autofix
-.venv/bin/pytest               # tests (none yet; they land with the first capabilities)
+.venv/bin/pytest               # run the test suite
 ```
 
-The integration has no runtime behavior to exercise yet, so there's nothing to run in a
-live HA instance today. As capabilities land, the dev/test harness and how to load the
-component into a dev HA instance get documented here and in
-[`docs/build-sequence.md`](docs/build-sequence.md).
+Tests follow HA's layout: `tests/components/<domain>/` with `__init__.py`, `conftest.py`,
+and `test_*.py` (mirrors core, so they move upstream unchanged). They run under
+`pytest-homeassistant-custom-component`; the repo-root `conftest.py` grafts this repo's
+`custom_components/` onto the loader path (the plugin otherwise shadows it), so run pytest
+from the repo root. How to load the component into a live HA instance gets documented here as
+that workflow settles.
 
 ## Code style
 
