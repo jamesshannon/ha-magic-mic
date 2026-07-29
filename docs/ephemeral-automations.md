@@ -74,6 +74,11 @@ Plain reminders/alarms live in `scheduling-model.md`; this doc owns the
   via `find_entities`. Same NL→spec normalization as a reminder, plus a condition.
 - **At fire**, evaluate **deterministically** with HA's own helpers (below). No
   LLM inference at fire time.
+- **The resolving `user_id` is captured at creation too** (§5.1), alongside the entities. A
+  personal-scoped action ("read **my** calendar in an hour") binds to *who asked*, snapshotted on
+  the spec, and scopes by that stored value at fire. Identity is **never** re-resolved at fire
+  (there's no speaker then). Only actions that read user-scoped data need it; a plain payload
+  string doesn't.
 
 ### On the cost/determinism argument (an honest concession)
 Running the LLM *at fire* to do the if/then is tempting and **not as bad as it

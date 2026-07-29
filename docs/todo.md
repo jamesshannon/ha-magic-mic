@@ -87,7 +87,7 @@ in-store check-off, household-shared).
   `local_todo` config entries (config-flow, awkward to auto-create); but *prefer an
   existing user list* on a fuzzy hit.
 - **Keying:** shopping ≈ household, tasks ≈ per-user; collapses to the default user
-  pre-Voice-ID, but design the `resolve_user()` seam anyway (§5.1).
+  pre-Voice-ID, but design the `get_resolved_user()` seam anyway (§5.1).
 - `SET_DUE_DATE` is the one edit that interacts with reminders — but per above, a
   due-date the user expects to *fire* should route to a reminder-on-a-list, not a bare
   todo due-date (which is inert).

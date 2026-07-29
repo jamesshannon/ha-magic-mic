@@ -10,7 +10,7 @@ from homeassistant.components import conversation
 from homeassistant.const import CONF_LLM_HASS_API, CONF_PROMPT
 
 from ..const import DOMAIN, LOGGER
-from ..identity import resolve_user
+from ..identity import get_resolved_user
 from ..internal.claude.agent import ClaudeConversationEntity
 from .api import TestbedAPI
 
@@ -23,11 +23,11 @@ class TestbedConversationEntity(ClaudeConversationEntity):
         user_input: conversation.ConversationInput,
         chat_log: conversation.ChatLog,
     ) -> conversation.ConversationResult:
-        """Resolve the user, set up the LLM data, wrap the seam, run the loop."""
-        # Resolve the per-user scope key once per turn (§5.1). Threaded empty in
+        """Get the resolved user, set up the LLM data, wrap the seam, run the loop."""
+        # Get the resolved per-user scope key for this turn (§5.1). Threaded empty in
         # Wave 0: nothing consumes it yet. The user-keyed store lives in
         # hass.data[DOMAIN][entry_id]; capabilities will read both.
-        user_id = await resolve_user(
+        user_id = await get_resolved_user(
             self.hass,
             user_input.context,
             user_input.device_id,

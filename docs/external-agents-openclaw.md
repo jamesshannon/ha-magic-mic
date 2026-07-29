@@ -45,7 +45,7 @@ external orchestrator owns the loop. Consequences:
   device control bypasses the Assist API, losing exposed-entity gating, intent
   resolution, and `LLMContext` (device_id/area) — so "turn on the lights" no
   longer resolves to the room you're speaking in.
-- **Identity/area context doesn't cross the boundary.** `resolve_user()`,
+- **Identity/area context doesn't cross the boundary.** `get_resolved_user()`,
   `preferred_area_id`, per-device context are HA-native; you'd rebuild or lose
   them.
 - **Memory becomes un-composable and un-portable.** It's OpenClaw's model — can't

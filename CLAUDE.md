@@ -34,7 +34,7 @@ These are non-negotiable and shape almost every change. Full rationale in
    api_id) -> LLMTools`) so migration to core is close to copy/paste. The conversation shell
    is deliberately throwaway; the capabilities are the point.
 3. **Multi-user from day one.** All capability data is namespaced by a resolved `user_id`
-   from the first commit, behind a single `resolve_user(...)` seam (§5.1). Never key data on
+   from the first commit, behind a single `get_resolved_user(...)` seam (§5.1). Never key data on
    device or satellite directly; voice-ID drops into that one function later with no
    migration.
 4. **Never degrade the no-AI path.** Where a capability can also land as a local HA intent,

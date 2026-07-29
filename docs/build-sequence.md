@@ -38,7 +38,7 @@ a quality loss — [`evaluation.md`](evaluation.md) Part D). The eval **scorecar
 dashboard; build one instrument, not two.
 
 **Seam early, engine just-in-time.** Thread a primitive's *seam* on day one (cheap, avoids a
-retrofit — `resolve_user()`, the user-keyed `Store`), but build the *engine* only when its
+retrofit — `get_resolved_user()`, the user-keyed `Store`), but build the *engine* only when its
 first consumer lands (the delivery engine waits for reminders). `find_entities` is the
 exception that comes early — it already has a Wave-1 consumer *and* four downstream ones.
 
@@ -106,7 +106,7 @@ something demonstrable. Tags: **[C]** component · **[core]** needs a core chang
   **pass-through**: identical behavior to the baseline, but with the trace hook and
   tool-interception seam in place. Inherits device control, streaming, and (Claude-specific,
   optional) **server-side web_search** ([`web-search.md`](web-search.md)).
-- **[C]** Thread `resolve_user()` + user-keyed `Store` **empty** through the request (§5.1);
+- **[C]** Thread `get_resolved_user()` + user-keyed `Store` **empty** through the request (§5.1);
   establish the `capabilities/` `llm.py`-shaped contract (§5.5).
 - **[C]** Tier-A pytest scaffold + the **Tier-B golden-set runner** (seed cases from
   `VISION.md`'s transcripts) + the **value dashboard** (capture `usage` tokens/cache; count
