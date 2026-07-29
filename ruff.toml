@@ -15,6 +15,11 @@ required-version = ">=0.15.17"
 target-version = "py313"
 line-length = 88
 
+# Exclude prose docs from ruff: they hold illustrative Python code-fences that ruff 0.15+
+# reformats (splitting lines to fit 88 chars, which hurts a teaching snippet). We format
+# the code that ships, not the code in the docs.
+extend-exclude = ["docs"]
+
 [lint]
 select = [
   "A001",   # Variable {name} is shadowing a Python builtin
