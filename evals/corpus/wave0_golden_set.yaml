@@ -84,6 +84,10 @@ cases:
     expected:
       tools:
         - name: HassGetCurrentTime
+    expected_llm:
+      # Assist drops HassGetCurrentTime; the model uses the general GetDateTime tool.
+      tools:
+        - name: GetDateTime
     template: "what time is it [[right] now]"
     note: No-slot intent, unambiguous HASSIL match. Answer depends on fixture clock.
 
@@ -95,6 +99,9 @@ cases:
     expected:
       tools:
         - name: HassGetCurrentDate
+    expected_llm:
+      tools:
+        - name: GetDateTime
     template: "<what_is> the date [today]"
     note: No-slot date intent.
 
@@ -194,6 +201,12 @@ cases:
           args: {area: living_room}
       answer:
         contains: ["19"]
+    expected_llm:
+      # Assist drops HassClimateGetTemperature; GetLiveContext reads the live state.
+      tools:
+        - name: GetLiveContext
+      answer:
+        contains: ["19"]
     template: "(<what_is>|<how_is>) [the] [current] <temp> <in> [<the>] {area}"
 
   - id: weather
@@ -205,6 +218,10 @@ cases:
     expected:
       tools:
         - name: HassGetWeather
+    expected_llm:
+      # Assist drops HassGetWeather; the prompt routes weather to GetLiveContext.
+      tools:
+        - name: GetLiveContext
     template: "<what_is> [the] weather [like]"
 
   - id: set-volume
@@ -261,6 +278,10 @@ cases:
     expected:
       tools:
         - name: HassNevermind
+    expected_llm:
+      # Assist drops HassNevermind; the model just acknowledges in text, no tool. An
+      # empty tool list makes correctness unjudgeable (a brief reply is fine either way).
+      tools: []
     template: "never mind"
     note: Cancels the interaction; no side effect.
 
@@ -274,6 +295,12 @@ cases:
       tools:
         - name: HassGetState
           args: {name: Garage Door}
+      answer:
+        contains: ["open"]
+    expected_llm:
+      # Assist drops HassGetState in favor of GetLiveContext (its docstring says so).
+      tools:
+        - name: GetLiveContext
       answer:
         contains: ["open"]
     template: "<which> {cover_classes:device_class} <is> {cover_states:state}"

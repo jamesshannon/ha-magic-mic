@@ -98,6 +98,30 @@ def test_missing_top_level_keys_rejected(tmp_path) -> None:
         load_corpus(bad)
 
 
+def test_expected_for_scope_falls_back_and_overrides() -> None:
+    """``expected_for`` returns the LLM override when present, else the default."""
+    corpus = load_corpus(WAVE0_GOLDEN_SET)
+    by_id = {case.id: case for case in corpus.cases}
+
+    # A device-control case has no override: both scopes see the same expectation.
+    kitchen = by_id["turn-on-kitchen-light"]
+    assert kitchen.expected_llm is None
+    assert kitchen.expected_for(llm=True) is kitchen.expected_for(llm=False)
+
+    # An Assist-dropped intent diverges: local intent tool vs the general LLM tool.
+    time_case = by_id["current-time"]
+    assert [t.name for t in time_case.expected_for(llm=False).tools] == [
+        "HassGetCurrentTime"
+    ]
+    assert [t.name for t in time_case.expected_for(llm=True).tools] == ["GetDateTime"]
+
+    # nevermind's LLM override is an empty, non-None expectation (unjudgeable, not
+    # a fallback to the HassNevermind intent the model cannot call).
+    nevermind = by_id["nevermind"]
+    assert nevermind.expected_llm is not None
+    assert nevermind.expected_for(llm=True).tools == ()
+
+
 def test_local_labels_have_expectations() -> None:
     """Every ``local`` case carries a checkable expectation (tools or answer)."""
     corpus = load_corpus(WAVE0_GOLDEN_SET)

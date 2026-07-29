@@ -73,7 +73,15 @@ class Expected:
 
 @dataclass(frozen=True)
 class Case:
-    """One single-turn golden-set case."""
+    """One single-turn golden-set case.
+
+    ``expected`` is the default, correct outcome, and the one the local (HASSIL) path is
+    scored against. ``expected_llm`` overrides it for the LLM scope where the tool set
+    genuinely differs: core's Assist API drops some intents (``GetCurrentTime``,
+    ``GetState``, ``GetWeather``, …) in favor of the general ``GetDateTime`` /
+    ``GetLiveContext`` tools, so on the LLM path the model reaches the same answer
+    through a different call. Use ``expected_for(llm=...)`` to pick the right one.
+    """
 
     id: str
     utterance: str
@@ -82,8 +90,15 @@ class Case:
     resolves_at_wave0: bool
     requires: tuple[str, ...] = ()
     expected: Expected | None = None
+    expected_llm: Expected | None = None
     template: str | None = None
     note: str | None = None
+
+    def expected_for(self, *, llm: bool) -> Expected | None:
+        """Return the expectation to score against for the given scope."""
+        if llm and self.expected_llm is not None:
+            return self.expected_llm
+        return self.expected
 
 
 @dataclass(frozen=True)
@@ -140,6 +155,7 @@ def _parse_case(raw: dict[str, Any]) -> Case:
         resolves_at_wave0=bool(raw["resolves_at_wave0"]),
         requires=tuple(raw.get("requires") or ()),
         expected=_parse_expected(raw.get("expected")),
+        expected_llm=_parse_expected(raw.get("expected_llm")),
         template=raw.get("template"),
         note=raw.get("note"),
     )

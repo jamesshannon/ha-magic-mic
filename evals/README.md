@@ -39,6 +39,7 @@ Each case is a single-turn `(utterance [, context] -> expected action(s) / answe
 | `requires` | Fixture entities/features the case depends on (documents the context assumption; the runner must expose these). |
 | `expected.tools` | Ordered list of `{name, args}` the correct outcome invokes. `args` are partial hints, not an exact-match contract. Omit for answer-only cases. |
 | `expected.answer` | Optional predicate over the spoken response: `{contains: [...]}` or `{regex: ...}`. |
+| `expected_llm` | Optional per-scope override of `expected` for the **LLM path**, used where core's Assist API drops the intent (`GetCurrentTime`, `GetState`, `GetWeather`, …) in favor of a general tool (`GetDateTime`, `GetLiveContext`). Same shape as `expected`. When absent, both scopes score against `expected`. `expected_for(llm=...)` picks the right one. An empty `tools: []` is a deliberate "no tool, unjudgeable" (e.g. nevermind), distinct from omitting the field. |
 | `template` | For `local` cases, the HASSIL source template the utterance exercises (provenance). |
 | `note` | Why the case earns its place. |
 
@@ -51,6 +52,19 @@ that exist today (compound commands, implicit intent, general knowledge). Per th
 are deliberately hard to find, which is itself the point: it shows how little the LLM path is
 expected to add *over* HASSIL at Wave 0, before any capability lands. "Predicted" is load-
 bearing here, see the hypotheses note below.
+
+## Two scopes, one corpus
+
+Every case runs at two scopes (`evaluation.md`'s Scope knob): the **local** path (core's
+HASSIL agent) and the **LLM** path (the agent under test). The `local` cases run through the
+LLM too, not as redundant coverage but to measure where the LLM path costs more than local.
+Concretely: core's Assist API drops six of the intents these cases use (`GetCurrentTime`,
+`GetCurrentDate`, `GetState`, `GetWeather`, `GetTemperature`, `Nevermind`) in favor of the
+general `GetDateTime` / `GetLiveContext` tools. So the model reaches the same answer, but
+often through an extra tool round-trip that HASSIL answers in zero, which is exactly the
+generations/tokens/latency delta the scorecard tracks and the case *for* `prefer_local` ON.
+`expected_llm` encodes those diverging expectations; everything else scores against
+`expected` in both scopes.
 
 ## Scope notes worth remembering
 
