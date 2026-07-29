@@ -42,7 +42,8 @@ Each case is a single-turn `(utterance [, context] -> expected action(s) / answe
 | `requires` | Fixture entities/features the case depends on (documents the context assumption; the runner must expose these). |
 | `expected.tools` | Ordered list of `{name, args}` the correct outcome invokes. `args` are partial hints, not an exact-match contract. Omit for answer-only cases. |
 | `expected.answer` | Optional predicate over the spoken response: `{contains: [...]}` or `{regex: ...}`. |
-| `expected_llm` | Optional per-scope override of `expected` for the **LLM path**, used where core's Assist API drops the intent (`GetCurrentTime`, `GetState`, `GetWeather`, …) in favor of a general tool (`GetDateTime`, `GetLiveContext`). Same shape as `expected`. When absent, both scopes score against `expected`. `expected_for(llm=...)` picks the right one. An empty `tools: []` is a deliberate "no tool, unjudgeable" (e.g. nevermind), distinct from omitting the field. |
+| `any_of` | Either `expected` or `expected_llm` may be `{any_of: [<outcome>, ...]}` instead of a single `{tools, answer}` block. The case is correct when the turn matches **any** listed outcome. This is for genuine ties the model picks between run to run (close a cover by `HassTurnOff` or by `HassSetPosition: 0`), so non-determinism does not flip-flop pass/fail. Only for equally-valid outcomes, never accepted failures. |
+| `expected_llm` | Optional per-scope override of `expected` for the **LLM path**, used where core's Assist API drops the intent (`GetCurrentTime`, `GetState`, `GetWeather`, …) in favor of a general tool (`GetDateTime`, `GetLiveContext`), or where the LLM grounds a target by name where the local template uses an area slot. Same shape as `expected` (single outcome or `any_of`). When absent, both scopes score against `expected`. `expected_for(llm=...)` picks the right one. An empty `tools: []` is a deliberate "no tool, unjudgeable" (e.g. nevermind), distinct from omitting the field. |
 | `template` | For `local` cases, the HASSIL source template the utterance exercises (provenance). |
 | `note` | Why the case earns its place. |
 
@@ -176,3 +177,14 @@ Run the full baseline, or a subset:
 .venv/bin/python -m evals.harness.baseline --routing llm       # just the llm-labelled cases
 .venv/bin/python -m evals.harness.baseline --list              # show the selection, no key
 ```
+
+### Model non-determinism
+
+The baseline runs the agent as shipped: extended thinking on (`thinking_effort: low`),
+temperature at the API default. Lowering temperature to cut run-to-run variance is not
+available here, because Anthropic requires `temperature = 1` whenever thinking is enabled,
+and disabling thinking would measure a mode production does not use. So variance is handled
+in the corpus instead: `any_of` records the equally-valid resolutions a case flips between,
+so a genuine tie does not swing the scorecard. Where a case still flaps for a reason `any_of`
+does not cover, that is signal the model is borderline, not a bug to paper over; this tier is
+probabilistic and non-gating (`docs/evaluation.md`), so some jitter in the deltas is expected.
