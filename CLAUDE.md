@@ -71,6 +71,9 @@ working around it.
 - The Home Assistant **developer docs** are cloned at `references/developers.home-assistant/`
   (gitignored). Consult them for conventions before guessing: test file structure, debugging,
   the integration quality scale. `references/developers.home-assistant/sidebars.js` indexes them.
+- **`references/example-custom-config/`** (gitignored) is HA's example custom-integration repo:
+  minimal, well-formed integrations (`hello_world`, `detailed_hello_world_push`, platform
+  examples) to copy structure from. No tests included.
 - Tooling is in `.venv/bin/`: `ruff`, `pytest`, `hass`. Install test-only packages with
   `.venv/bin/pip install -r requirements_test.txt`.
 

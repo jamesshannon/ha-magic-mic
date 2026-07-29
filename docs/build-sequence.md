@@ -127,6 +127,12 @@ something demonstrable. Tags: **[C]** component · **[core]** needs a core chang
   match-layer version opens the first **[core]** track ([`find-entities.md`](find-entities.md)).
   → measure **Δturns** (disambiguation success).
 - **[HA]** Flip **`prefer_local_intents` ON** (§2.9) → measure **Δhassil-intervention rate**.
+- **Testing gate (tool interception):** the Wave 0 equivalence test covers the *pass-through*
+  proxy only. **Before any tool filtering / replacement / interception is committed** (the
+  wrapped `TestbedAPI.async_call_tool` routing, e.g. `find_entities` → the fuzzy resolver), add
+  a conversation-turn test driving a `tool_use` response that asserts the interception: the
+  baseline executes the stock tool; the testbed routes/rewrites it. See
+  [`testbed-proxy.md`](testbed-proxy.md).
 
 *Proves:* the token/turn/local claims — the **go/no-go** on the design's central bet.
 
