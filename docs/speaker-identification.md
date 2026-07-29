@@ -145,12 +145,14 @@ two attack surfaces onto one bound.
 - **It's an *input* to `resolve_user()`** (§5.1), not a new subsystem. The
   community-proven pattern is exactly this: wrap the STT/conversation entity,
   compute a speaker embedding, match against enrolled profiles, and enrich the
-  `user_id` in the conversation context. That is our `resolve_user()` seam with a
-  higher-priority branch.
-- **Resolution order becomes:** (1) confident voice-ID match → that user; (2)
-  `context.user_id` if it maps to a real Person; (3) configured device→owner; (4)
-  `"default"` household user. Low-confidence voice-ID falls through to (2)–(4)
-  rather than guessing (same ambiguity-guard discipline as `find_entities`).
+  `user_id` in the conversation context. Crucially, the **embedding match runs in that
+  upstream stage, once.** `resolve_user()` never computes it; it only *reads* the result from
+  context (§5.1 keeps resolution and retrieval separate).
+- **The signals `resolve_user()` reads, in priority order:** (1) confident voice-ID match
+  (precomputed upstream, read from context) → that user; (2) `context.user_id` if it maps to a
+  real Person; (3) configured device→owner; (4) `"default"` household user. Low-confidence
+  voice-ID falls through to (2)–(4) rather than guessing (same ambiguity-guard discipline as
+  `find_entities`).
 - **Why it's more tractable for us than for core:** we're *building* the
   personalization layer it feeds (escapes reason 1), and we can guarantee
   personalization-not-auth by keeping `user_id` a scoping key for our per-user

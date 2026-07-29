@@ -608,8 +608,20 @@ with AI, streaming TTS).
 - Single chokepoint: `resolve_user(context, device_id, satellite_id) -> user_id`.
   v1 order: (1) `context.user_id` if it maps to a real Person; (2) configured
   device→owner mapping; (3) `"default"` household user.
+- **Resolution vs. retrieval are separate; `resolve_user()` does retrieval only.** It is
+  **cheap, deterministic, and idempotent**: it *reads* already-available signals (the request
+  context plus the cheap fallbacks above) and returns a `user_id`. It must **never** run the
+  expensive/stateful identity work (speaker-ID embeddings, multi-signal fusion). That work is a
+  **separate stage that runs once, as early as possible** (candidate: a pre-agent pipeline stage
+  at/after wake-word/STT, see [`docs/speaker-identification.md`](docs/speaker-identification.md)),
+  which writes its result into the request context. `resolve_user()` then just reads that as its
+  highest-priority signal. Call it **once per turn** at the neutral chokepoint and thread/cache
+  the `user_id` (tools read the cached value; they don't each re-trigger resolution). Returning
+  `user_id` and caching once are not in tension: it's resolved once, and the return value is the
+  cached scope key.
 - All capability data namespaced by that `user_id` from the first commit.
-  Phase 4 voice-ID = a higher-priority branch in this one function.
+  Phase 4 voice-ID lands as the **upstream resolution stage** that feeds this function via
+  context, not as logic inside it.
 
 ### 5.2 Entity resolution strategy (context-window + exact-match fix)
 Three tiers instead of dumping the full roster:
