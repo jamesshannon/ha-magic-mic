@@ -5,6 +5,7 @@ from functools import partial
 from typing import override
 
 import anthropic
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant, callback

@@ -4,12 +4,11 @@ Minimal: collect and validate a Claude API key. Model/prompt options are fixed f
 the Wave 0 skeleton; per-agent configuration lands later.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 import anthropic
 import voluptuous as vol
+
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_API_KEY
 

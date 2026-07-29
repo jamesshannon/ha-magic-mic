@@ -96,10 +96,12 @@ code targets HA core, and ruff enforces HA's rules in CI.
 
 Concrete rules (the HA specifics that override or sharpen Google's):
 
-- **Formatting is ruff.** Run `ruff format`; don't hand-format around it. Line length is 88
-  (the ruff/HA default, not Google's 80). PEP 8 and PEP 257 are enforced strictly.
-- **`from __future__ import annotations`** at the top of every module (see the existing
-  files).
+- **Formatting and linting are ruff**, configured by `ruff.toml`, which mirrors HA core's
+  config (adapted to this repo's layout). Run `ruff format` and `ruff check --fix`; don't
+  hand-format around them. Line length is 88 (the ruff/HA default, not Google's 80). Re-sync
+  `ruff.toml` when the HA version in `.venv` is bumped.
+- **No `from __future__ import annotations`.** HA is Python 3.14+, where PEP 649 defers
+  annotation evaluation, so it's unnecessary; HA's ruff config bans it.
 - **Full type hints** on every function. Type information lives in annotations, not
   docstrings. `assert`-based type narrowing only inside `TYPE_CHECKING` blocks.
 - **Async by default** for I/O and HA entry points (`async_setup_entry`, and so on).
@@ -112,11 +114,9 @@ Concrete rules (the HA specifics that override or sharpen Google's):
   when extended detail helps; a one-line imperative docstring is fine for simple functions.
 - **Alphabetize** constants and the contents of lists and dicts where practical (an HA
   convention).
-- **Imports** grouped and ordered per PEP 8 / ruff's isort (stdlib, third-party,
-  first-party), then alphabetical.
-
-There's no `pyproject.toml` or ruff config in the repo yet. Until one lands, follow HA
-core's ruff configuration; adding a config that mirrors core's is a welcome early task.
+- **Imports** grouped and ordered per HA's isort (`force-sort-within-sections`,
+  `combine-as-imports`); `ruff check --fix` sorts them. Relative imports within the
+  integration are allowed (as in core components); elsewhere prefer absolute.
 
 ## Working practices for agents
 

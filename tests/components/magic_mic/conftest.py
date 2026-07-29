@@ -1,17 +1,17 @@
 """Fixtures for the Magic Mic integration tests."""
 
-import datetime
 from collections.abc import AsyncGenerator
+import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import anthropic
 import pytest
-from homeassistant.const import CONF_API_KEY
-from homeassistant.core import HomeAssistant
-from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.magic_mic.const import DOMAIN
+from homeassistant.const import CONF_API_KEY
+from homeassistant.core import HomeAssistant
+from homeassistant.setup import async_setup_component
 
 
 @pytest.fixture

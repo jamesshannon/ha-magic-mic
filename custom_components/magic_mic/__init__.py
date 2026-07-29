@@ -6,8 +6,6 @@ Claude client via a coordinator and forwards the conversation platform, which
 registers the baseline and testbed agents.
 """
 
-from __future__ import annotations
-
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 

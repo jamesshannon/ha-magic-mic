@@ -1,10 +1,9 @@
 """Unit test for the testbed interposition seam."""
 
-from homeassistant.helpers import llm
-
 # Imported as a module (not `from ... import TestbedAPI`) so the `Test`-prefixed
 # class name doesn't trip pytest's test-class collection heuristic.
 from custom_components.magic_mic.testbed import api as testbed_api
+from homeassistant.helpers import llm
 
 
 def test_wrap_preserves_api_instance_fields() -> None:

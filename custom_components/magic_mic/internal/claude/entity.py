@@ -1,16 +1,15 @@
 """Base LLM entity for the Claude provider adapter (near-upstream from `anthropic`)."""
 
 import base64
-import json
 from collections import deque
 from collections.abc import AsyncIterator, Callable, Iterable
 from dataclasses import dataclass, field
+import json
 from mimetypes import guess_file_type
 from pathlib import Path
 from typing import Any, Literal, cast
 
 import anthropic
-import voluptuous as vol
 from anthropic import AsyncStream
 from anthropic.types import (
     Base64ImageSourceParam,
@@ -104,17 +103,17 @@ from anthropic.types.web_fetch_tool_result_block import (
 from anthropic.types.web_fetch_tool_result_block_param import (
     Content as WebFetchToolResultBlockParamContentParam,
 )
+import voluptuous as vol
+from voluptuous_openapi import convert
+
 from homeassistant.components import conversation
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import llm
+from homeassistant.helpers import device_registry as dr, llm
 from homeassistant.helpers.json import json_dumps
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.util import dt as dt_util
-from homeassistant.util import slugify
+from homeassistant.util import dt as dt_util, slugify
 from homeassistant.util.json import JsonArrayType, JsonObjectType
-from voluptuous_openapi import convert
 
 from .const import (
     CONF_CHAT_MODEL,
@@ -227,7 +226,7 @@ class ContentDetails:
         ]
 
 
-def _convert_content(
+def _convert_content(  # noqa: C901
     chat_content: Iterable[conversation.Content],
 ) -> tuple[list[MessageParam], str | None]:
     """Transform HA chat_log content into Anthropic API format."""
@@ -917,7 +916,7 @@ class ClaudeBaseLLMEntity(CoordinatorEntity[ClaudeCoordinator]):
             entry_type=dr.DeviceEntryType.SERVICE,
         )
 
-    async def _get_model_args(
+    async def _get_model_args(  # noqa: C901
         self,
         chat_log: conversation.ChatLog,
         structure_name: str | None = None,
