@@ -119,9 +119,15 @@ Concrete rules (the HA specifics that override or sharpen Google's):
   when extended detail helps; a one-line imperative docstring is fine for simple functions.
 - **Alphabetize** constants and the contents of lists and dicts where practical (an HA
   convention).
-- **Imports** grouped and ordered per HA's isort (`force-sort-within-sections`,
-  `combine-as-imports`); `ruff check --fix` sorts them. Relative imports within the
-  integration are allowed (as in core components); elsewhere prefer absolute.
+- **Imports follow HA/core, not Google §2.2** (a deliberate HA-wins divergence, since we
+  target core and mirror its ruff). Import **names directly** (`from homeassistant.core import
+  HomeAssistant`, `from ..identity import get_resolved_user`), *not* modules-only. **Relative
+  imports within the integration are fine** (as in core components; Google bans them). Use
+  module-with-alias only where HA's `flake8-import-conventions` requires it (`dr`, `er`, `cv`,
+  `llm`, `dt_util`, …). `ruff check --fix` orders imports (`force-sort-within-sections`,
+  `combine-as-imports`); neither our config nor Google's actually lints §2.2, so this is
+  convention. `references/google_style_guide.md` is the readability base *where it doesn't
+  conflict with HA*; the enforced config stays `ruff.toml` (HA-mirrored), not the Google one.
 
 ## Working practices for agents
 
