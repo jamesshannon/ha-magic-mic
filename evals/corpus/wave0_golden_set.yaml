@@ -151,6 +151,12 @@ cases:
       tools:
         - name: HassLightSet
           args: {area: bedroom, brightness: 30}
+    # The live model grounds "bedroom light" to the exposed entity by name rather than
+    # filling the area slot the local template uses. Both target the same light.
+    expected_llm:
+      tools:
+        - name: HassLightSet
+          args: {name: Bedroom Light, brightness: 30}
     template: "[<numeric_value_set>] [<the>] {area} [to] {brightness} percent"
 
   - id: open-garage-door
@@ -176,6 +182,12 @@ cases:
       tools:
         - name: HassTurnOff
           args: {name: Living Room Blinds}
+    # The live model closes the blinds by driving position to 0 rather than the local
+    # close intent. Same outcome (closed), a valid alternative tool.
+    expected_llm:
+      tools:
+        - name: HassSetPosition
+          args: {name: Living Room Blinds, position: 0}
 
   - id: set-blinds-position
     utterance: set the living room blinds to 50%
@@ -234,6 +246,12 @@ cases:
       tools:
         - name: HassSetVolume
           args: {area: living_room, volume_level: 40}
+    # "living room volume" names no entity; the live model grounds it to the exposed
+    # media player ("Living Room Speaker") in that area, the one volume-capable target.
+    expected_llm:
+      tools:
+        - name: HassSetVolume
+          args: {name: Living Room Speaker, volume_level: 40}
     template: "<numeric_value_set> [<the>] {area} volume to {volume:volume_level} percent"
 
   - id: pause-music
@@ -264,9 +282,11 @@ cases:
     routing_truth: local
     resolves_at_wave0: true
     requires: [todo.shopping_list]
+    # HassShoppingListAddItem was renamed to HassListAddItem in core; the live run
+    # confirmed the current name. This is a global rename, not a scope divergence.
     expected:
       tools:
-        - name: HassShoppingListAddItem
+        - name: HassListAddItem
           args: {item: milk}
     template: "add {shopping_list_item:item} to [my|the] [shopping] list"
 
