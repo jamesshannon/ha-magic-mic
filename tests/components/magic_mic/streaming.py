@@ -7,6 +7,7 @@ driven end to end without a real model.
 import datetime
 
 from anthropic.types import (
+    InputJSONDelta,
     ModelInfo,
     RawContentBlockDeltaEvent,
     RawContentBlockStartEvent,
@@ -14,6 +15,7 @@ from anthropic.types import (
     RawMessageStreamEvent,
     TextBlock,
     TextDelta,
+    ToolUseBlock,
 )
 
 # Minimal model list for the coordinator; matches the default chat model.
@@ -44,6 +46,30 @@ def create_content_block(
                 type="content_block_delta",
             )
             for text_part in text_parts
+        ],
+        RawContentBlockStopEvent(index=index, type="content_block_stop"),
+    ]
+
+
+def create_tool_use_block(
+    index: int, tool_id: str, tool_name: str, json_parts: list[str]
+) -> list[RawMessageStreamEvent]:
+    """Create the events for a tool_use block with the given input-json deltas."""
+    return [
+        RawContentBlockStartEvent(
+            type="content_block_start",
+            content_block=ToolUseBlock(
+                id=tool_id, name=tool_name, input={}, type="tool_use"
+            ),
+            index=index,
+        ),
+        *[
+            RawContentBlockDeltaEvent(
+                delta=InputJSONDelta(partial_json=json_part, type="input_json_delta"),
+                index=index,
+                type="content_block_delta",
+            )
+            for json_part in json_parts
         ],
         RawContentBlockStopEvent(index=index, type="content_block_stop"),
     ]

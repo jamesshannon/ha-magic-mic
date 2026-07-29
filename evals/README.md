@@ -116,11 +116,19 @@ Findings the measurement surfaced:
 ## Status
 
 - Corpus: seeded (`corpus/wave0_golden_set.yaml`).
-- Scorer + scorecard: done, 20 deterministic tests (`harness/scoring.py`).
+- Scorer + scorecard: done, deterministic (`harness/scoring.py`).
 - HASSIL-routing measurement: done, keyless, 25 cases (`harness/routing.py`, `world.py`).
-- Mock-driven runner (drives the testbed agent, captures the action-level `ObservedTurn`):
-  pending. Forces two small instrumentation additions (generation count, `cache_read`
-  tokens) in the provider seam.
+- Instrumentation: done. `MagicMicChatLog` records a `GenerationRecord` per model round
+  (tokens, cache read/creation), populated by the provider and read from the conversation
+  trace. Serves the runner and live/prod debug tracing alike
+  (`custom_components/magic_mic/chat_log.py`).
+- Runner: done (`harness/runner.py`). `observe_turn` drives an agent and reduces the turn to
+  an `ObservedTurn` from the trace (tool calls + generations) and the result (speech,
+  resolution); `run_case` scores it against the scope's expectation. Verified against the
+  mocked stream for text answers, tool calls, generation counting, and wrong-action buckets
+  (`tests/components/magic_mic/test_runner.py`).
+
+Everything keyless is in place. The remaining step is the live baseline, which needs a key.
 
 ### Wave 0 exit gate (blocks Wave 1)
 

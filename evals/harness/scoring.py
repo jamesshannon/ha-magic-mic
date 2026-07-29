@@ -12,7 +12,7 @@ from enum import Enum
 import re
 from typing import Any
 
-from .corpus import ROUTING_LOCAL, Case, ExpectedTool
+from .corpus import ROUTING_LOCAL, Case, Expected, ExpectedAnswer, ExpectedTool
 
 
 class Bucket(Enum):
@@ -95,8 +95,7 @@ def _tools_match(
     return True
 
 
-def _answer_matches(case: Case, speech: str) -> bool:
-    answer = case.expected.answer if case.expected else None
+def _answer_matches(answer: ExpectedAnswer | None, speech: str) -> bool:
     if answer is None:
         return True
     folded = speech.casefold()
@@ -105,21 +104,30 @@ def _answer_matches(case: Case, speech: str) -> bool:
     return answer.regex is None or re.search(answer.regex, speech) is not None
 
 
-def case_correct(case: Case, observed: ObservedTurn) -> bool | None:
-    """Judge correctness, or ``None`` when the case carries no checkable predicate."""
-    expected = case.expected
+def case_correct(
+    case: Case, observed: ObservedTurn, *, expected: Expected | None = None
+) -> bool | None:
+    """Judge correctness, or ``None`` when there is no checkable predicate.
+
+    ``expected`` overrides the default `case.expected` so a caller can score the
+    scope-specific expectation (e.g. `case.expected_for(llm=True)`).
+    """
+    if expected is None:
+        expected = case.expected
     if expected is None or (not expected.tools and expected.answer is None):
         return None
     if not _tools_match(expected.tools, observed.tools):
         return False
-    return _answer_matches(case, observed.speech)
+    return _answer_matches(expected.answer, observed.speech)
 
 
-def classify(case: Case, observed: ObservedTurn) -> Bucket:
+def classify(
+    case: Case, observed: ObservedTurn, *, expected: Expected | None = None
+) -> Bucket:
     """Map a case's observed turn onto an outcome bucket."""
     if not observed.resolved:
         return Bucket.UNRESOLVED
-    correct = case_correct(case, observed)
+    correct = case_correct(case, observed, expected=expected)
     if correct is False:
         return Bucket.WRONG_ACTION
     if observed.clarified:
@@ -129,13 +137,15 @@ def classify(case: Case, observed: ObservedTurn) -> Bucket:
     return Bucket.LLM_CORRECT
 
 
-def score_case(case: Case, observed: ObservedTurn) -> CaseResult:
-    """Score one case."""
+def score_case(
+    case: Case, observed: ObservedTurn, *, expected: Expected | None = None
+) -> CaseResult:
+    """Score one case against the given (or default) expectation."""
     return CaseResult(
         case=case,
         observed=observed,
-        bucket=classify(case, observed),
-        correct=case_correct(case, observed),
+        bucket=classify(case, observed, expected=expected),
+        correct=case_correct(case, observed, expected=expected),
     )
 
 

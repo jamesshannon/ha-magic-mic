@@ -17,6 +17,7 @@ from .corpus import (
     load_corpus,
     validate_corpus,
 )
+from .runner import observe_turn, run_case
 from .scoring import (
     Bucket,
     CaseResult,
@@ -48,6 +49,8 @@ __all__ = [
     "case_correct",
     "classify",
     "load_corpus",
+    "observe_turn",
+    "run_case",
     "score_case",
     "validate_corpus",
 ]
