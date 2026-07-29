@@ -42,10 +42,15 @@ async def observe_turn(
     utterance: str,
     *,
     routed_locally: bool = False,
+    device_id: str | None = None,
 ) -> ObservedTurn:
-    """Run one turn through ``agent_id`` and reduce it to an ObservedTurn."""
+    """Run one turn through ``agent_id`` and reduce it to an ObservedTurn.
+
+    ``device_id`` is the requesting device. It gates device-scoped tools: timer intents
+    are only exposed when the turn carries a timer-capable device (see `helpers/llm.py`).
+    """
     result = await conversation.async_converse(
-        hass, utterance, None, Context(), agent_id=agent_id
+        hass, utterance, None, Context(), agent_id=agent_id, device_id=device_id
     )
     response = result.response
     speech = ""
@@ -67,14 +72,20 @@ async def observe_turn(
 
 
 async def run_case(
-    hass: HomeAssistant, agent_id: str, case: Case, *, llm: bool
+    hass: HomeAssistant,
+    agent_id: str,
+    case: Case,
+    *,
+    llm: bool,
+    device_id: str | None = None,
 ) -> CaseResult:
     """Drive a case through ``agent_id`` at the given scope and score it.
 
     ``llm=True`` scores against the LLM-scope expectation (``expected_for``) and treats
-    the outcome as LLM-routed; ``llm=False`` scores the local expectation.
+    the outcome as LLM-routed; ``llm=False`` scores the local expectation. ``device_id``
+    is threaded to the turn so device-scoped tools (timers) are exposed.
     """
     observed = await observe_turn(
-        hass, agent_id, case.utterance, routed_locally=not llm
+        hass, agent_id, case.utterance, routed_locally=not llm, device_id=device_id
     )
     return score_case(case, observed, expected=case.expected_for(llm=llm))

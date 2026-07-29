@@ -17,7 +17,9 @@ render to stdout and land as a JSON artifact under `evals/results/` so Wave 1 ca
 Δtokens / Δturns / Δhassil-rate against it.
 """
 
+import argparse
 import asyncio
+from collections.abc import Sequence
 from datetime import UTC, datetime
 import json
 import os
@@ -51,8 +53,12 @@ from custom_components.magic_mic.internal.claude.const import (  # noqa: E402
     DEFAULT,
 )
 
-from .backing import build_executable_world  # noqa: E402
-from .corpus import WAVE0_GOLDEN_SET, Corpus, load_corpus  # noqa: E402
+from .backing import (  # noqa: E402
+    EVAL_DEVICE_ID,
+    build_executable_world,
+    register_timer_device,
+)
+from .corpus import WAVE0_GOLDEN_SET, Case, Corpus, load_corpus  # noqa: E402
 from .runner import run_case  # noqa: E402
 from .scoring import CaseResult, Scorecard, build_scorecard  # noqa: E402
 from .world import async_setup_local_agent  # noqa: E402
@@ -121,20 +127,29 @@ async def stand_up_agent(hass: HomeAssistant, corpus: Corpus, api_key: str) -> s
     await hass.async_block_till_done()
 
     await build_executable_world(hass, corpus.world)
+    register_timer_device(hass)
     return _baseline_agent_id(hass, entry)
 
 
-async def run_baseline(hass: HomeAssistant, corpus: Corpus, api_key: str) -> Scorecard:
-    """Drive every case through the live baseline agent and score the run.
+async def run_baseline(
+    hass: HomeAssistant,
+    corpus: Corpus,
+    api_key: str,
+    cases: Sequence[Case],
+) -> Scorecard:
+    """Drive ``cases`` through the live baseline agent and score the run.
 
-    Every case runs at the LLM scope (`prefer_local` OFF), scored against its
-    ``expected_for(llm=True)`` expectation.
+    The full corpus world is always stood up (so slot targets resolve), but only
+    ``cases`` are driven. Every case runs at the LLM scope (`prefer_local` OFF), scored
+    against its ``expected_for(llm=True)`` expectation.
     """
     agent_id = await stand_up_agent(hass, corpus, api_key)
     results: list[CaseResult] = []
-    for index, case in enumerate(corpus.cases, start=1):
-        print(f"  [{index:>2}/{len(corpus.cases)}] {case.id} ...", flush=True)
-        results.append(await run_case(hass, agent_id, case, llm=True))
+    for index, case in enumerate(cases, start=1):
+        print(f"  [{index:>2}/{len(cases)}] {case.id} ...", flush=True)
+        results.append(
+            await run_case(hass, agent_id, case, llm=True, device_id=EVAL_DEVICE_ID)
+        )
     return build_scorecard(results)
 
 
@@ -162,17 +177,18 @@ def _result_to_dict(result: CaseResult) -> dict:
     }
 
 
-def build_artifact(scorecard: Scorecard, model: str) -> dict:
-    """Assemble the full baseline artifact: metadata, aggregates, and per-case detail."""
+def build_artifact(scorecard: Scorecard, model: str, *, subset: bool) -> dict:
+    """Assemble the artifact: metadata, aggregates, and per-case detail."""
     agree, total = scorecard.routing_agreement
     return {
         "run": {
-            "kind": "wave0-live-baseline",
+            "kind": "wave0-subset" if subset else "wave0-live-baseline",
             "timestamp": datetime.now(UTC).isoformat(),
             "model": model,
             "prefer_local": False,
             "corpus": WAVE0_GOLDEN_SET.name,
             "cases": scorecard.total,
+            "subset": subset,
         },
         "buckets": {bucket.value: count for bucket, count in scorecard.buckets.items()},
         "routing_agreement": {"agree": agree, "total": total},
@@ -181,31 +197,121 @@ def build_artifact(scorecard: Scorecard, model: str) -> dict:
     }
 
 
-def write_artifact(artifact: dict) -> Path:
-    """Write the baseline artifact to ``evals/results/`` and return its path."""
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    BASELINE_ARTIFACT.write_text(
+def write_artifact(artifact: dict, path: Path) -> Path:
+    """Write the artifact to ``path`` (creating parents) and return it."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
         json.dumps(artifact, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-    return BASELINE_ARTIFACT
+    return path
 
 
-async def main() -> None:
-    """Run the live baseline end to end and persist the artifact."""
-    api_key = load_api_key()
+def select_cases(corpus: Corpus, args: argparse.Namespace) -> list[Case]:
+    """Filter the corpus by the CLI selectors, validating unknown ids.
+
+    With no selector every case is returned. ``--case`` / ``--category`` / ``--routing``
+    intersect (a case must satisfy all supplied filters).
+    """
+    if args.cases:
+        known = {case.id for case in corpus.cases}
+        unknown = sorted(set(args.cases) - known)
+        if unknown:
+            raise BaselineError(f"unknown case id(s): {', '.join(unknown)}")
+
+    cases = list(corpus.cases)
+    if args.cases:
+        wanted = set(args.cases)
+        cases = [case for case in cases if case.id in wanted]
+    if args.categories:
+        categories = set(args.categories)
+        cases = [case for case in cases if case.category in categories]
+    if args.routing:
+        cases = [case for case in cases if case.routing_truth == args.routing]
+    return cases
+
+
+def _resolve_out_path(args: argparse.Namespace, *, subset: bool) -> Path | None:
+    """Decide where (if anywhere) to write the artifact.
+
+    A subset run never overwrites the locked baseline: it writes only when ``--out`` is
+    given. A full run writes the baseline unless ``--out`` redirects it.
+    """
+    if args.out:
+        return args.out
+    return None if subset else BASELINE_ARTIFACT
+
+
+def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="python -m evals.harness.baseline",
+        description="Run the live Wave 0 baseline, or a subset of it.",
+    )
+    parser.add_argument(
+        "--case",
+        action="append",
+        dest="cases",
+        metavar="ID",
+        help="run only this case id (repeatable)",
+    )
+    parser.add_argument(
+        "--category",
+        action="append",
+        dest="categories",
+        metavar="CAT",
+        help="run only cases in this category (repeatable)",
+    )
+    parser.add_argument(
+        "--routing",
+        choices=["local", "llm"],
+        help="run only cases with this routing_truth",
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        help="write the artifact here (a subset never overwrites the baseline)",
+    )
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="print the selected case ids and exit (no key, no run)",
+    )
+    return parser.parse_args(argv)
+
+
+async def main(argv: Sequence[str] | None = None) -> None:
+    """Run the live baseline (or a subset) and persist the artifact."""
+    args = _parse_args(argv)
     corpus = load_corpus()
+    cases = select_cases(corpus, args)
+    if not cases:
+        raise BaselineError("no cases matched the given filters")
+
+    if args.list:
+        for case in cases:
+            print(f"{case.id}\t{case.category}\t{case.routing_truth}")
+        return
+
+    subset = len(cases) != len(corpus.cases)
+    api_key = load_api_key()
     model = DEFAULT[CONF_CHAT_MODEL]
+    label = "subset" if subset else "live baseline"
     print(
-        f"Running Wave 0 live baseline: {len(corpus.cases)} cases, model {model}, "
-        "prefer_local OFF\n"
+        f"Running Wave 0 {label}: {len(cases)}/{len(corpus.cases)} cases, "
+        f"model {model}, prefer_local OFF\n"
     )
 
     async with async_test_home_assistant() as hass:
-        scorecard = await run_baseline(hass, corpus, api_key)
+        scorecard = await run_baseline(hass, corpus, api_key, cases)
 
     print("\n" + scorecard.render())
-    path = write_artifact(build_artifact(scorecard, model))
-    print(f"\nartifact: {path.relative_to(REPO_ROOT)}")
+    out_path = _resolve_out_path(args, subset=subset)
+    if out_path is None:
+        print("\n(subset run: baseline artifact left untouched; pass --out to save)")
+    else:
+        written = write_artifact(
+            build_artifact(scorecard, model, subset=subset), out_path
+        )
+        print(f"\nartifact: {written.relative_to(REPO_ROOT)}")
 
 
 if __name__ == "__main__":

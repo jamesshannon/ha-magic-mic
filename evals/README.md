@@ -139,8 +139,15 @@ Findings the keyless routing measurement surfaced:
   entity on its real domain platform (`light`, `switch`, `fan`, `cover`, `climate`,
   `media_player`, `todo`), so the domain's services and Assist intents both load and the full
   tool roster is exposed and executes. Without it, tool calls hit missing services, the model
-  retried, and per-turn generation counts were inflated.
+  retried, and per-turn generation counts were inflated. Timers are device-scoped, not
+  entity-scoped: `register_timer_device` registers a no-op handler for a synthetic device id
+  that the turn carries, standing in for the voice satellite so `HassStartTimer` is exposed
+  and runs.
 - Live baseline: done (`harness/baseline.py`, run recorded in `results/wave0_baseline.json`).
+  Runs the full corpus by default; `--case ID`, `--category CAT`, and `--routing local|llm`
+  select a subset for a cheap re-run after a targeted fix. A subset never overwrites the
+  locked baseline (it prints, or writes to `--out`); `--list` shows the selection without a
+  key.
 
 ### Wave 0 exit gate (blocks Wave 1): done
 
@@ -150,15 +157,24 @@ Ran the live baseline keyed from a project-root `.env`: stock full-roster prompt
 `prefer_local` OFF, so only the 8 `llm`-labelled cases agree); 42 generations,
 190,845 input tokens. Wave 1 reports Δtokens / Δturns / Δhassil-rate against this artifact.
 
-Of the 9 wrong-action cases, four are the falsified predictions above (correct action, tool
-name the corpus did not predict). The rest are model behavior worth recording, not harness
-faults: `turn-off-all-lights` and `implicit-too-dark` ask which entity instead of acting;
-`implicit-cold` reads the thermostat then asks how warm; `start-timer` cannot resolve because
-`HassStartTimer` needs a satellite/device context a headless run lacks; `remember-fact` is a
-VISION feature not built yet (`resolves_at_wave0: false`).
+Of the 9 wrong-action cases, four are the falsified predictions above (correct action; the
+corpus predicted a different tool name or targeting key). The rest are model behavior worth
+recording, not harness faults: `turn-off-all-lights` and `implicit-too-dark` ask which entity
+instead of acting; `implicit-cold` reads the thermostat then asks how warm; `remember-fact`
+is a VISION feature not built yet (`resolves_at_wave0: false`).
 
-Run it again with:
+Two changes postdate the recorded run, so the next full run will differ from the artifact
+above. `start-timer` now resolves (a subset run scored it LLM-correct once the mocked timer
+device was added); it was `wrong-action` in the recorded run. And the four falsified
+predictions await corpus reconciliation. Regenerate the baseline once that reconciliation
+lands, so the locked number reflects the final corpus and harness rather than being rewritten
+twice.
+
+Run the full baseline, or a subset:
 
 ```
-.venv/bin/python -m evals.harness.baseline
+.venv/bin/python -m evals.harness.baseline                     # full corpus, writes the artifact
+.venv/bin/python -m evals.harness.baseline --case start-timer  # one case, prints, artifact untouched
+.venv/bin/python -m evals.harness.baseline --routing llm       # just the llm-labelled cases
+.venv/bin/python -m evals.harness.baseline --list              # show the selection, no key
 ```

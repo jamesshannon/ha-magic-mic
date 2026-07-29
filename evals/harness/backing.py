@@ -10,8 +10,12 @@ domain's services *and* its Assist intents.
 
 This mirrors HA core's own test pattern (`setup_test_component_platform` plus
 `async_setup_component(domain, {domain: {"platform": "test"}})`). Domains without an
-executable surface in the corpus (``weather``) stay state-only; ``timer`` is left out on
-purpose (``HassStartTimer`` needs a satellite/device context a headless run lacks).
+executable surface in the corpus (``weather``) stay state-only.
+
+Timers are device-scoped rather than entity-scoped: HA strips the timer intents from the
+roster unless the turn carries a timer-capable ``device_id`` (`helpers/llm.py`). A voice
+satellite registers itself as that device; headless, ``register_timer_device`` stands in
+for the satellite so ``HassStartTimer`` is exposed and runs.
 """
 
 from collections import defaultdict
@@ -32,6 +36,8 @@ from homeassistant.components.cover import (
 )
 from homeassistant.components.fan import FanEntity, FanEntityFeature
 from homeassistant.components.homeassistant.exposed_entities import async_expose_entity
+from homeassistant.components.intent import async_register_timer_handler
+from homeassistant.components.intent.timers import TimerEventType, TimerInfo
 from homeassistant.components.light import ATTR_BRIGHTNESS, ColorMode, LightEntity
 from homeassistant.components.media_player import (
     MediaPlayerEntity,
@@ -46,7 +52,7 @@ from homeassistant.components.todo import (
     TodoListEntityFeature,
 )
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import area_registry as ar, entity_registry as er
 from homeassistant.helpers.entity import Entity
 from homeassistant.setup import async_setup_component
@@ -213,6 +219,26 @@ class _TodoList(_BackedEntity, TodoListEntity):
         item.status = item.status or TodoItemStatus.NEEDS_ACTION
         self._attr_todo_items.append(item)
         self.async_write_ha_state()
+
+
+# A stable synthetic device id standing in for the voice satellite that would issue turns.
+EVAL_DEVICE_ID = "magic_mic_eval_satellite"
+
+
+def register_timer_device(hass: HomeAssistant) -> str:
+    """Register a no-op timer handler so timer intents are exposed and execute.
+
+    Returns the device id to pass as the turn's ``device_id``. The handler only has to
+    exist: `async_device_supports_timers` is satisfied by a registered handler, and the
+    device needs no registry entry.
+    """
+
+    @callback
+    def _handle(event_type: TimerEventType, timer: TimerInfo) -> None:
+        """Record nothing; the timer running is all the eval needs."""
+
+    async_register_timer_handler(hass, EVAL_DEVICE_ID, _handle)
+    return EVAL_DEVICE_ID
 
 
 # Domains with an executable backing. Everything else (weather) stays state-only.
