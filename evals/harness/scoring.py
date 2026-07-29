@@ -7,12 +7,20 @@ share this scorer; only how the ``ObservedTurn`` is produced differs.
 """
 
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 import re
 from typing import Any
 
-from .corpus import ROUTING_LOCAL, Case, Expected, ExpectedAnswer, ExpectedTool
+from .corpus import (
+    ROUTING_LOCAL,
+    Case,
+    Expected,
+    ExpectedAnswer,
+    ExpectedTool,
+    as_alternatives,
+)
 
 
 class Bucket(Enum):
@@ -104,25 +112,47 @@ def _answer_matches(answer: ExpectedAnswer | None, speech: str) -> bool:
     return answer.regex is None or re.search(answer.regex, speech) is not None
 
 
+def _outcome_matches(outcome: Expected, observed: ObservedTurn) -> bool:
+    """Whether one acceptable outcome matches the observed turn."""
+    return _tools_match(outcome.tools, observed.tools) and _answer_matches(
+        outcome.answer, observed.speech
+    )
+
+
 def case_correct(
-    case: Case, observed: ObservedTurn, *, expected: Expected | None = None
+    case: Case,
+    observed: ObservedTurn,
+    *,
+    expected: Expected | Sequence[Expected] | None = None,
 ) -> bool | None:
     """Judge correctness, or ``None`` when there is no checkable predicate.
 
     ``expected`` overrides the default `case.expected` so a caller can score the
-    scope-specific expectation (e.g. `case.expected_for(llm=True)`).
+    scope-specific expectation (e.g. `case.expected_for(llm=True)`). It may be a single
+    outcome or a disjunction of acceptable outcomes; the turn is correct when any of them
+    matches. An expectation with no judgeable outcome (all empty, e.g. `nevermind`) is
+    ``None``, not a pass.
     """
-    if expected is None:
-        expected = case.expected
-    if expected is None or (not expected.tools and expected.answer is None):
+    alternatives = (
+        as_alternatives(case.expected)
+        if expected is None
+        else as_alternatives(expected)
+    )
+    judgeable = [
+        outcome
+        for outcome in alternatives
+        if outcome.tools or outcome.answer is not None
+    ]
+    if not judgeable:
         return None
-    if not _tools_match(expected.tools, observed.tools):
-        return False
-    return _answer_matches(expected.answer, observed.speech)
+    return any(_outcome_matches(outcome, observed) for outcome in judgeable)
 
 
 def classify(
-    case: Case, observed: ObservedTurn, *, expected: Expected | None = None
+    case: Case,
+    observed: ObservedTurn,
+    *,
+    expected: Expected | Sequence[Expected] | None = None,
 ) -> Bucket:
     """Map a case's observed turn onto an outcome bucket."""
     if not observed.resolved:
@@ -138,7 +168,10 @@ def classify(
 
 
 def score_case(
-    case: Case, observed: ObservedTurn, *, expected: Expected | None = None
+    case: Case,
+    observed: ObservedTurn,
+    *,
+    expected: Expected | Sequence[Expected] | None = None,
 ) -> CaseResult:
     """Score one case against the given (or default) expectation."""
     return CaseResult(

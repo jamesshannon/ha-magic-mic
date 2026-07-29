@@ -81,6 +81,11 @@ class Case:
     ``GetState``, ``GetWeather``, …) in favor of the general ``GetDateTime`` /
     ``GetLiveContext`` tools, so on the LLM path the model reaches the same answer
     through a different call. Use ``expected_for(llm=...)`` to pick the right one.
+
+    Each is a tuple of acceptable outcomes (``any_of`` in the corpus, one-element for the
+    single-outcome shorthand). A turn is correct when it matches any of them, so genuine
+    ties (close a cover by ``HassTurnOff`` or by ``HassSetPosition: 0``) do not flip-flop
+    pass/fail on model non-determinism.
     """
 
     id: str
@@ -89,16 +94,16 @@ class Case:
     routing_truth: str
     resolves_at_wave0: bool
     requires: tuple[str, ...] = ()
-    expected: Expected | None = None
-    expected_llm: Expected | None = None
+    expected: Expected | tuple[Expected, ...] = ()
+    expected_llm: Expected | tuple[Expected, ...] | None = None
     template: str | None = None
     note: str | None = None
 
-    def expected_for(self, *, llm: bool) -> Expected | None:
-        """Return the expectation to score against for the given scope."""
+    def expected_for(self, *, llm: bool) -> tuple[Expected, ...]:
+        """Return the acceptable outcomes to score against for the given scope."""
         if llm and self.expected_llm is not None:
-            return self.expected_llm
-        return self.expected
+            return as_alternatives(self.expected_llm)
+        return as_alternatives(self.expected)
 
 
 @dataclass(frozen=True)
@@ -127,9 +132,24 @@ def _parse_world(raw: dict[str, Any]) -> World:
     )
 
 
-def _parse_expected(raw: dict[str, Any] | None) -> Expected | None:
-    if not raw:
-        return None
+def as_alternatives(
+    value: Expected | tuple[Expected, ...] | None,
+) -> tuple[Expected, ...]:
+    """Normalize an expectation into a tuple of acceptable outcomes.
+
+    A single ``Expected`` (as the tests construct) becomes a one-element tuple; ``None``
+    becomes empty. The scorer treats the tuple as a disjunction: a case is correct when
+    any alternative matches.
+    """
+    if value is None:
+        return ()
+    if isinstance(value, Expected):
+        return (value,)
+    return tuple(value)
+
+
+def _parse_one(raw: dict[str, Any]) -> Expected:
+    """Parse one acceptable outcome (tools and/or an answer predicate)."""
     tools = tuple(
         ExpectedTool(name=tool["name"], args=dict(tool.get("args") or {}))
         for tool in raw.get("tools") or ()
@@ -146,6 +166,23 @@ def _parse_expected(raw: dict[str, Any] | None) -> Expected | None:
     return Expected(tools=tools, answer=answer)
 
 
+def _parse_expectation(raw: dict[str, Any] | None) -> tuple[Expected, ...]:
+    """Parse an expectation block into its acceptable outcomes.
+
+    ``{any_of: [<outcome>, ...]}`` lists alternatives (LLM non-determinism: a case may
+    have several equally-valid resolutions). A plain ``{tools, answer}`` block is the
+    single-outcome shorthand for a one-element ``any_of``.
+    """
+    if not raw:
+        return ()
+    if "any_of" in raw:
+        alternatives = raw["any_of"]
+        if not isinstance(alternatives, list) or not alternatives:
+            raise CorpusError("'any_of' must be a non-empty list of outcomes")
+        return tuple(_parse_one(alternative) for alternative in alternatives)
+    return (_parse_one(raw),)
+
+
 def _parse_case(raw: dict[str, Any]) -> Case:
     return Case(
         id=raw["id"],
@@ -154,8 +191,10 @@ def _parse_case(raw: dict[str, Any]) -> Case:
         routing_truth=raw["routing_truth"],
         resolves_at_wave0=bool(raw["resolves_at_wave0"]),
         requires=tuple(raw.get("requires") or ()),
-        expected=_parse_expected(raw.get("expected")),
-        expected_llm=_parse_expected(raw.get("expected_llm")),
+        expected=_parse_expectation(raw.get("expected")),
+        expected_llm=(
+            _parse_expectation(raw["expected_llm"]) if "expected_llm" in raw else None
+        ),
         template=raw.get("template"),
         note=raw.get("note"),
     )

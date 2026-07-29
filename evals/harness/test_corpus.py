@@ -13,7 +13,7 @@ from evals.harness import (
     load_corpus,
     validate_corpus,
 )
-from evals.harness.corpus import WAVE0_GOLDEN_SET
+from evals.harness.corpus import WAVE0_GOLDEN_SET, as_alternatives
 
 
 def _case(**overrides: object) -> Case:
@@ -106,20 +106,24 @@ def test_expected_for_scope_falls_back_and_overrides() -> None:
     # A device-control case has no override: both scopes see the same expectation.
     kitchen = by_id["turn-on-kitchen-light"]
     assert kitchen.expected_llm is None
-    assert kitchen.expected_for(llm=True) is kitchen.expected_for(llm=False)
+    assert kitchen.expected_for(llm=True) == kitchen.expected_for(llm=False)
 
     # An Assist-dropped intent diverges: local intent tool vs the general LLM tool.
+    # Each scope has one acceptable outcome here.
     time_case = by_id["current-time"]
-    assert [t.name for t in time_case.expected_for(llm=False).tools] == [
+    assert [t.name for t in time_case.expected_for(llm=False)[0].tools] == [
         "HassGetCurrentTime"
     ]
-    assert [t.name for t in time_case.expected_for(llm=True).tools] == ["GetDateTime"]
+    assert [t.name for t in time_case.expected_for(llm=True)[0].tools] == [
+        "GetDateTime"
+    ]
 
-    # nevermind's LLM override is an empty, non-None expectation (unjudgeable, not
-    # a fallback to the HassNevermind intent the model cannot call).
+    # nevermind's LLM override is a single empty, non-None outcome (unjudgeable, not a
+    # fallback to the HassNevermind intent the model cannot call).
     nevermind = by_id["nevermind"]
     assert nevermind.expected_llm is not None
-    assert nevermind.expected_for(llm=True).tools == ()
+    (outcome,) = nevermind.expected_for(llm=True)
+    assert outcome.tools == ()
 
 
 def test_local_labels_have_expectations() -> None:
@@ -128,7 +132,9 @@ def test_local_labels_have_expectations() -> None:
 
     for case in corpus.cases:
         if case.routing_truth == "local":
-            assert case.expected is not None, f"{case.id}: local case needs expected"
-            assert case.expected.tools or case.expected.answer, case.id
+            outcomes = as_alternatives(case.expected)
+            assert outcomes, f"{case.id}: local case needs expected"
+            for outcome in outcomes:
+                assert outcome.tools or outcome.answer, case.id
         # A replace round-trip proves the case is a well-formed frozen dataclass.
         assert replace(case) == case

@@ -51,6 +51,34 @@ def test_tool_and_args_partial_match() -> None:
     assert case_correct(case, observed) is True
 
 
+def test_any_of_accepts_either_valid_outcome() -> None:
+    """A disjunction passes when any acceptable outcome matches, fails when none do."""
+    case = _case(
+        expected=(
+            Expected(tools=(ExpectedTool("HassTurnOff", {"name": "Blinds"}),)),
+            Expected(
+                tools=(
+                    ExpectedTool("HassSetPosition", {"name": "Blinds", "position": 0}),
+                )
+            ),
+        )
+    )
+    via_off = ObservedTurn(
+        speech="Done", tools=(ToolCall("HassTurnOff", {"name": "Blinds"}),)
+    )
+    via_position = ObservedTurn(
+        speech="Done",
+        tools=(ToolCall("HassSetPosition", {"name": "Blinds", "position": 0}),),
+    )
+    neither = ObservedTurn(
+        speech="Done", tools=(ToolCall("HassTurnOn", {"name": "Blinds"}),)
+    )
+
+    assert case_correct(case, via_off) is True
+    assert case_correct(case, via_position) is True
+    assert case_correct(case, neither) is False
+
+
 def test_arg_mismatch_is_wrong() -> None:
     """A differing arg value is incorrect."""
     case = _case(

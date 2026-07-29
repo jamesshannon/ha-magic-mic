@@ -182,12 +182,13 @@ cases:
       tools:
         - name: HassTurnOff
           args: {name: Living Room Blinds}
-    # The live model closes the blinds by driving position to 0 rather than the local
-    # close intent. Same outcome (closed), a valid alternative tool.
+    # "Close" has two equally-valid resolutions and the model picks between them run to
+    # run: the close intent, or driving position to 0. Accept either so the case does not
+    # flip-flop on sampling.
     expected_llm:
-      tools:
-        - name: HassSetPosition
-          args: {name: Living Room Blinds, position: 0}
+      any_of:
+        - tools: [{name: HassTurnOff, args: {name: Living Room Blinds}}]
+        - tools: [{name: HassSetPosition, args: {name: Living Room Blinds, position: 0}}]
 
   - id: set-blinds-position
     utterance: set the living room blinds to 50%
