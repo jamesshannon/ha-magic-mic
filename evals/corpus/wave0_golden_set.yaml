@@ -1,0 +1,384 @@
+# Wave 0 golden set.
+#
+# Seed corpus for the Tier-B eval harness (docs/evaluation.md Part E). See
+# ../README.md for the field spec and how routing_truth was grounded.
+#
+# `local` cases were verified against the installed home_assistant_intents sentence
+# templates (en.json). `llm` cases have no matching template but resolve today with
+# existing tools or model knowledge. `resolves_at_wave0: false` cases are VISION
+# features not built yet; they exist so the baseline "don't understand" bucket is
+# real, and each later wave can watch its cases move.
+
+# The fixture home the cases run against. The runner exposes exactly these entities
+# before running, so slot-bearing utterances have something to resolve to.
+world:
+  areas:
+    - kitchen
+    - living_room
+    - bedroom
+    - garage
+    - office
+  entities:
+    - entity_id: light.kitchen
+      name: Kitchen Light
+      area: kitchen
+      state: "on"
+    - entity_id: light.living_room
+      name: Living Room Lamp
+      area: living_room
+      state: "on"
+    - entity_id: light.bedroom
+      name: Bedroom Light
+      area: bedroom
+      state: "off"
+    - entity_id: light.office_desk
+      name: Desk Lamp
+      area: office
+      state: "off"
+    - entity_id: switch.coffee_maker
+      name: Coffee Maker
+      area: kitchen
+      state: "off"
+    - entity_id: fan.bedroom
+      name: Bedroom Fan
+      area: bedroom
+      state: "off"
+    - entity_id: cover.garage_door
+      name: Garage Door
+      area: garage
+      device_class: garage
+      state: "open"
+    - entity_id: cover.living_room_blinds
+      name: Living Room Blinds
+      area: living_room
+      device_class: blind
+      state: "open"
+    - entity_id: climate.thermostat
+      name: Thermostat
+      area: living_room
+      state: heat
+      attributes:
+        current_temperature: 19
+        temperature: 20
+    - entity_id: media_player.living_room
+      name: Living Room Speaker
+      area: living_room
+      state: playing
+    - entity_id: weather.home
+      name: Home
+      state: sunny
+      attributes:
+        temperature: 22
+    - entity_id: todo.shopping_list
+      name: Shopping List
+      state: "0"
+
+cases:
+  # --- Local: HASSIL covers these today (routing_truth: local) --------------------
+
+  - id: current-time
+    utterance: what time is it?
+    category: query
+    routing_truth: local
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: HassGetCurrentTime
+    template: "what time is it [[right] now]"
+    note: No-slot intent, unambiguous HASSIL match. Answer depends on fixture clock.
+
+  - id: current-date
+    utterance: what's the date today?
+    category: query
+    routing_truth: local
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: HassGetCurrentDate
+    template: "<what_is> the date [today]"
+    note: No-slot date intent.
+
+  - id: turn-off-all-lights
+    utterance: turn off the lights
+    category: device-control
+    routing_truth: local
+    resolves_at_wave0: true
+    requires: [light.kitchen, light.living_room, light.bedroom, light.office_desk]
+    expected:
+      tools:
+        - name: HassTurnOff
+          args: {domain: light}
+    template: "<turn> (off|out) [<all>] [<the>] {area} <light>"
+    note: Bare "the lights" targets all exposed lights.
+
+  - id: turn-on-kitchen-light
+    utterance: turn on the kitchen light
+    category: device-control
+    routing_truth: local
+    resolves_at_wave0: true
+    requires: [light.kitchen]
+    expected:
+      tools:
+        - name: HassTurnOn
+          args: {name: Kitchen Light}
+    template: "[<the>] {area} <light> on"
+
+  - id: turn-off-living-room-lamp
+    utterance: turn off the living room lamp
+    category: device-control
+    routing_truth: local
+    resolves_at_wave0: true
+    requires: [light.living_room]
+    expected:
+      tools:
+        - name: HassTurnOff
+          args: {name: Living Room Lamp}
+
+  - id: set-bedroom-brightness
+    utterance: set the bedroom light to 30%
+    category: device-control
+    routing_truth: local
+    resolves_at_wave0: true
+    requires: [light.bedroom]
+    expected:
+      tools:
+        - name: HassLightSet
+          args: {area: bedroom, brightness: 30}
+    template: "[<numeric_value_set>] [<the>] {area} [to] {brightness} percent"
+
+  - id: open-garage-door
+    utterance: open the garage door
+    category: device-control
+    routing_truth: local
+    resolves_at_wave0: true
+    requires: [cover.garage_door]
+    expected:
+      tools:
+        - name: HassTurnOn
+          args: {name: Garage Door}
+    template: "<open> [<the>] {cover_classes:device_class} ..."
+    note: Opening a cover maps onto HassTurnOn in the intent set.
+
+  - id: close-blinds
+    utterance: close the living room blinds
+    category: device-control
+    routing_truth: local
+    resolves_at_wave0: true
+    requires: [cover.living_room_blinds]
+    expected:
+      tools:
+        - name: HassTurnOff
+          args: {name: Living Room Blinds}
+
+  - id: set-blinds-position
+    utterance: set the living room blinds to 50%
+    category: device-control
+    routing_truth: local
+    resolves_at_wave0: true
+    requires: [cover.living_room_blinds]
+    expected:
+      tools:
+        - name: HassSetPosition
+          args: {name: Living Room Blinds, position: 50}
+    template: "(<numeric_value_set>...) [<the>] {name} [position] to {position} percent"
+
+  - id: room-temperature
+    utterance: what's the temperature in the living room?
+    category: query
+    routing_truth: local
+    resolves_at_wave0: true
+    requires: [climate.thermostat]
+    expected:
+      tools:
+        - name: HassClimateGetTemperature
+          args: {area: living_room}
+      answer:
+        contains: ["19"]
+    template: "(<what_is>|<how_is>) [the] [current] <temp> <in> [<the>] {area}"
+
+  - id: weather
+    utterance: what's the weather?
+    category: query
+    routing_truth: local
+    resolves_at_wave0: true
+    requires: [weather.home]
+    expected:
+      tools:
+        - name: HassGetWeather
+    template: "<what_is> [the] weather [like]"
+
+  - id: set-volume
+    utterance: set the living room volume to 40%
+    category: media
+    routing_truth: local
+    resolves_at_wave0: true
+    requires: [media_player.living_room]
+    expected:
+      tools:
+        - name: HassSetVolume
+          args: {area: living_room, volume_level: 40}
+    template: "<numeric_value_set> [<the>] {area} volume to {volume:volume_level} percent"
+
+  - id: pause-music
+    utterance: pause the music
+    category: media
+    routing_truth: local
+    resolves_at_wave0: true
+    requires: [media_player.living_room]
+    expected:
+      tools:
+        - name: HassMediaPause
+    template: "pause [[the|my] (music|...)] [in] [<the>] {area}"
+
+  - id: start-timer
+    utterance: set a timer for 10 minutes
+    category: timer
+    routing_truth: local
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: HassStartTimer
+          args: {minutes: 10}
+    template: "<timer_set> [a|an|the|my] timer for {timer_minutes:minutes} minute[s]"
+
+  - id: add-shopping-item
+    utterance: add milk to the shopping list
+    category: list
+    routing_truth: local
+    resolves_at_wave0: true
+    requires: [todo.shopping_list]
+    expected:
+      tools:
+        - name: HassShoppingListAddItem
+          args: {item: milk}
+    template: "add {shopping_list_item:item} to [my|the] [shopping] list"
+
+  - id: nevermind
+    utterance: never mind
+    category: small-talk
+    routing_truth: local
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: HassNevermind
+    template: "never mind"
+    note: Cancels the interaction; no side effect.
+
+  - id: is-garage-open
+    utterance: is the garage door open?
+    category: query
+    routing_truth: local
+    resolves_at_wave0: true
+    requires: [cover.garage_door]
+    expected:
+      tools:
+        - name: HassGetState
+          args: {name: Garage Door}
+      answer:
+        contains: ["open"]
+    template: "<which> {cover_classes:device_class} <is> {cover_states:state}"
+    note: >
+      HASSIL covers it, but §2.9 puts GET_STATE in the LLM-defer set; on the LLM path
+      it surfaces as GetLiveContext. Baseline runs prefer_local OFF, so it routes to
+      the LLM. This case is where the local-vs-LLM split metric earns its keep.
+
+  # --- LLM-only: no HASSIL template, resolves today (routing_truth: llm) -----------
+
+  - id: compound-two-devices
+    utterance: turn off the kitchen light and the bedroom fan
+    category: compound
+    routing_truth: llm
+    resolves_at_wave0: true
+    requires: [light.kitchen, fan.bedroom]
+    expected:
+      tools:
+        - name: HassTurnOff
+          args: {name: Kitchen Light}
+        - name: HassTurnOff
+          args: {name: Bedroom Fan}
+    note: >
+      Each half is a supported single intent, but the conjunction is not one HASSIL
+      template. The model splits it into two tool calls: a clean LLM-only routing case
+      with fully supported actions.
+
+  - id: implicit-cold
+    utterance: I'm cold
+    category: implicit
+    routing_truth: llm
+    resolves_at_wave0: true
+    requires: [climate.thermostat]
+    expected:
+      tools:
+        - name: HassClimateSetTemperature
+          args: {area: living_room}
+    note: >
+      No template matches; the model infers "raise the thermostat". Expected action is
+      loose (a setpoint increase), a candidate for helpfulness judging later.
+
+  - id: implicit-too-dark
+    utterance: it's too dark in here
+    category: implicit
+    routing_truth: llm
+    resolves_at_wave0: true
+    requires: [light.office_desk]
+    expected:
+      tools:
+        - name: HassTurnOn
+          args: {domain: light}
+    note: Implicit "turn on / brighten the lights"; no HASSIL template.
+
+  - id: reasoning-did-i-leave-garage
+    utterance: did I leave the garage door open?
+    category: query
+    routing_truth: llm
+    resolves_at_wave0: true
+    requires: [cover.garage_door]
+    expected:
+      answer:
+        contains: ["open"]
+    note: >
+      Phrasing outside the HassGetState templates; the model reads state via
+      GetLiveContext and answers. Answer-only (no device action).
+
+  - id: knowledge-capital-france
+    utterance: what's the capital of France?
+    category: knowledge
+    routing_truth: llm
+    resolves_at_wave0: true
+    expected:
+      answer:
+        contains: ["Paris"]
+    note: >
+      General knowledge, no tool. HASSIL returns "don't understand"; the model answers.
+      Exercises the LLM-correct / helpfulness bucket that separates an assistant from a
+      command parser.
+
+  # --- Not yet: VISION features unbuilt at Wave 0 (resolves_at_wave0: false) -------
+  # These should land in "don't understand" at baseline and move as their wave ships.
+
+  - id: conditional-reminder
+    utterance: remind me in an hour if I haven't closed the garage door
+    category: knowledge
+    routing_truth: llm
+    resolves_at_wave0: false
+    expected:
+      answer:
+        contains: ["hour"]
+    note: "Scheduling spine (Wave 3). Baseline: don't understand."
+
+  - id: remember-fact
+    utterance: remember the wifi password is hunter2-galaxy
+    category: knowledge
+    routing_truth: llm
+    resolves_at_wave0: false
+    expected:
+      answer:
+        contains: ["got it"]
+    note: "Notebook memory (Wave 2). Baseline: don't understand."
+
+  - id: undo-last
+    utterance: undo that
+    category: knowledge
+    routing_truth: llm
+    resolves_at_wave0: false
+    note: "Undo journal (later wave). Baseline: don't understand."
