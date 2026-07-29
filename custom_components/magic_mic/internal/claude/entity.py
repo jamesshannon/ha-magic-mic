@@ -1048,12 +1048,19 @@ class ClaudeBaseLLMEntity(CoordinatorEntity[ClaudeCoordinator]):
                     max_uses=options[CONF_WEB_SEARCH_MAX_USES],
                 )
             if options[CONF_WEB_SEARCH_USER_LOCATION]:
+                # Country and timezone come free from hass.config; city and region are
+                # not in hass.config (only lat/lon, which Anthropic's approximate-location
+                # schema has no field for), so they stay manual and blank unless set.
                 web_search["user_location"] = {
                     "type": "approximate",
                     "city": options.get(CONF_WEB_SEARCH_CITY, ""),
                     "region": options.get(CONF_WEB_SEARCH_REGION, ""),
-                    "country": options.get(CONF_WEB_SEARCH_COUNTRY, ""),
-                    "timezone": options.get(CONF_WEB_SEARCH_TIMEZONE, ""),
+                    "country": options.get(CONF_WEB_SEARCH_COUNTRY)
+                    or self.hass.config.country
+                    or "",
+                    "timezone": options.get(CONF_WEB_SEARCH_TIMEZONE)
+                    or self.hass.config.time_zone
+                    or "",
                 }
             tools.append(web_search)
 
