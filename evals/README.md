@@ -46,10 +46,11 @@ Each case is a single-turn `(utterance [, context] -> expected action(s) / answe
 
 The `local` cases were checked against the installed `home_assistant_intents` sentence
 templates (`en.json`, the same data HASSIL matches on), not guessed. The `llm` cases are
-utterances with **no** matching template that the model still resolves with tools that exist
-today (compound commands, implicit intent, general knowledge). Per the plan, these are
-deliberately hard to find, which is itself the point: it shows how little the LLM path adds
-*over* HASSIL at Wave 0, before any capability lands.
+utterances with **no** matching template that the model is *predicted* to resolve with tools
+that exist today (compound commands, implicit intent, general knowledge). Per the plan, these
+are deliberately hard to find, which is itself the point: it shows how little the LLM path is
+expected to add *over* HASSIL at Wave 0, before any capability lands. "Predicted" is load-
+bearing here, see the hypotheses note below.
 
 ## Scope notes worth remembering
 
@@ -76,8 +77,27 @@ Two runners, one corpus:
 The corpus format is the portable contract both consume. Keep it declarative (data, not
 code) so either runner can read it. See [`docs/evaluation.md`](../docs/evaluation.md) Part H.
 
+## Corpus labels are hypotheses, not measurements
+
+Nothing here has been run against a live model. The `local` cases were checked against the
+sentence *templates* in `home_assistant_intents/en.json` (a template exists), but not against
+a live HASSIL match with the fixture entities exposed. Every `expected` action and every
+`resolves_at_wave0: true` on an `llm` case is a **prediction** of model behavior, not an
+observation. The runner's job is to test these labels; the gap between labelled truth and
+measured behavior is itself a finding.
+
 ## Status
 
-- Corpus: seeded (`corpus/wave0_golden_set.yaml`).
-- Runner + scorecard: pending (next step).
-- Baseline run: pending the runner.
+- Corpus: seeded (`corpus/wave0_golden_set.yaml`), labels unverified (see above).
+- Scorer + scorecard: pending.
+- Mock-driven runner (plumbing + scoring, keyless): pending.
+- HASSIL-routing measurement (verifies the `local` labels, keyless): pending.
+
+### Wave 0 exit gate (blocks Wave 1)
+
+**Stand up a Claude API key + run the live baseline** — stock full-roster prompt,
+`prefer_local` OFF. This is the one step that needs a key and cannot be faked: scoring a
+mocked response would be scoring fabricated output. It is the *final* Wave 0 task, deferred
+until the runner and scorer are built keyless. Wave 1 reports Δtokens / Δturns / Δhassil-rate
+**against this baseline**, so no Wave 1 result exists until it runs. Do not carry it into
+Wave 1.

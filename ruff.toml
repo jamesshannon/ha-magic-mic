@@ -169,7 +169,7 @@ mark-parentheses = false
 
 [lint.isort]
 force-sort-within-sections = true
-known-first-party = ["homeassistant", "custom_components", "tests"]
+known-first-party = ["evals", "homeassistant", "custom_components", "tests"]
 combine-as-imports = true
 split-on-trailing-comma = false
 
