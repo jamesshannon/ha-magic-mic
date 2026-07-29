@@ -115,6 +115,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util, slugify
 from homeassistant.util.json import JsonArrayType, JsonObjectType
 
+from ...chat_log import GenerationRecord, MagicMicChatLog, upgrade_chat_log
 from .const import (
     CONF_CHAT_MODEL,
     CONF_CODE_EXECUTION,
@@ -507,12 +508,12 @@ class AnthropicDeltaStream:
 
     def __init__(
         self,
-        chat_log: conversation.ChatLog,
+        chat_log: MagicMicChatLog,
         stream: AsyncStream[MessageStreamEvent],
         output_tool: str | None = None,
     ) -> None:
         """Initialize the delta stream."""
-        self._chat_log: conversation.ChatLog = chat_log
+        self._chat_log: MagicMicChatLog = chat_log
         self._stream: AsyncStream[MessageStreamEvent] = stream
         self._output_tool: str | None = output_tool
 
@@ -846,7 +847,9 @@ class AnthropicDeltaStream:
 
     def on_message_delta_event(self, delta: Delta, usage: MessageDeltaUsage) -> None:
         """Handle RawMessageDeltaEvent."""
-        self._chat_log.async_trace(self._create_token_stats(self._input_usage, usage))
+        self._chat_log.async_trace_generation(
+            self._create_generation_record(self._input_usage, usage)
+        )
         self._content_details.container = delta.container
         if delta.stop_reason == "refusal":
             raise HomeAssistantError(
@@ -861,23 +864,29 @@ class AnthropicDeltaStream:
         self._content_details = ContentDetails()
         self._content_details.add_citation_detail()
 
-    def _create_token_stats(
+    def _create_generation_record(
         self, input_usage: Usage | None, response_usage: MessageDeltaUsage
-    ) -> dict[str, Any]:
-        """Create token stats for conversation agent tracing."""
+    ) -> GenerationRecord:
+        """Map this round's Anthropic usage onto the neutral record.
+
+        This is the one provider-bound seam: it reads Claude's usage field names and
+        emits the provider-agnostic record every reader consumes. Cache read and cache
+        creation are kept distinct (the previous stats trace conflated creation as
+        "cached").
+        """
         input_tokens = 0
-        cached_input_tokens = 0
+        cache_read_tokens = 0
+        cache_creation_tokens = 0
         if input_usage:
             input_tokens = input_usage.input_tokens
-            cached_input_tokens = input_usage.cache_creation_input_tokens or 0
-        output_tokens = response_usage.output_tokens
-        return {
-            "stats": {
-                "input_tokens": input_tokens,
-                "cached_input_tokens": cached_input_tokens,
-                "output_tokens": output_tokens,
-            }
-        }
+            cache_read_tokens = input_usage.cache_read_input_tokens or 0
+            cache_creation_tokens = input_usage.cache_creation_input_tokens or 0
+        return GenerationRecord(
+            input_tokens=input_tokens,
+            output_tokens=response_usage.output_tokens,
+            cache_read_tokens=cache_read_tokens,
+            cache_creation_tokens=cache_creation_tokens,
+        )
 
 
 class ClaudeBaseLLMEntity(CoordinatorEntity[ClaudeCoordinator]):
@@ -1184,6 +1193,10 @@ class ClaudeBaseLLMEntity(CoordinatorEntity[ClaudeCoordinator]):
         max_iterations: int = MAX_TOOL_ITERATIONS,
     ) -> None:
         """Generate an answer for the chat log."""
+        # The single chokepoint: upgrade the base ChatLog in place so both the
+        # standalone baseline and the testbed proxy capture per-round generation
+        # records. In-place is safe (MagicMicChatLog adds no fields); see chat_log.py.
+        chat_log = upgrade_chat_log(chat_log)
         model_args, structure_name = await self._get_model_args(
             chat_log, structure_name, structure
         )
