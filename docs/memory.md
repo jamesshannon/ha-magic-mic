@@ -264,13 +264,13 @@ section keeps only what's **specific to memory's three fixes** — i.e. each res
 
 ---
 
-## Multi-user / scope (intersects `resolve_user()`)
+## Multi-user / scope (intersects `get_resolved_user()`)
 
 ha-ai-memory ships a **private (per-agent) vs common (shared household)** split.
 Mapped onto our seam (§5.1): memories are keyed by resolved `user_id`, with an
 explicit **shared/household** scope as a first-class option (wifi password, garage
 code, cat's name are household facts, not personal ones). "Private" here means
-per-**user**, not per-agent. This is the `resolve_user()` + user-keyed `Store`
+per-**user**, not per-agent. This is the `get_resolved_user()` + user-keyed `Store`
 primitive (§5.6) doing double duty.
 
 **Settled:** LLM **infers** scope from content (pronoun / shared-resource cues),
@@ -303,7 +303,7 @@ data-model notes below.
 - **Scope: inferred from content, default personal on ambiguity** (settled). Pronoun /
   shared-resource cues decide ("my dentist" → personal; "the wifi" → household);
   default **personal** when unclear (cross-user leak > non-share). Recall = caller's
-  *personal ∪ household*, keyed via `resolve_user()` (§5.1); pre-voice-ID collapses to
+  *personal ∪ household*, keyed via `get_resolved_user()` (§5.1); pre-voice-ID collapses to
   the default/household user, but keyed day one. (Aliases stay forced-household.)
 - **TTL: LLM sets per slot-kind, default none** (settled). Volatile subjects (parking)
   → short default; durable (wifi/codes/names) → none; default no-expiry when unsure.

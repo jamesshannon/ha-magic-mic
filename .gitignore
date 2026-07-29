@@ -1,5 +1,6 @@
-# Reference clone of Home Assistant core (~1.1 GB, not ours to redistribute)
+# Reference clones (not ours to redistribute)
 /ha-core/
+/references/
 
 # Private working notes / agent memory — never publish
 /.claude/
@@ -29,3 +30,4 @@ Thumbs.db
 *~
 .vscode/
 .idea/
+.env

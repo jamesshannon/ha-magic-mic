@@ -3,11 +3,30 @@
     "step": {
       "user": {
         "title": "Magic Mic",
-        "description": "Magic Mic is an early scaffold. Installing it now lets you receive capabilities as they are released — there is nothing to configure yet. Select **Submit** to add it."
+        "description": "Enter a Claude API key. Magic Mic uses Claude as its testbed provider while capabilities are built out.",
+        "data": {
+          "api_key": "API key"
+        }
       }
+    },
+    "error": {
+      "invalid_auth": "Invalid authentication",
+      "cannot_connect": "Failed to connect",
+      "unknown": "Unexpected error"
     },
     "abort": {
       "single_instance_allowed": "Already configured. Only a single instance of Magic Mic is supported."
+    }
+  },
+  "exceptions": {
+    "api_authentication_error": {
+      "message": "Authentication failed talking to Claude: {message}"
+    },
+    "api_error": {
+      "message": "Error talking to Claude: {message}"
+    },
+    "system_message_not_found": {
+      "message": "The chat log does not start with a system message."
     }
   }
 }

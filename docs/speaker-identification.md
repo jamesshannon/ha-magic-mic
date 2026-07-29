@@ -3,7 +3,7 @@
 > Feature doc. Identifying *who is speaking* so the assistant can scope per-user
 > data (memory, calendar, reminders). The model is the easy part; core adoption
 > is hard for reasons that are mostly architectural and security-related.
-> Feeds the `resolve_user()` seam in [`../PRODUCT_PLAN.md`](../PRODUCT_PLAN.md)
+> Feeds the `get_resolved_user()` seam in [`../PRODUCT_PLAN.md`](../PRODUCT_PLAN.md)
 > §5.1; deferred to Phase 4.
 
 ---
@@ -142,15 +142,22 @@ two attack surfaces onto one bound.
 
 ## How it fits our design
 
-- **It's an *input* to `resolve_user()`** (§5.1), not a new subsystem. The
-  community-proven pattern is exactly this: wrap the STT/conversation entity,
-  compute a speaker embedding, match against enrolled profiles, and enrich the
-  `user_id` in the conversation context. That is our `resolve_user()` seam with a
-  higher-priority branch.
-- **Resolution order becomes:** (1) confident voice-ID match → that user; (2)
-  `context.user_id` if it maps to a real Person; (3) configured device→owner; (4)
-  `"default"` household user. Low-confidence voice-ID falls through to (2)–(4)
-  rather than guessing (same ambiguity-guard discipline as `find_entities`).
+- **It's a *populator* of `get_resolved_user()`** (§5.1), not a new subsystem. The
+  community-proven pattern: wrap the STT/conversation entity, compute a speaker embedding,
+  match against enrolled profiles. Crucially, the **embedding match runs in that upstream
+  stage, once**; `get_resolved_user()` never computes it, it only *reads* the result.
+- **The handoff is a side channel, not a context attribute.** HA's `Context` is slotted
+  (no arbitrary fields) and its `user_id` is *auth* identity we must not overwrite with a
+  speaker (personalization-not-auth). So the stage writes `{request → user_id}` into
+  per-request session state; the accessor reads it. (This is *why* it must run at STT, where
+  the audio is: the conversation stage only has text, so the result has to ride a side
+  channel keyed by request identity, not the fixed `ConversationInput`.)
+- **The signals `get_resolved_user()` reads, in priority order:** (1) the voice-ID result
+  (precomputed upstream, read from session state) → that user; (2) `context.user_id` if it
+  maps to a real user — authoritative for text, but for voice it's the pipeline owner, so it
+  ranks *below* (3); (3) configured device→owner; (4) `"default"` household user.
+  Low-confidence voice-ID falls through rather than guessing (same ambiguity-guard discipline
+  as `find_entities`).
 - **Why it's more tractable for us than for core:** we're *building* the
   personalization layer it feeds (escapes reason 1), and we can guarantee
   personalization-not-auth by keeping `user_id` a scoping key for our per-user
@@ -158,7 +165,7 @@ two attack surfaces onto one bound.
 - **What we'd still own:** an enrollment UX, and honest low-confidence handling
   (fallback to household/default, never guess).
 
-Deferred to **Phase 4**. The `resolve_user()` seam and user-keyed store land in
+Deferred to **Phase 4**. The `get_resolved_user()` seam and user-keyed store land in
 Phase 0 so voice-ID drops in later with no data migration.
 
 ---

@@ -1,13 +1,15 @@
 {
   "domain": "magic_mic",
   "name": "Magic Mic",
+  "after_dependencies": ["assist_pipeline", "intent"],
   "codeowners": ["@jamesshannon"],
   "config_flow": true,
+  "dependencies": ["conversation"],
   "documentation": "https://github.com/jamesshannon/ha-magic-mic",
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/jamesshannon/ha-magic-mic/issues",
-  "requirements": [],
+  "requirements": ["anthropic==0.108.0"],
   "single_config_entry": true,
   "version": "0.0.1"
 }

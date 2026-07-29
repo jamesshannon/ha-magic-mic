@@ -192,7 +192,7 @@ not a shipped guarantee.
 - **Default exposure policy for high-consequence domains** — should locks/alarm be
   *excluded* from voice by default, opt-in with a step-up?
 - **Multi-user injection** — a household member planting content that affects another
-  user's session; interaction with `resolve_user()` scoping.
+  user's session; interaction with `get_resolved_user()` scoping.
 - **Device-sourced injection** — is `friendly_name`/state sanitization worthwhile, or is
   provenance-labeling enough?
 - **Eval coverage** — an injection red-team suite in the eval harness (adversarial

@@ -1,28 +1,50 @@
-"""Config flow for the Magic Mic integration."""
+"""Config flow for the Magic Mic integration.
 
-from __future__ import annotations
+Minimal: collect and validate a Claude API key. Model/prompt options are fixed for
+the Wave 0 skeleton; per-agent configuration lands later.
+"""
 
 from typing import Any
 
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+import anthropic
+import voluptuous as vol
 
-from .const import DOMAIN
+from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.const import CONF_API_KEY
+
+from .const import DOMAIN, LOGGER
+from .internal.claude.coordinator import async_create_client
+
+STEP_USER_DATA_SCHEMA = vol.Schema({vol.Required(CONF_API_KEY): str})
 
 
 class MagicMicConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Magic Mic.
-
-    Single instance, no options yet. `single_config_entry` in the manifest keeps
-    it to one instance; there is nothing to configure until capabilities land.
-    """
+    """Handle a config flow for Magic Mic."""
 
     VERSION = 1
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle the initial step."""
+        """Handle the initial step: validate the API key, then create the entry."""
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self.async_create_entry(title="Magic Mic", data={})
+            try:
+                client = await async_create_client(self.hass, user_input[CONF_API_KEY])
+                await client.models.list(timeout=10.0)
+            except anthropic.AuthenticationError:
+                errors["base"] = "invalid_auth"
+            except anthropic.AnthropicError:
+                errors["base"] = "cannot_connect"
+            except Exception:  # noqa: BLE001
+                LOGGER.exception("Unexpected exception validating the Claude API key")
+                errors["base"] = "unknown"
+            else:
+                return self.async_create_entry(
+                    title="Magic Mic",
+                    data={CONF_API_KEY: user_input[CONF_API_KEY]},
+                )
 
-        return self.async_show_form(step_id="user")
+        return self.async_show_form(
+            step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
+        )

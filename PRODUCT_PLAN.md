@@ -64,7 +64,7 @@ gets its own file there. Current docs:
   hassil-rate) = [`evaluation.md`](docs/evaluation.md) Part E's scorecard — one instrument.
   Reorders §8 (token/turn proof to the front; notebook-memory → cheap delight).
 - [`docs/speaker-identification.md`](docs/speaker-identification.md) — voice-ID as
-  an *input* to `resolve_user()` (§5.1). Model is easy/community-proven; core has
+  an *input* to `get_resolved_user()` (§5.1). Model is easy/community-proven; core has
   none and there's **no** formal attempt/ADR (only unanswered Discussion #527);
   the six reasons; the graduated-assurance model (personalization ≠ binary auth)
   and the refined "never grants HA permissions" invariant; how confidence scores
@@ -202,7 +202,7 @@ gets its own file there. Current docs:
   same un-HA failure). **Annotations** ("100 ppm is normal here") = deferred corner
   case (not explicit-recall → needs entity-join injection; write-trigger hard;
   route-to-structured → threshold edit). Multi-user = personal/household scope on
-  `resolve_user()` (§5.1). Phase 2 = **notebook only**.
+  `get_resolved_user()` (§5.1). Phase 2 = **notebook only**.
 
 - [`docs/learning.md`](docs/learning.md) — **the friction-resolution primitive, split out
   of memory.** The offer machinery ("recognize confusion → offer a durable fix → confirm →
@@ -602,14 +602,42 @@ with AI, streaming TTS).
 ## 5. Architecture principles & key mechanisms
 
 ### 5.1 Identity resolver (the load-bearing seam for multi-user)
-- Requests carry **no speaker identity.** `ConversationInput` gives `context.user_id`,
-  `device_id`, `satellite_id` (`components/conversation/models.py:22`) — for voice,
-  `user_id` is the pipeline owner, not the speaker.
-- Single chokepoint: `resolve_user(context, device_id, satellite_id) -> user_id`.
-  v1 order: (1) `context.user_id` if it maps to a real Person; (2) configured
-  device→owner mapping; (3) `"default"` household user.
-- All capability data namespaced by that `user_id` from the first commit.
-  Phase 4 voice-ID = a higher-priority branch in this one function.
+- Requests carry **no reliable speaker identity.** `ConversationInput` gives `context.user_id`,
+  `device_id`, `satellite_id` (`components/conversation/models.py:22`). `context.user_id` is
+  trustworthy for **text** (the logged-in user), but for **voice** it's the **pipeline owner,
+  not the speaker** (identical no matter who talks).
+- **`get_resolved_user(...) -> user_id` is a uniform accessor.** Capability tools call it to get
+  the scope key and never care whether the turn came from a live mic or a deferred trigger. It
+  is **cheap, deterministic, idempotent, and never `None`**, and it **never runs speaker-ID**. It
+  reads a resolution already established for this request (see the populators below), falling
+  back to cheap signals in order: (a) that established `user_id`; (b) `context.user_id` if it
+  maps to a real, active, non-system HA user; (c) a configured device→owner mapping; (d)
+  `"default"`. **Priority is source-dependent:** for voice, (b) is the pipeline owner, so
+  device→owner outranks it; for text, (b) is authoritative.
+- **Populating the resolved user is trigger-specific and happens once, upstream** (never inside
+  the accessor):
+  - **immediate voice:** a speaker-ID stage (Phase 4) at/after STT, where the audio is, matches an
+    enrolled profile ([`docs/speaker-identification.md`](docs/speaker-identification.md));
+  - **immediate text:** `context.user_id`;
+  - **deferred** (a reminder / ephemeral automation firing): the trigger **replays the `user_id`
+    it persisted at capture time** and does **not** re-resolve (no audio; the side channel is long
+    gone). See [`docs/scheduling-model.md`](docs/scheduling-model.md) and
+    [`docs/ephemeral-automations.md`](docs/ephemeral-automations.md).
+
+  Both populators share one **"establish `user_id` in session state → run → clear"** lifecycle.
+- **The handoff is a side channel keyed by request identity, not a `Context` attribute.**
+  `Context` is slotted (`__slots__`; no arbitrary fields) and its `user_id` is HA's **auth**
+  identity, which must not be overwritten with a speaker (**personalization-not-auth**,
+  [`docs/security.md`](docs/security.md)). So the populator writes `{request → user_id}` into
+  per-request session state (`hass.data`), and the accessor (reached by tools via `llm_context`)
+  reads it.
+- **Capture-time, not execution-time.** A deferred action that touches user-scoped data
+  snapshots the resolving `user_id` onto its artifact at creation and scopes by the stored value
+  at fire. The personalization boundary is the **action**: only actions that read personal data
+  (calendar, personal memory) need the `user_id`; a reminder body ("call mom") is just a string.
+- All capability data is namespaced by that `user_id` **from the first commit**. Phase 4 voice-ID
+  is the **upstream populator**, not logic inside the accessor, so it drops in with no data
+  migration.
 
 ### 5.2 Entity resolution strategy (context-window + exact-match fix)
 Three tiers instead of dumping the full roster:
@@ -702,7 +730,7 @@ Primitives identified so far, with their dependents:
 | **`find_entities`** (fuzzy → canonical `entity_id`) | device control (exact-match fix), music search/disambiguation, ephemeral-automation condition/target resolution, reminder targeting |
 | **`{trigger, condition, action}` + HA condition/trigger helpers** | ephemeral automations, conditional reminders |
 | **Scheduling/trigger substrate** (time watermark/catch-up + state `async_initialize_triggers`) | reminders, alarms, sleep-timers, ephemeral automations |
-| **`resolve_user()` identity seam + user-keyed `Store`** | memory, reminders (per-user), calendar/todo scoping, personalization, speaker-ID (Phase 4) |
+| **`get_resolved_user()` identity seam + user-keyed `Store`** | memory, reminders (per-user), calendar/todo scoping, personalization, speaker-ID (Phase 4) |
 | **Prompt-context — I/O contract + taxonomy skeleton + retrieval** | entity context (TTFT, §5.2), memory injection, mic-open/meta-signals (conversation-loop), generation-count-aware output shaping. *Two halves:* output/I/O contract ([`docs/prompt-context.md`](docs/prompt-context.md), done) + input taxonomy/retrieval (§5.2, pending). |
 | **Undo journal** (each mutating tool declares its inverse; deterministic replay) | device control (snapshot/restore), memory/alias writes, reminder/calendar/todo creates, calendar delete, ephemeral automations — and it underwrites every *optimistic* execution path + [`security.md`](docs/security.md)'s reversibility ([`docs/undo.md`](docs/undo.md)) |
 | **Offer / learning engine** (detect friction → offer a durable fix → confirm → persist; `FrictionResolver` registry gated via `async_get_tools` §2.5) | entity aliases, **command aliases**, annotations, threshold edits, todo-default resolution — storage is per-sink (registry / YAML / FTS), only the *offer flow* is shared ([`docs/learning.md`](docs/learning.md)) |
@@ -766,7 +794,7 @@ custom_components/<name>/
   const.py
   conversation.py    # ConversationEntity — the agent shell (throwaway)
   entity.py          # chat loop, streaming, tool-call dispatch (fork anthropic)
-  identity.py        # resolve_user() + device→owner config  [§5.1]
+  identity.py        # get_resolved_user() + device→owner config  [§5.1]
   store.py           # user-keyed Store helper (keying convention)
   capabilities/      # each = as-if-core llm.py platform [§5.5]
     entities.py      # find_entities              (Phase 0)
@@ -926,7 +954,7 @@ publishing **+** this filter, never publishing alone.
 
 - **Phase 0 — Skeleton.** Custom conversation integration on cloud Claude at
   parity with stock Anthropic (inherits device control via Assist API). Add
-  `find_entities` (returns `entity_id`, ambiguity guard). Thread `resolve_user()`
+  `find_entities` (returns `entity_id`, ambiguity guard). Thread `get_resolved_user()`
   and user-keyed `Store` (empty) through the request. Establish the
   `capabilities/` `llm.py`-shaped contract.
 - **Phase 1 — Information.** Weather-forecast tool, web-search (enable built-in),

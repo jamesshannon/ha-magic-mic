@@ -26,9 +26,10 @@
   **delivery-engine / backend-adapter**, not as a capability module. A provider-
   agnostic / local path needs a **client-side search tool** (SearXNG local, or
   Brave/Tavily cloud) — the same **framing-per-backend** split as prompt-context.
-- **Enablement + defaults** is the actual scope: it's **off by default**
-  (`const.py:51`), `max_uses=5`, and `user_location` is **hand-typed** in the options
-  flow — an obvious **determinism-in-tools** fix (auto-fill from `hass.config`).
+- **Enablement + defaults** is the actual scope: `web_search`/`web_fetch` now ship
+  **on** (`const.py`), `max_uses=5`, while `user_location` is **off by default** and,
+  when enabled, **supplied through config** rather than auto-filled from `hass.config`
+  (privacy-first; see the location decision below).
 
 ---
 
@@ -47,8 +48,8 @@ The stock `anthropic` conversation component wires **two server-side tools**:
 
 Both are **`server_tool_use`** (`:436`) — **Anthropic runs them**, not HA. Config keys
 (`const.py:20–28`): `CONF_WEB_SEARCH`, `CONF_WEB_FETCH`, `…_MAX_USES`,
-`…_USER_LOCATION`, `…_CITY/REGION/COUNTRY/TIMEZONE`. **Defaults** (`const.py:51–53`):
-`web_search=False`, `user_location=False`, `max_uses=5`.
+`…_USER_LOCATION`, `…_CITY/REGION/COUNTRY/TIMEZONE`. **Defaults** (`const.py`):
+`web_search=True`, `web_fetch=True`, `user_location=False`, `max_uses=5`.
 
 **Implication:** for the cloud backend, "web search" is **not a build** — it's a
 **toggle we inherit** when we fork the component. Which reframes the whole feature.
@@ -98,15 +99,21 @@ wiring differs by backend — same pattern as typed-blocks-vs-JSONL output frami
 Since the mechanism is inherited, the design work is **when it's on and how it's
 configured**:
 
-- **On/off:** ships **off**. For an assistant-grade experience, **default on** (the
-  "richer info retrieval" the plan calls for) — but disclose it (queries leave the home)
-  and keep it a single toggle, honoring HA local-first + the AI policy.
-- **Location auto-fill (determinism-in-tools):** today `user_location` is **typed by
-  hand** in the options flow. Instead **derive it from `hass.config`**
-  (latitude/longitude → city/region/country; `hass.config.time_zone`) so local-relevant
-  searches ("pharmacies open now") work with **zero setup** — the same "never
-  interrogate, infer from the home" stance as [`scheduling-model.md`](scheduling-model.md)
-  targeting. Keep it behind the existing enable-location flag for privacy.
+- **On/off:** now ships **on** (the "richer info retrieval" the plan calls for). Queries
+  leave the home, so it is disclosed and stays a single toggle, honoring HA local-first +
+  the AI policy. Whether `web_search` itself should default off is a separate open question;
+  location, below, is the sharper privacy concern and is the one that ships off.
+- **Location (privacy-first, config-supplied):** `user_location` is **off by default** and,
+  when enabled, every field (`city`/`region`/`country`/`timezone`) is **supplied through
+  config**, not derived from `hass.config`. This reverses the earlier auto-fill idea for two
+  reasons. `hass.config` carries only lat/lon (plus `country`/`time_zone`), and Anthropic's
+  approximate-location schema has **no lat/lon field**, so `city`/`region` could not be
+  filled from it anyway. And auto-attaching the home's location to outbound searches is an
+  unwanted default for a privacy-first project. Config-supplied values also let the user
+  provide the `city`/`region` `hass.config` lacks, and share exactly what they intend.
+  **Long-term / core:** a checkbox plus a reverse-geocode lookup (lat/lon → city/region)
+  could restore zero-setup location behind explicit consent. The config keys exist
+  (`const.py`); the options-flow UI to set them is not built yet (POC-stage work).
 - **`max_uses`:** default 5 is fine; it bounds cost/latency per turn.
 - **When to search (prompt policy):** **model-decides** — the tool is available, the
   model reaches for it on freshness/uncertainty (current events, "what year was that

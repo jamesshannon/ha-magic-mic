@@ -34,7 +34,7 @@ These are non-negotiable and shape almost every change. Full rationale in
    api_id) -> LLMTools`) so migration to core is close to copy/paste. The conversation shell
    is deliberately throwaway; the capabilities are the point.
 3. **Multi-user from day one.** All capability data is namespaced by a resolved `user_id`
-   from the first commit, behind a single `resolve_user(...)` seam (§5.1). Never key data on
+   from the first commit, behind a single `get_resolved_user(...)` seam (§5.1). Never key data on
    device or satellite directly; voice-ID drops into that one function later with no
    migration.
 4. **Never degrade the no-AI path.** Where a capability can also land as a local HA intent,
@@ -62,11 +62,20 @@ working around it.
 ## Development environment
 
 - **Python 3.14**, virtualenv at `.venv/` (already created; don't recreate it).
-- Home Assistant is installed in the venv, and its source doubles as the reference
-  implementation: `.venv/lib/python3.14/site-packages/homeassistant/`. Read the real HA
-  source before inventing an API, especially `homeassistant/helpers/llm.py`,
-  `components/conversation/`, and `components/anthropic/` (the shell this project mirrors).
-- Tooling is in `.venv/bin/`: `ruff`, `pytest`, `hass`.
+- **HA core is cloned at `references/core/`** (gitignored, full repo *including tests*). This
+  is the authoritative local source: read it instead of fetching from GitHub. Especially
+  `homeassistant/helpers/llm.py`, `components/conversation/`, and `components/anthropic/` (the
+  shell this project mirrors); `tests/components/anthropic/` for test patterns (mock streams,
+  fixtures); and `pyproject.toml` for the ruff config we mirror. The installed HA in
+  `.venv/lib/python3.14/site-packages/homeassistant/` is the same source but without tests.
+- The Home Assistant **developer docs** are cloned at `references/developers.home-assistant/`
+  (gitignored). Consult them for conventions before guessing: test file structure, debugging,
+  the integration quality scale. `references/developers.home-assistant/sidebars.js` indexes them.
+- **`references/example-custom-config/`** (gitignored) is HA's example custom-integration repo:
+  minimal, well-formed integrations (`hello_world`, `detailed_hello_world_push`, platform
+  examples) to copy structure from. No tests included.
+- Tooling is in `.venv/bin/`: `ruff`, `pytest`, `hass`. Install test-only packages with
+  `.venv/bin/pip install -r requirements_test.txt`.
 
 Common commands, run from the repo root:
 
@@ -74,13 +83,15 @@ Common commands, run from the repo root:
 .venv/bin/ruff format .        # format
 .venv/bin/ruff check .         # lint
 .venv/bin/ruff check --fix .   # lint + autofix
-.venv/bin/pytest               # tests (none yet; they land with the first capabilities)
+.venv/bin/pytest               # run the test suite
 ```
 
-The integration has no runtime behavior to exercise yet, so there's nothing to run in a
-live HA instance today. As capabilities land, the dev/test harness and how to load the
-component into a dev HA instance get documented here and in
-[`docs/build-sequence.md`](docs/build-sequence.md).
+Tests follow HA's layout: `tests/components/<domain>/` with `__init__.py`, `conftest.py`,
+and `test_*.py` (mirrors core, so they move upstream unchanged). They run under
+`pytest-homeassistant-custom-component`; the repo-root `conftest.py` grafts this repo's
+`custom_components/` onto the loader path (the plugin otherwise shadows it), so run pytest
+from the repo root. How to load the component into a live HA instance gets documented here as
+that workflow settles.
 
 ## Code style
 
@@ -90,10 +101,12 @@ code targets HA core, and ruff enforces HA's rules in CI.
 
 Concrete rules (the HA specifics that override or sharpen Google's):
 
-- **Formatting is ruff.** Run `ruff format`; don't hand-format around it. Line length is 88
-  (the ruff/HA default, not Google's 80). PEP 8 and PEP 257 are enforced strictly.
-- **`from __future__ import annotations`** at the top of every module (see the existing
-  files).
+- **Formatting and linting are ruff**, configured by `ruff.toml`, which mirrors HA core's
+  config (adapted to this repo's layout). Run `ruff format` and `ruff check --fix`; don't
+  hand-format around them. Line length is 88 (the ruff/HA default, not Google's 80). Re-sync
+  `ruff.toml` when the HA version in `.venv` is bumped.
+- **No `from __future__ import annotations`.** HA is Python 3.14+, where PEP 649 defers
+  annotation evaluation, so it's unnecessary; HA's ruff config bans it.
 - **Full type hints** on every function. Type information lives in annotations, not
   docstrings. `assert`-based type narrowing only inside `TYPE_CHECKING` blocks.
 - **Async by default** for I/O and HA entry points (`async_setup_entry`, and so on).
@@ -106,11 +119,15 @@ Concrete rules (the HA specifics that override or sharpen Google's):
   when extended detail helps; a one-line imperative docstring is fine for simple functions.
 - **Alphabetize** constants and the contents of lists and dicts where practical (an HA
   convention).
-- **Imports** grouped and ordered per PEP 8 / ruff's isort (stdlib, third-party,
-  first-party), then alphabetical.
-
-There's no `pyproject.toml` or ruff config in the repo yet. Until one lands, follow HA
-core's ruff configuration; adding a config that mirrors core's is a welcome early task.
+- **Imports follow HA/core, not Google §2.2** (a deliberate HA-wins divergence, since we
+  target core and mirror its ruff). Import **names directly** (`from homeassistant.core import
+  HomeAssistant`, `from ..identity import get_resolved_user`), *not* modules-only. **Relative
+  imports within the integration are fine** (as in core components; Google bans them). Use
+  module-with-alias only where HA's `flake8-import-conventions` requires it (`dr`, `er`, `cv`,
+  `llm`, `dt_util`, …). `ruff check --fix` orders imports (`force-sort-within-sections`,
+  `combine-as-imports`); neither our config nor Google's actually lints §2.2, so this is
+  convention. `references/google_style_guide.md` is the readability base *where it doesn't
+  conflict with HA*; the enforced config stays `ruff.toml` (HA-mirrored), not the Google one.
 
 ## Working practices for agents
 

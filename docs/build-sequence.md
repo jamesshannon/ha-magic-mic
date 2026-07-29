@@ -7,6 +7,9 @@
 > [`prompt-context.md`](prompt-context.md), [`find-entities.md`](find-entities.md),
 > [`learning.md`](learning.md), [`scheduling-model.md`](scheduling-model.md).
 
+> **Progress (2026-07-29):** **Wave 0 is complete** and merged to `main` (see the Wave 0
+> section for the exit number). **Wave 1 — Prove the thesis** is next.
+
 ---
 
 ## The three prioritization axes
@@ -38,7 +41,7 @@ a quality loss — [`evaluation.md`](evaluation.md) Part D). The eval **scorecar
 dashboard; build one instrument, not two.
 
 **Seam early, engine just-in-time.** Thread a primitive's *seam* on day one (cheap, avoids a
-retrofit — `resolve_user()`, the user-keyed `Store`), but build the *engine* only when its
+retrofit — `get_resolved_user()`, the user-keyed `Store`), but build the *engine* only when its
 first consumer lands (the delivery engine waits for reminders). `find_entities` is the
 exception that comes early — it already has a Wave-1 consumer *and* four downstream ones.
 
@@ -96,8 +99,16 @@ Each wave carries something from all three axes, so there's always a measured re
 something demonstrable. Tags: **[C]** component · **[core]** needs a core change/PR ·
 **[HA]** HA-owned toggle we depend on.
 
-### Wave 0 — Skeleton + instrument + baseline
+### Wave 0 — Skeleton + instrument + baseline ✅ complete (2026-07-29)
 *Axis 1; the instrument for axis 2.*
+
+**Status: complete.** Every bullet below landed. The locked baseline is
+`evals/results/wave0_baseline.json` (`claude-haiku-4-5`, `prefer_local` OFF, pre-magic
+roster): **21 correct / 4 wrong / 0 unresolved**, 44 generations. Delivered beyond the plan:
+the eval's fixture home is backed by executable entities plus a mocked satellite (so timers
+and the full tool roster run headless), the scorer takes `any_of` acceptable outcomes to
+absorb LLM non-determinism, and `web_search`/`web_fetch` ship on with `user_location` off
+(privacy-first, config-supplied).
 
 - **[C]** Stand up the **Testbed Proxy** ([`testbed-proxy.md`](testbed-proxy.md)):
   `magic_mic.internal.claude` (near-upstream copy of the `anthropic` component, registered as
@@ -106,7 +117,7 @@ something demonstrable. Tags: **[C]** component · **[core]** needs a core chang
   **pass-through**: identical behavior to the baseline, but with the trace hook and
   tool-interception seam in place. Inherits device control, streaming, and (Claude-specific,
   optional) **server-side web_search** ([`web-search.md`](web-search.md)).
-- **[C]** Thread `resolve_user()` + user-keyed `Store` **empty** through the request (§5.1);
+- **[C]** Thread `get_resolved_user()` + user-keyed `Store` **empty** through the request (§5.1);
   establish the `capabilities/` `llm.py`-shaped contract (§5.5).
 - **[C]** Tier-A pytest scaffold + the **Tier-B golden-set runner** (seed cases from
   `VISION.md`'s transcripts) + the **value dashboard** (capture `usage` tokens/cache; count
@@ -127,6 +138,12 @@ something demonstrable. Tags: **[C]** component · **[core]** needs a core chang
   match-layer version opens the first **[core]** track ([`find-entities.md`](find-entities.md)).
   → measure **Δturns** (disambiguation success).
 - **[HA]** Flip **`prefer_local_intents` ON** (§2.9) → measure **Δhassil-intervention rate**.
+- **Testing gate (tool interception):** the Wave 0 equivalence test covers the *pass-through*
+  proxy only. **Before any tool filtering / replacement / interception is committed** (the
+  wrapped `TestbedAPI.async_call_tool` routing, e.g. `find_entities` → the fuzzy resolver), add
+  a conversation-turn test driving a `tool_use` response that asserts the interception: the
+  baseline executes the stock tool; the testbed routes/rewrites it. See
+  [`testbed-proxy.md`](testbed-proxy.md).
 
 *Proves:* the token/turn/local claims — the **go/no-go** on the design's central bet.
 

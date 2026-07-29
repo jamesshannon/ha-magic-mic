@@ -207,6 +207,12 @@ meeting. This is why Google keeps *Reminders* distinct from *Calendar events* ev
 though both live in the calendar: reminders fire proactively; events notify per
 their own settings. Preserve that distinction.
 
+**Ownership is captured at creation.** "Remind **me**…" resolves the owner `user_id` via
+`get_resolved_user()` at capture and stores it on the reminder (§5.1). Firing scopes by that
+stored value (whose calendar, whose personal note) and **never re-resolves identity at fire**
+(there's no speaker then). *Whose* reminder (scoping) and *where* to deliver it
+(targeting/escalation below) are independent outputs of that one capture.
+
 ### Todo's role
 Todos **don't fire on due** (the trigger is list-mutation). So *firing-things are
 reminders, not todos*; a todo-with-due-date stays a **passive list** and is an
@@ -253,7 +259,7 @@ Key insight: **escalate-to-broadcast buys *reliability* without *identity*** —
 needn't know where the person is if you eventually ping everywhere. The floor
 (requesting device + escalate-on-non-ack) needs zero identity **and zero questions**,
 ships now. Without Voice-ID a voice-set reminder is inherently semi-public and personal
-channels stay gated (the *one* right phone needs identity — same `resolve_user()` seam
+channels stay gated (the *one* right phone needs identity — same `get_resolved_user()` seam
 as memory scope) — a silent capability limit, **not** a reason to ask. The mechanics of
 those gated **phone-push** rungs (and their off-satellite ack) are **parked** to Phase 4
 below — see [Deferred: off-satellite ack](#deferred-off-satellite-ack-phone-push--phase-4-voice-id-gated).
