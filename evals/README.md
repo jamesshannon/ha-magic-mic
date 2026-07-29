@@ -158,6 +158,13 @@ Ran the live baseline keyed from a project-root `.env`: stock full-roster prompt
 `prefer_local` OFF, so only the 8 `llm`-labelled cases agree); 44 generations. Wave 1 reports
 Δtokens / Δturns / Δhassil-rate against this artifact.
 
+This is the **pre-magic roster**: the shipped agent now enables `web_search`/`web_fetch`
+(the banked free magic), but `build-sequence.md` captures the baseline *before* that bank,
+so the runner pins those tools off (`pin_pre_magic_roster`, recorded as `web_tools: false`
+in the artifact). That keeps `python -m evals.harness.baseline` reproducing this reference no
+matter what ships. When Wave 1 needs to measure the web tools' effect, run a labelled
+comparison against this artifact rather than moving it.
+
 The 4 wrong-action cases are model behavior worth recording, not harness faults:
 `turn-off-all-lights` and `implicit-too-dark` ask which entity instead of acting;
 `implicit-cold` reads the thermostat then asks how warm; `remember-fact` is a VISION feature

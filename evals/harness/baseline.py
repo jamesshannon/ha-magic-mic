@@ -19,11 +19,13 @@ render to stdout and land as a JSON artifact under `evals/results/` so Wave 1 ca
 
 import argparse
 import asyncio
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from datetime import UTC, datetime
 import json
 import os
 from pathlib import Path
+from unittest.mock import patch
 
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -50,6 +52,9 @@ if _REPO_CC not in custom_components.__path__:
 from custom_components.magic_mic.const import DOMAIN  # noqa: E402
 from custom_components.magic_mic.internal.claude.const import (  # noqa: E402
     CONF_CHAT_MODEL,
+    CONF_WEB_FETCH,
+    CONF_WEB_SEARCH,
+    CONF_WEB_SEARCH_USER_LOCATION,
     DEFAULT,
 )
 
@@ -67,6 +72,27 @@ from .world import async_setup_local_agent  # noqa: E402
 # at Wave 0 but is the thing later waves change). Its unique_id suffix, from
 # `conversation.async_setup_entry`.
 _BASELINE_UNIQUE_SUFFIX = "_claude_baseline"
+
+
+@contextmanager
+def pin_pre_magic_roster() -> Iterator[None]:
+    """Disable the server-side web tools for the baseline run, eval-only.
+
+    The shipped agent enables `web_search`/`web_fetch` (the banked "free magic"), but the
+    locked baseline is the pre-magic reference: `build-sequence.md` captures it before the
+    magic is banked. Patching the provider `DEFAULT` for the run keeps
+    `python -m evals.harness.baseline` reproducing that reference regardless of what ships,
+    since the agent merges `DEFAULT` into its options at each turn.
+    """
+    with patch.dict(
+        DEFAULT,
+        {
+            CONF_WEB_FETCH: False,
+            CONF_WEB_SEARCH: False,
+            CONF_WEB_SEARCH_USER_LOCATION: False,
+        },
+    ):
+        yield
 
 
 class BaselineError(RuntimeError):
@@ -186,6 +212,7 @@ def build_artifact(scorecard: Scorecard, model: str, *, subset: bool) -> dict:
             "timestamp": datetime.now(UTC).isoformat(),
             "model": model,
             "prefer_local": False,
+            "web_tools": False,
             "corpus": WAVE0_GOLDEN_SET.name,
             "cases": scorecard.total,
             "subset": subset,
@@ -301,7 +328,8 @@ async def main(argv: Sequence[str] | None = None) -> None:
     )
 
     async with async_test_home_assistant() as hass:
-        scorecard = await run_baseline(hass, corpus, api_key, cases)
+        with pin_pre_magic_roster():
+            scorecard = await run_baseline(hass, corpus, api_key, cases)
 
     print("\n" + scorecard.render())
     out_path = _resolve_out_path(args, subset=subset)
