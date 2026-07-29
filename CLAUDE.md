@@ -62,10 +62,12 @@ working around it.
 ## Development environment
 
 - **Python 3.14**, virtualenv at `.venv/` (already created; don't recreate it).
-- Home Assistant is installed in the venv, and its source doubles as the reference
-  implementation: `.venv/lib/python3.14/site-packages/homeassistant/`. Read the real HA
-  source before inventing an API, especially `homeassistant/helpers/llm.py`,
-  `components/conversation/`, and `components/anthropic/` (the shell this project mirrors).
+- **HA core is cloned at `references/core/`** (gitignored, full repo *including tests*). This
+  is the authoritative local source: read it instead of fetching from GitHub. Especially
+  `homeassistant/helpers/llm.py`, `components/conversation/`, and `components/anthropic/` (the
+  shell this project mirrors); `tests/components/anthropic/` for test patterns (mock streams,
+  fixtures); and `pyproject.toml` for the ruff config we mirror. The installed HA in
+  `.venv/lib/python3.14/site-packages/homeassistant/` is the same source but without tests.
 - The Home Assistant **developer docs** are cloned at `references/developers.home-assistant/`
   (gitignored). Consult them for conventions before guessing: test file structure, debugging,
   the integration quality scale. `references/developers.home-assistant/sidebars.js` indexes them.
