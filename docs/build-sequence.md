@@ -99,8 +99,13 @@ something demonstrable. Tags: **[C]** component · **[core]** needs a core chang
 ### Wave 0 — Skeleton + instrument + baseline
 *Axis 1; the instrument for axis 2.*
 
-- **[C]** Fork the `anthropic` conversation integration → Magic Mic entity at **parity**
-  (inherits device control, streaming, and **server-side web_search** — [`web-search.md`](web-search.md)).
+- **[C]** Stand up the **Testbed Proxy** ([`testbed-proxy.md`](testbed-proxy.md)):
+  `magic_mic.internal.claude` (near-upstream copy of the `anthropic` component, registered as
+  its own agent = the **baseline**) + `magic_mic.testbed` (neutral proxy that wraps
+  `chat_log.llm_api` and delegates the loop to the inner agent). At Wave 0 the wrapper is
+  **pass-through**: identical behavior to the baseline, but with the trace hook and
+  tool-interception seam in place. Inherits device control, streaming, and (Claude-specific,
+  optional) **server-side web_search** ([`web-search.md`](web-search.md)).
 - **[C]** Thread `resolve_user()` + user-keyed `Store` **empty** through the request (§5.1);
   establish the `capabilities/` `llm.py`-shaped contract (§5.5).
 - **[C]** Tier-A pytest scaffold + the **Tier-B golden-set runner** (seed cases from

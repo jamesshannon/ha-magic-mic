@@ -46,6 +46,15 @@ These are non-negotiable and shape almost every change. Full rationale in
 6. **Prefer hashmap lookups and composed functions over new engines.** The containment
    hierarchy is a fixed-depth tree already indexed by HA's registries. Don't add a graph
    database or query engine to solve it (§5.3).
+7. **Build in the neutral proxy layer; the provider is a testbed, not a dependency.** Magic
+   Mic runs as a Testbed Proxy conversation agent (`magic_mic.testbed`) that wraps an internal
+   provider agent (`magic_mic.internal.claude`) and interposes at the `llm.APIInstance` seam
+   (tools, tool execution, `api_prompt`). Put Magic Mic logic in the proxy, not the provider.
+   Claude is the demo backend because it's the easiest capable model to test against; there's
+   no hard dependency on it, so don't let Claude-specific types or assumptions leak into the
+   proxy or capabilities. Reach for the proxy seam first; modify `internal.claude` only when
+   the HA↔LLM contract itself is what you need to change. See
+   [`docs/testbed-proxy.md`](docs/testbed-proxy.md).
 
 When a change would violate one of these, stop and raise it with the human rather than
 working around it.

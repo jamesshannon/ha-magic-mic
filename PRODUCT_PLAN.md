@@ -12,6 +12,17 @@ Per-feature / per-topic deep-dives live in [`docs/`](docs/) so this plan stays a
 overview. As we drill into a feature (memory, speaker identification, todo, …) it
 gets its own file there. Current docs:
 
+- [`docs/testbed-proxy.md`](docs/testbed-proxy.md): the **delivery vehicle**. A neutral
+  **Testbed Proxy** conversation agent (`magic_mic.testbed`) wraps a near-upstream internal
+  provider agent (`magic_mic.internal.claude`, a copy of the `anthropic` component) and
+  interposes at the `llm.APIInstance` seam, where HA routes tool exposure (`.tools`), tool
+  execution (`chat_log.llm_api.async_call_tool`, run by the `ChatLog`, not the provider), and
+  the exposed-entity prompt (`.api_prompt`). One decorator over that object intercepts all
+  three, provider-agnostically. Registering `internal.claude` too gives the unoptimized
+  **baseline** for free (same backend, stock vs. wrapped, measure the delta). Claude is the
+  demo provider because it's the easiest capable model to test against; **no hard dependency
+  on Claude.** Escape hatch: edit `internal.claude` directly when the HA↔LLM contract itself
+  is what needs changing (reach for the proxy first).
 - [`docs/external-agents-openclaw.md`](docs/external-agents-openclaw.md) —
   build-vs-delegate decision re: OpenClaw / external agent platforms. **Not**
   building on it; the two delegate patterns (build-on ❌ vs thin front-end ✅)
@@ -557,8 +568,9 @@ matcher so pure-local benefits, which trades away determinism.)
 | Decision | Choice | Notes |
 |---|---|---|
 | v1 scope | **Skeleton first** | Working custom agent at parity with stock Anthropic, then layer capabilities. |
-| Delivery vehicle | **Custom conversation integration** | Fork the `anthropic` component's shape (reuse its ~1300-line tool/streaming loop). |
-| Model location | **Cloud Claude** | Best reasoning/tool-use; network round-trip already absorbs retrieval cost. |
+| Delivery vehicle | **Testbed Proxy conversation agent** | Neutral proxy (`magic_mic.testbed`) wraps a near-upstream internal provider agent (`magic_mic.internal.claude`), interposing at the `llm.APIInstance` seam. All Magic Mic logic lives in the proxy. See [`docs/testbed-proxy.md`](docs/testbed-proxy.md). |
+| LLM provider | **Claude is the testbed, not a dependency** | Easiest capable model to demo against (contributors have keys; less setup than local Ollama; fair prebuilt baseline). A dependency on a *Claude-class* model may be unavoidable; a dependency on *Claude specifically* is not. Swap = swap the inner agent, not the proxy. |
+| Model location | **Cloud Claude to start** | Best reasoning/tool-use; network round-trip already absorbs retrieval cost. Provider-agnostic capabilities mean local models get the same tools (§7). |
 | Multi-user | **Design for multi-user from day one** | Data model keyed by resolved `user_id` behind a resolver seam; voice-ID drops in later without migration. |
 | Component type (short term) | **`custom_components/`** | For fast iteration, developed in this repo. |
 | Component type (end goal) | **Core** | Via provider-agnostic capability platforms (§7). |
