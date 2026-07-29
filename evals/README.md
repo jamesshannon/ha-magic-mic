@@ -165,6 +165,15 @@ in the artifact). That keeps `python -m evals.harness.baseline` reproducing this
 matter what ships. When Wave 1 needs to measure the web tools' effect, run a labelled
 comparison against this artifact rather than moving it.
 
+Config knobs like the web tools, `prefer_local`, and `web_search` `user_location` (off by
+default, privacy-first) are eval **axes**, not just shipped defaults to mirror: measure each
+one against the baseline with a labelled on/off comparison, using cases that actually
+exercise it. Location is not tested at all yet, because no case's correct answer depends on
+it (the corpus is location-invariant). It earns a location-on variant only once the corpus
+has location-sensitive cases ("what's open near me"), where the point is to measure whether
+attaching location improves the answer enough to justify the privacy cost, a decision the
+eval informs precisely because it is more than a mirror of defaults.
+
 The 4 wrong-action cases are model behavior worth recording, not harness faults:
 `turn-off-all-lights` and `implicit-too-dark` ask which entity instead of acting;
 `implicit-cold` reads the thermostat then asks how warm; `remember-fact` is a VISION feature

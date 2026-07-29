@@ -1048,23 +1048,21 @@ class ClaudeBaseLLMEntity(CoordinatorEntity[ClaudeCoordinator]):
                     max_uses=options[CONF_WEB_SEARCH_MAX_USES],
                 )
             if options[CONF_WEB_SEARCH_USER_LOCATION]:
-                # Country and timezone come free from hass.config; city and region are
-                # not in hass.config (only lat/lon, which Anthropic's approximate-location
-                # schema has no field for), so they stay manual. Anthropic rejects empty
-                # strings, so include only fields that have a value.
+                # Location is opt-in and off by default: HA is privacy-first, so the home's
+                # location is never sent to the search provider without the user choosing
+                # to. When enabled, every field is supplied explicitly through config, not
+                # derived from hass.config: that lets the user provide the city/region
+                # hass.config lacks (it holds only lat/lon) and share exactly what they
+                # intend. Anthropic rejects empty strings, so include only fields set.
                 location: dict[str, str] = {"type": "approximate"}
-                if city := options.get(CONF_WEB_SEARCH_CITY):
-                    location["city"] = city
-                if region := options.get(CONF_WEB_SEARCH_REGION):
-                    location["region"] = region
-                if country := (
-                    options.get(CONF_WEB_SEARCH_COUNTRY) or self.hass.config.country
+                for field_name, option in (
+                    ("city", CONF_WEB_SEARCH_CITY),
+                    ("region", CONF_WEB_SEARCH_REGION),
+                    ("country", CONF_WEB_SEARCH_COUNTRY),
+                    ("timezone", CONF_WEB_SEARCH_TIMEZONE),
                 ):
-                    location["country"] = country
-                if timezone := (
-                    options.get(CONF_WEB_SEARCH_TIMEZONE) or self.hass.config.time_zone
-                ):
-                    location["timezone"] = timezone
+                    if value := options.get(option):
+                        location[field_name] = value
                 web_search["user_location"] = location
             tools.append(web_search)
 
