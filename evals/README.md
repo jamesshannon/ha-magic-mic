@@ -77,21 +77,36 @@ Two runners, one corpus:
 The corpus format is the portable contract both consume. Keep it declarative (data, not
 code) so either runner can read it. See [`docs/evaluation.md`](../docs/evaluation.md) Part H.
 
-## Corpus labels are hypotheses, not measurements
+## What is measured vs. still predicted
 
-Nothing here has been run against a live model. The `local` cases were checked against the
-sentence *templates* in `home_assistant_intents/en.json` (a template exists), but not against
-a live HASSIL match with the fixture entities exposed. Every `expected` action and every
-`resolves_at_wave0: true` on an `llm` case is a **prediction** of model behavior, not an
-observation. The runner's job is to test these labels; the gap between labelled truth and
-measured behavior is itself a finding.
+The **routing labels are now measured**, keyless. `test_routing.py` runs every utterance
+through core's local (HASSIL) agent with the fixture home exposed and confirms: all 17
+`local` cases are recognized (a sentence template matches), and none of the 8 `llm` cases
+resolve locally. So `routing_truth` is no longer a template-existence guess; it is a live
+result.
+
+The **`expected` actions are still predictions.** Nothing has run against a live model, so
+every `expected.tools` / `expected.answer` and every `resolves_at_wave0: true` on an `llm`
+case remains a hypothesis until the live baseline (below) runs.
+
+Findings the measurement surfaced:
+
+- The harness runs a minimal core (no per-domain platforms), so most device intents
+  *recognize* but cannot *execute*; recognition, not execution, is what the `local` check
+  asserts (see `routing.py`).
+- Two `llm` cases (`compound-two-devices`, `knowledge-capital-france`) do not cleanly
+  no-match: HASSIL *false-matches* a catch-all template and then fails with no valid target.
+  They still do not resolve locally, so the `llm` label holds, but for a subtler reason than
+  "no template."
 
 ## Status
 
-- Corpus: seeded (`corpus/wave0_golden_set.yaml`), labels unverified (see above).
-- Scorer + scorecard: pending.
-- Mock-driven runner (plumbing + scoring, keyless): pending.
-- HASSIL-routing measurement (verifies the `local` labels, keyless): pending.
+- Corpus: seeded (`corpus/wave0_golden_set.yaml`).
+- Scorer + scorecard: done, 20 deterministic tests (`harness/scoring.py`).
+- HASSIL-routing measurement: done, keyless, 25 cases (`harness/routing.py`, `world.py`).
+- Mock-driven runner (drives the testbed agent, captures the action-level `ObservedTurn`):
+  pending. Forces two small instrumentation additions (generation count, `cache_read`
+  tokens) in the provider seam.
 
 ### Wave 0 exit gate (blocks Wave 1)
 

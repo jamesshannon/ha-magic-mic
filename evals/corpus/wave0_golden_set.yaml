@@ -349,9 +349,10 @@ cases:
       answer:
         contains: ["Paris"]
     note: >
-      General knowledge, no tool. HASSIL returns "don't understand"; the model answers.
-      Exercises the LLM-correct / helpfulness bucket that separates an assistant from a
-      command parser.
+      General knowledge, no tool. The routing measurement shows HASSIL false-matches
+      the GetState catch-all and fails with no valid target, so it does not resolve
+      locally; the model answers. Exercises the LLM-correct / helpfulness bucket that
+      separates an assistant from a command parser.
 
   # --- Not yet: VISION features unbuilt at Wave 0 (resolves_at_wave0: false) -------
   # These should land in "don't understand" at baseline and move as their wave ships.
