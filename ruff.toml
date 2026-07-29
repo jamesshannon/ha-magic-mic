@@ -177,6 +177,8 @@ split-on-trailing-comma = false
 # Allow relative imports within the integration (as core allows within components).
 "custom_components/magic_mic/**" = ["TID252", "PTH"]
 "tests/**" = ["TID252", "PTH"]
+# The live-baseline runner is a CLI dev tool; stdout is its interface.
+"evals/harness/baseline.py" = ["T201"]
 
 [lint.mccabe]
 max-complexity = 25

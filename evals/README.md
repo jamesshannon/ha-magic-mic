@@ -17,9 +17,12 @@ evals/
   README.md                     this file
   corpus/
     wave0_golden_set.yaml        the seed cases + the fixture "home" they run against
+  harness/                       corpus loader, scorer, routing measurement, runner
+    baseline.py                  the live-baseline entry point (needs a key)
+    backing.py                   real executable entities for the fixture home
+  results/
+    wave0_baseline.json          the recorded live baseline Wave 1 measures against
 ```
-
-The runner (pytest-driven, first step) lands next to this once the corpus stabilizes.
 
 ## What the corpus is
 
@@ -99,15 +102,20 @@ through core's local (HASSIL) agent with the fixture home exposed and confirms: 
 resolve locally. So `routing_truth` is no longer a template-existence guess; it is a live
 result.
 
-The **`expected` actions are still predictions.** Nothing has run against a live model, so
-every `expected.tools` / `expected.answer` and every `resolves_at_wave0: true` on an `llm`
-case remains a hypothesis until the live baseline (below) runs.
+The **`expected` actions are now measured for the LLM scope.** The live baseline
+(`harness/baseline.py`) ran the corpus through the real model, and the run falsified four
+predicted `expected.tools`: the model correctly set brightness, cover position, and volume
+and added a list item, but through `HassLightSet`, `HassSetPosition`, `HassSetVolume`, and
+`HassListAddItem`, not the tools the corpus guessed. Those four score as `wrong action`
+against the current corpus until the expectations are reconciled; the model's spoken
+confirmations show the action itself was right.
 
-Findings the measurement surfaced:
+Findings the keyless routing measurement surfaced:
 
-- The harness runs a minimal core (no per-domain platforms), so most device intents
+- The routing harness runs a minimal core (no per-domain platforms), so most device intents
   *recognize* but cannot *execute*; recognition, not execution, is what the `local` check
-  asserts (see `routing.py`).
+  asserts (see `routing.py`). The live baseline does not share this limitation: it backs the
+  fixture with real platforms (see `backing.py`).
 - Two `llm` cases (`compound-two-devices`, `knowledge-capital-france`) do not cleanly
   no-match: HASSIL *false-matches* a catch-all template and then fails with no valid target.
   They still do not resolve locally, so the `llm` label holds, but for a subtler reason than
@@ -127,14 +135,30 @@ Findings the measurement surfaced:
   resolution); `run_case` scores it against the scope's expectation. Verified against the
   mocked stream for text answers, tool calls, generation counting, and wrong-action buckets
   (`tests/components/magic_mic/test_runner.py`).
+- Executable fixture: done (`harness/backing.py`). The live baseline registers each corpus
+  entity on its real domain platform (`light`, `switch`, `fan`, `cover`, `climate`,
+  `media_player`, `todo`), so the domain's services and Assist intents both load and the full
+  tool roster is exposed and executes. Without it, tool calls hit missing services, the model
+  retried, and per-turn generation counts were inflated.
+- Live baseline: done (`harness/baseline.py`, run recorded in `results/wave0_baseline.json`).
 
-Everything keyless is in place. The remaining step is the live baseline, which needs a key.
+### Wave 0 exit gate (blocks Wave 1): done
 
-### Wave 0 exit gate (blocks Wave 1)
+Ran the live baseline keyed from a project-root `.env`: stock full-roster prompt,
+`prefer_local` OFF, model `claude-haiku-4-5`, 25 cases. Result: 16 resolved-by-LLM-correct,
+9 wrong-action, 0 unresolved; routing agreement 8/25 (every case routes to the LLM with
+`prefer_local` OFF, so only the 8 `llm`-labelled cases agree); 42 generations,
+190,845 input tokens. Wave 1 reports Δtokens / Δturns / Δhassil-rate against this artifact.
 
-**Stand up a Claude API key + run the live baseline** — stock full-roster prompt,
-`prefer_local` OFF. This is the one step that needs a key and cannot be faked: scoring a
-mocked response would be scoring fabricated output. It is the *final* Wave 0 task, deferred
-until the runner and scorer are built keyless. Wave 1 reports Δtokens / Δturns / Δhassil-rate
-**against this baseline**, so no Wave 1 result exists until it runs. Do not carry it into
-Wave 1.
+Of the 9 wrong-action cases, four are the falsified predictions above (correct action, tool
+name the corpus did not predict). The rest are model behavior worth recording, not harness
+faults: `turn-off-all-lights` and `implicit-too-dark` ask which entity instead of acting;
+`implicit-cold` reads the thermostat then asks how warm; `start-timer` cannot resolve because
+`HassStartTimer` needs a satellite/device context a headless run lacks; `remember-fact` is a
+VISION feature not built yet (`resolves_at_wave0: false`).
+
+Run it again with:
+
+```
+.venv/bin/python -m evals.harness.baseline
+```
