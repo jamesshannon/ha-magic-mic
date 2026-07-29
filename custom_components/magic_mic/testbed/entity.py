@@ -9,7 +9,8 @@ later waves. See `docs/testbed-proxy.md`.
 from homeassistant.components import conversation
 from homeassistant.const import CONF_LLM_HASS_API, CONF_PROMPT
 
-from ..const import DOMAIN
+from ..const import DOMAIN, LOGGER
+from ..identity import resolve_user
 from ..internal.claude.agent import ClaudeConversationEntity
 from .api import TestbedAPI
 
@@ -22,7 +23,18 @@ class TestbedConversationEntity(ClaudeConversationEntity):
         user_input: conversation.ConversationInput,
         chat_log: conversation.ChatLog,
     ) -> conversation.ConversationResult:
-        """Set up the LLM data, wrap the API seam, then run the provider loop."""
+        """Resolve the user, set up the LLM data, wrap the seam, run the loop."""
+        # Resolve the per-user scope key once per turn (§5.1). Threaded empty in
+        # Wave 0: nothing consumes it yet. The user-keyed store lives in
+        # hass.data[DOMAIN][entry_id]; capabilities will read both.
+        user_id = await resolve_user(
+            self.hass,
+            user_input.context,
+            user_input.device_id,
+            user_input.satellite_id,
+        )
+        LOGGER.debug("[testbed] resolved user_id=%s (unused in Wave 0)", user_id)
+
         try:
             await chat_log.async_provide_llm_data(
                 user_input.as_llm_context(DOMAIN),
