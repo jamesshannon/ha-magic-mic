@@ -102,7 +102,7 @@ if the LLM ever forgets to flag stop, the mic hangs open after "turn off the
 lights" — into the TV. So:
 
 - **Device-control turn → deterministic stop.** You already know the turn invoked
-  a control intent and ended without a question — a rock-solid stop signal that
+  a control intent and ended without a question — a stop signal that
   needs no LLM judgment. Cheap, reliable, covers the majority.
 - **Informational turn → default continue**, LLM flags stop only on clear
   terminal cues ("thanks, that's all").
@@ -117,7 +117,7 @@ that's the point:
 
 - **Command turn → deterministic, no model channel needed.** "Did a control intent
   fire this turn (a `tool_use` for an IntentTool) and end without a question?" is
-  computable in the shell — a rock-solid *stop* with **zero** LLM judgment. This is
+  computable in the shell — a *stop* with **zero** LLM judgment. This is
   the mic-open case of the general rule "infer what you can deterministically"
   ([`prompt-context.md`](prompt-context.md) §Meta-signals). More reliable than
   trusting the model to remember a flag, and it covers the *bulk* of traffic.
