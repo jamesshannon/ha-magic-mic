@@ -1,0 +1,8 @@
+# Packages needed to run `pytest`, beyond the Home Assistant install in .venv.
+# `anthropic` is also the integration's runtime requirement (see manifest.json).
+# hassil / home-assistant-intents are pulled in by HA's `conversation` component,
+# which this integration depends on.
+pytest-homeassistant-custom-component
+anthropic==0.108.0
+hassil
+home-assistant-intents

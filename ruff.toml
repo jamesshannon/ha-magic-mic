@@ -1,0 +1,13 @@
+# Interim ruff config. Mirror HA core's fuller config later (see CLAUDE.md
+# "Code style"); for now this pins line length and a reproducible rule set so
+# `ruff check` behaves the same for everyone regardless of any machine-global
+# config.
+line-length = 88
+
+[lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[lint.per-file-ignores]
+# internal/claude is a near-upstream vendored copy of HA's `anthropic` component.
+# Keep it diffable against upstream rather than reformatting it to our own nits.
+"custom_components/magic_mic/internal/claude/*" = ["E501"]
