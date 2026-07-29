@@ -152,23 +152,21 @@ Findings the keyless routing measurement surfaced:
 ### Wave 0 exit gate (blocks Wave 1): done
 
 Ran the live baseline keyed from a project-root `.env`: stock full-roster prompt,
-`prefer_local` OFF, model `claude-haiku-4-5`, 25 cases. Result: 16 resolved-by-LLM-correct,
-9 wrong-action, 0 unresolved; routing agreement 8/25 (every case routes to the LLM with
-`prefer_local` OFF, so only the 8 `llm`-labelled cases agree); 42 generations,
-190,845 input tokens. Wave 1 reports Δtokens / Δturns / Δhassil-rate against this artifact.
+`prefer_local` OFF, model `claude-haiku-4-5`, 25 cases. Result: 21 resolved-by-LLM-correct,
+4 wrong-action, 0 unresolved; routing agreement 8/25 (every case routes to the LLM with
+`prefer_local` OFF, so only the 8 `llm`-labelled cases agree); 44 generations. Wave 1 reports
+Δtokens / Δturns / Δhassil-rate against this artifact.
 
-Of the 9 wrong-action cases, four are the falsified predictions above (correct action; the
-corpus predicted a different tool name or targeting key). The rest are model behavior worth
-recording, not harness faults: `turn-off-all-lights` and `implicit-too-dark` ask which entity
-instead of acting; `implicit-cold` reads the thermostat then asks how warm; `remember-fact`
-is a VISION feature not built yet (`resolves_at_wave0: false`).
+The 4 wrong-action cases are model behavior worth recording, not harness faults:
+`turn-off-all-lights` and `implicit-too-dark` ask which entity instead of acting;
+`implicit-cold` reads the thermostat then asks how warm; `remember-fact` is a VISION feature
+not built yet (`resolves_at_wave0: false`). The earlier run's other five wrong-action cases
+were the timer gap (now backed) and the four reconciled predictions, all correct here.
 
-Two changes postdate the recorded run, so the next full run will differ from the artifact
-above. `start-timer` now resolves (a subset run scored it LLM-correct once the mocked timer
-device was added); it was `wrong-action` in the recorded run. And the four falsified
-predictions await corpus reconciliation. Regenerate the baseline once that reconciliation
-lands, so the locked number reflects the final corpus and harness rather than being rewritten
-twice.
+Token counts depend on prompt-cache behavior, which varies run to run: this run read
+214,656 cached tokens against 20,708 uncached input, where an earlier uncached run showed
+190,845 input tokens for the same corpus. Wave 1 should compare `generations` and
+`output_tokens` directly and treat input-token deltas as cache-regime-dependent.
 
 Run the full baseline, or a subset:
 
