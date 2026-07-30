@@ -29,6 +29,13 @@ NAME_INJECTION_LIMIT = 10
 # at/below the resolution FLOOR (find_entities asks when unsure; injection just pre-loads
 # candidates, so a spurious inclusion wastes a few tokens, not a wrong action). Tunable.
 NAME_INJECTION_FLOOR = 55.0
+# Room scope is a soft prior, not a hard gate (docs/prompt-context.md Tier 2, Refinement B):
+# entities outside the requesting area still qualify, but only on a strong, explicit name
+# match, so "turn off the kitchen ceiling light" from the living room still gets a fast path
+# while a generic in-house match cannot leak cross-room noise. Room entities also get a small
+# ranking bonus so they sort above equal-scoring house-wide ones. Both tunable.
+NAME_INJECTION_HOUSE_FLOOR = 75.0
+NAME_INJECTION_ROOM_BONUS = 10.0
 
 # Fuzzy entity resolution (docs/find-entities.md, the scorer + ambiguity guard). Scores
 # are rapidfuzz token_set_ratio, 0-100. These are starting values calibrated against the

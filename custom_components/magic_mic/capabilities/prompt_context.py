@@ -27,7 +27,12 @@ from homeassistant.helpers import (
 )
 from homeassistant.helpers.translation import async_get_translations
 
-from ..const import FUZZY_TOKEN_MATCH_SCORE, NAME_INJECTION_FLOOR
+from ..const import (
+    FUZZY_TOKEN_MATCH_SCORE,
+    NAME_INJECTION_FLOOR,
+    NAME_INJECTION_HOUSE_FLOOR,
+    NAME_INJECTION_ROOM_BONUS,
+)
 from ..entity_candidates import Registries, build_candidate, resolve_area
 from ..fuzzy import Candidate, score, score_candidates
 
@@ -195,27 +200,33 @@ def select_request_names(
 ) -> str | None:
     """Return the Tier-2 request-conditioned name block, or None when nothing is relevant.
 
-    Two filters, layered (prompt-context.md Tier 2). The structural prior is room scope:
-    the candidate set is the entities in ``area_id`` (device area inherited as HA does),
-    or every exposed entity when the request has no area (typed input, no satellite). The
-    relevance filter then keeps a candidate when its name fuzzy-matches the utterance *or*
-    its domain was named by a keyword. Room-scoped keyword widening is bounded by the room;
-    without a room it is skipped (it would pull every light in the house), leaving
-    fuzzy-name match as the sole narrower. Rendered as ``name (entity_id)`` lines, capped
-    at ``limit``, most relevant first.
+    Room scope is a soft prior, not a hard gate (prompt-context.md Tier 2, Refinement B).
+    The candidate set is every exposed entity; where an entity sits decides how easily it
+    qualifies:
+
+    - **In the requesting area** (device area inherited as HA does): admitted at the normal
+      floor, plus keyword widening (its domain being named floors it in even with no name
+      match), plus a ranking bonus so it sorts above equal-scoring elsewhere.
+    - **Elsewhere in the house**: admitted only above the higher house floor, so a strong
+      explicit reference ("the kitchen ceiling light" from the living room) still gets a
+      fast path while an incidental one-token overlap does not.
+    - **No area at all** (typed input, no satellite): every entity is scored at the normal
+      floor with no widening, since there is no room to prefer.
+
+    Rendered as ``name (entity_id)`` lines, capped at ``limit``, most relevant first.
     """
     registries = Registries(hass)
     candidates: dict[str, Candidate] = {}
     domains: dict[str, str] = {}
+    in_room: dict[str, bool] = {}
     for state in hass.states.async_all():
         if not async_should_expose(hass, assistant, state.entity_id):
             continue
-        if area_id is not None:
-            area = resolve_area(registries, state.entity_id)
-            if area is None or area.id != area_id:
-                continue
-        candidates[state.entity_id] = build_candidate(hass, registries, state)
-        domains[state.entity_id] = state.domain
+        entity_id = state.entity_id
+        area = resolve_area(registries, entity_id) if area_id is not None else None
+        in_room[entity_id] = area is not None and area.id == area_id
+        candidates[entity_id] = build_candidate(hass, registries, state)
+        domains[entity_id] = state.domain
 
     if not candidates:
         return None
@@ -223,17 +234,24 @@ def select_request_names(
     fuzzy = {
         scored.key: scored.score for scored in score_candidates(utterance, candidates)
     }
-    # Keyword widening only inside a bounded room; unbounded it would inject a whole domain.
+    # Keyword widening applies only to in-room entities; unbounded it would inject a whole
+    # domain, so it is empty when there is no room to bound it.
     widened = keyword_domains(utterance, keyword_map) if area_id is not None else set()
 
     ranked: list[tuple[float, str]] = []
     for entity_id in candidates:
         relevance = fuzzy.get(entity_id, 0.0)
-        if domains[entity_id] in widened:
-            # A domain match alone earns inclusion at the floor; a better name match
-            # keeps its higher score and so still outranks bare keyword hits.
-            relevance = max(relevance, NAME_INJECTION_FLOOR)
-        if relevance >= NAME_INJECTION_FLOOR:
+        if in_room[entity_id]:
+            if domains[entity_id] in widened:
+                # A domain match alone earns inclusion at the floor; a better name match
+                # keeps its higher score and so still outranks bare keyword hits.
+                relevance = max(relevance, NAME_INJECTION_FLOOR)
+            if relevance >= NAME_INJECTION_FLOOR:
+                ranked.append((relevance + NAME_INJECTION_ROOM_BONUS, entity_id))
+        elif area_id is None:
+            if relevance >= NAME_INJECTION_FLOOR:
+                ranked.append((relevance, entity_id))
+        elif relevance >= NAME_INJECTION_HOUSE_FLOOR:
             ranked.append((relevance, entity_id))
 
     if not ranked:

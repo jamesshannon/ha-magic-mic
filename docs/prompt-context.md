@@ -434,26 +434,31 @@ Design constraints:
 #### As built (wave1-prompt-context)
 
 `capabilities/prompt_context.py::select_request_names`, plus the shared
-`entity_candidates.build_candidate` adapter and `async_domain_keyword_map`. It follows
-the two-filter design above:
+`entity_candidates.build_candidate` adapter and `async_domain_keyword_map`. The candidate
+set is every exposed entity; where an entity sits sets how easily it qualifies (room scope
+is a soft prior, Refinement B below, built rather than deferred):
 
-- Room scope is a **hard gate**: with a resolved area the candidate set is exactly that
-  area's exposed entities (device area inherited as HA does); with no area (typed input,
-  no satellite) it falls back to every exposed entity.
-- Relevance keeps a candidate when its name fuzzy-matches the utterance (union
-  `token_set_ratio`, the shared scorer) **or** its domain was named by a keyword. Keyword
-  widening is gated on having a room, because unbounded it would inject a whole domain
-  (every light in the house). A domain-only hit is floored in at `NAME_INJECTION_FLOOR`
-  (55, at or below the resolution floor: a spurious inclusion wastes tokens, not a wrong
-  action), so genuine name matches still outrank it. Top-N is `NAME_INJECTION_LIMIT` (10).
-- The keyword map is derived from `entity_component` translations (each domain's display
-  name plus its device-class names), so it is localized, not a hardcoded English dict. It
-  is deliberately thin: canonical terms ("Light", "Blind"), not colloquial synonyms
-  ("lamp", "music"), and misses degrade to fuzzy-name plus one lookup.
+- **In the requesting area** (device area inherited as HA does): admitted at
+  `NAME_INJECTION_FLOOR` (55, at or below the resolution floor: a spurious inclusion wastes
+  tokens, not a wrong action), with keyword widening (its domain being named floors it in
+  even with no name match) and a `NAME_INJECTION_ROOM_BONUS` (10) added for ranking, so it
+  sorts above an equal-scoring entity elsewhere. Widening is room-only because unbounded it
+  would inject a whole domain (every light in the house).
+- **Elsewhere in the house**: admitted only above the higher `NAME_INJECTION_HOUSE_FLOOR`
+  (75), so an explicit reference ("turn off the kitchen ceiling light" from the living room)
+  reaches its entity while an incidental one-token overlap does not.
+- **No area at all** (typed input, no satellite): every entity scored at the normal floor
+  with no widening, since there is no room to prefer.
+- Name relevance is union `token_set_ratio` (the shared scorer). Top-N is
+  `NAME_INJECTION_LIMIT` (10). The keyword map is derived from `entity_component`
+  translations (each domain's display name plus its device-class names), so it is
+  localized, not a hardcoded English dict. It is deliberately thin: canonical terms
+  ("Light", "Blind"), not colloquial synonyms ("lamp", "music"), and misses degrade to
+  fuzzy-name plus one lookup.
 
-Two design choices below were weighed during that build and deferred. Both are recorded
-here so they are not re-derived from scratch; revisit them when the eval says the fast
-path is leaving turns on the table.
+Refinement A below was weighed during that build and deferred; it is recorded so it is not
+re-derived from scratch. Revisit it when the eval says the fast path is leaving turns on
+the table.
 
 #### Refinement A — domain-name decoration instead of keyword widening
 
@@ -484,24 +489,26 @@ kitchen blinds" through its "Cover"/"Blind" tokens, with no utterance keyword-pa
   If small homogeneous sets regress, scope decoration to the injection candidate build
   only (an `extra_context` arg), leaving the resolution consumers on structured domain.
 
-#### Refinement B — soft room scope with a house-wide strong-match escape
+#### Refinement B — soft room scope with a house-wide strong-match escape (built)
 
-Room scope is a hard gate today, so an explicit cross-room reference ("turn off the kitchen
-ceiling light" spoken from the living room) injects nothing and degrades to a lookup. Model
-it instead as three sources into one candidate set:
+The reason room scope is a soft prior and not a hard gate. A hard gate drops an explicit
+cross-room reference ("turn off the kitchen ceiling light" spoken from the living room): the
+kitchen entity is not in the room's candidate set, so nothing is injected and the turn falls
+to a lookup. The as-built admission (above) models it as three sources into one candidate
+set instead: room fuzzy and room widening at the normal floor (the prior, admitted
+generously), and house-wide fuzzy at a higher floor (strong, confident matches only, the
+escape for utterances that name a specific entity elsewhere). A weak house-wide match is the
+noise room-scope exists to suppress; only a specific reference clears the bar.
 
-- **room domain** (widening or decoration) and **room fuzzy** at the normal floor: the
-  structural prior, admitted generously.
-- **house-wide fuzzy** at a **higher** floor (strong, confident matches only): the escape
-  for utterances that name a specific entity elsewhere. A weak house-wide match is the
-  noise room-scope exists to suppress; only a specific reference like "kitchen ceiling
-  light" clears the bar.
-
-Room entities keep a ranking bonus so they sort above equal-scoring house-wide ones, and
-top-N still caps the total. Cost: the fuzzy pass runs over all exposed entities, not just
-the room (still bounded hashmap/rapidfuzz work, but O(all) not O(room)). Whether the
-explicit-cross-room case is frequent enough to justify it is an eval question, not an
-armchair one, hence deferred.
+Two properties keep it bounded: room entities carry the ranking bonus so they sort above
+equal-scoring house-wide ones, and top-N still caps the total. The cost is that the fuzzy
+pass runs over all exposed entities, not just the room (still bounded hashmap/rapidfuzz
+work, O(all) not O(room)). Note the escape cannot distinguish "kitchen ceiling light" from a
+bare "ceiling light" that happens to match a same-named light in another room, since
+`token_set_ratio` scores a name subset at 100 either way: both cross the house floor, so a
+repeated generic name injects its siblings house-wide, bounded by top-N and out-ranked by
+the room. Whether that recall is worth the tokens is an eval question; the thresholds
+(`NAME_INJECTION_HOUSE_FLOOR`, `NAME_INJECTION_ROOM_BONUS`) are the tuning surface.
 
 ### Tier 3 — retrieval (unbounded stores only)
 
