@@ -250,12 +250,13 @@ two-stage pipeline, tuned against the model-free resolver micro-benchmark
 ([`evaluation.md`](evaluation.md) Part G, `evals/corpus/resolution/`).
 
 1. **Descriptive-document union.** Score `token_set_ratio` over each candidate's
-   name + aliases + **area + floor** joined into one document, so a query can match
-   across fields ("kitchen light" → a "Ceiling Light" in the Kitchen) — this is how
-   **area matching** lands without a fuzzy area matcher. Joining is load-bearing: a
-   bare area token can't resolve alone (a subset match needs *all* query tokens
-   present), so it strengthens a name match without every kitchen entity tying at 100
-   on "kitchen".
+   documents — **one per name/alias**, each with **area + floor** appended — and keep
+   the best. Per-alias (not one joined blob) so a query can't match "reading" from one
+   alias and "lamp" from another; **location on each** so a query can span fields
+   ("kitchen light" → a "Ceiling Light" in the Kitchen) — this is how **area matching**
+   lands without a fuzzy area matcher. A bare area token still can't resolve alone (a
+   subset match needs *all* query tokens present), so location strengthens a name match
+   without every kitchen entity tying at 100 on "kitchen".
 2. **IDF tie-break, regime-gated.** Only when stage 1 leaves an above-floor cluster
    ambiguous *and* the candidate set is large enough to estimate term rarity
    (`FUZZY_IDF_MIN_CANDIDATES`), re-rank that cluster by IDF-weighted coverage:
