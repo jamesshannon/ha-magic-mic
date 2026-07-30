@@ -40,19 +40,23 @@ async def build_world(hass: HomeAssistant, world: World) -> dict[str, str]:
     resolved: dict[str, str] = {}
     for entity in world.entities:
         domain, _, object_id = entity.entity_id.partition(".")
+        # Name the entity via original_name, as a real integration does (backing.py's
+        # executable entities do the same through _attr_name): the default COMPUTED_NAME
+        # alias resolves to it, so it matches by name without a synthetic user alias.
+        # With no device attached, the computed name is the bare name (no area prefix).
         entry = ent_reg.async_get_or_create(
-            domain, "eval", entity.entity_id, suggested_object_id=object_id
+            domain,
+            "eval",
+            entity.entity_id,
+            suggested_object_id=object_id,
+            original_name=entity.name,
         )
-        # A registry entry with empty aliases yields no matchable name (the friendly-
-        # name fallback only fires when there is no entry at all), so register the
-        # name as an alias. Area assignment needs the entry, so both go here.
-        updates: dict[str, object] = {"aliases": {entity.name}}
         if entity.area:
-            updates["area_id"] = (
-                area_ids.get(entity.area)
-                or area_reg.async_get_or_create(entity.area.replace("_", " ")).id
+            ent_reg.async_update_entity(
+                entry.entity_id,
+                area_id=area_ids.get(entity.area)
+                or area_reg.async_get_or_create(entity.area.replace("_", " ")).id,
             )
-        ent_reg.async_update_entity(entry.entity_id, **updates)
 
         attributes = {ATTR_FRIENDLY_NAME: entity.name, **entity.attributes}
         if entity.device_class:
