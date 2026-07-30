@@ -252,6 +252,71 @@ model can't reliably know a tool's latency:
 
 ---
 
+## Response brevity & deterministic shaping
+
+Verbosity is the top recurring complaint about voice assistants (Google especially: too
+many words). The fix is **not** uniform terseness — that discards *necessary* speech — but
+**modality scaled to what the user doesn't already know**, driven where possible by
+deterministic signals rather than the model's discretion. Three separable failure modes,
+needing different fixes: *uniform explicit confirmation* ("OK, turning on the living room
+lights," every time → earcon-first, above); *chatty filler* ("Sure!", "Anything else?" →
+prompt policy); *over-explaining the substantive answer* (the verbose content itself → the
+policy here).
+
+### The decision is a function of deterministic signals, not model mood
+
+Earcon vs. terse-confirm vs. explain vs. answer is drivable by `(resolution-confidence,
+tool-outcome, consequence-class)` — signals we already compute:
+
+| Situation (deterministic signal) | Modality |
+|---|---|
+| Exact name / entity_id, tool succeeded, observable + reversible | **earcon**, no words |
+| Our fuzzy layer fired with low top-1/top-2 margin ([`find-entities.md`](find-entities.md)) | **terse confirm** naming the resolved entity ("turning off the *kitchen* light") |
+| Invisible or high-consequence action (setpoint, message, [`security.md`](security.md) tier) | **confirm** even on high confidence ("behavioral write → confirm") |
+| Tool failed (matched-but-unavailable / no-match / service-error) | **spoken explanation** (below) |
+| Query | **the value, terse** ("72", not a wrapped sentence) |
+
+So verbosity is *computed*, not emergent — the reason we can beat Google. The LLM's freedom
+is bounded to *wording* the failure/query, and even that is canned for common cases.
+
+### Failure breaks the earcon path — and the break is deterministic
+
+The earcon-only branch is **gated on actual success** (`success_results` non-empty, no
+`unavailable` targets). An unreachable light is not a success, so it can never reach the
+earcon branch — the signal forces speech. Interpretation is a **gradient**, not an LLM
+guess: HA returns a **typed** outcome, so a **canned template per error-type** ("I couldn't
+reach the living room light") is fast, offline-capable, and TTS-pre-cacheable
+([`offline.md`](offline.md)); richer causal narration ("it may be powered off at the
+switch") is the [`explainability.md`](explainability.md) pattern on top (structured record,
+LLM *narrates* only, "can't tell why" a first-class value).
+
+### Earcon-default is undo-safe — scaled by consequence
+
+The irreducible hard case: the LLM resolves **in its head** ("the light by the couch" →
+emits an exact `entity_id`), hiding the inference, so it looks like a perfect match and we'd
+earcon. Two things close it: (a) for **observable + reversible** actions, earcon-default is
+safe because a wrong result is visible and [`undo.md`](undo.md) catches it (optimism
+underwritten by undo, doing double duty here); (b) for **invisible / high-consequence**
+actions, confirm regardless. Consequence-class is deterministic (it's the domain/action).
+
+> **Caveat — clean signals will be harder to get than the table implies.** The policy
+> *assumes* crisp `(confidence, outcome, consequence)` values; each is fuzzier in practice:
+> in-head LLM resolution is invisible by construction (no confidence to read), confidence
+> calibration across domains/languages is unsettled ([`find-entities.md`](find-entities.md)),
+> and consequence-class has genuine edge cases (is "set the thermostat to 90" high-consequence?).
+> Treat the table as the *target* policy — expect the **signal-extraction** to be the real
+> work when we build it, not the decision logic. Not worth digging deeper until then.
+
+### The verbosity dial (a global default-good setting)
+
+A single global **verbosity setting** (terse ⇄ conversational) — *not* runtime interrogation
+(forbidden), the same class as the personality/prompt-template surface (PRODUCT_PLAN §6.1).
+Default **terse-with-earcons**; dial up for users who want chat. It sets the prompt directive
+*and* how aggressively the earcon path suppresses speech. Never inferred from behavior — a
+rare explicit setting, default good.
+
+---
+
 ## Prompt budget: request-conditioned context (input half)
 
 The *input* half of the primitive: what we put in the prompt on the way in. It's
@@ -287,6 +352,35 @@ exact name). We preserve that fast path selectively, below.
 > **Pruning is prompt-only.** Everything exposed stays intent- and
 > `find_entities`-reachable (exposure is unchanged). We're deciding *pre-loaded* vs
 > *fetched*, never *reachable* vs *not*.
+
+### The other budget: a hard tool-count cap (not tokens)
+
+Token size is the *soft* budget above. There is also a **hard** one, easy to miss
+because it isn't about tokens: **the total number of tools/scripts exposed to the
+model cannot exceed 128** — HA's docs are explicit that going over "will cause the
+conversation engine to fail with a hard limit error inherited from the underlying
+LLM API" (`exposing_scripts_to_llms.markdown`). This is a *count* ceiling, and it's
+a hard failure, not a slowdown.
+
+It bites us specifically because our proxy is **additive**. The 128 is shared across
+*everything* in the tool list: every exposed script (`ActionTool`, one per script) +
+every capability tool we add (`find_entities`, calendar-write, reminders, memory,
+weather, undo, `web_search`/`web_fetch`, any SKILL surfaced as a tool) + every tool
+from a **merged** third-party provider (§6.2 `MergedAPI` multiplies the count). A
+home that already runs near the cap on scripts alone can be pushed over by us.
+
+**Consequence:** the per-request dynamic `async_get_tools` gate (§2.5) and the §6.2
+relevance filter are not only prompt-budget hygiene — they are the mechanism that
+keeps a multi-provider, many-script home **under 128**. That reframes the filter as
+correctness (avoid a hard failure), not just cost, and is another reason to prove it
+in the throwaway proving ground before the core seam freezes.
+
+**Also hard-capped: description lengths.** The same API-inherited limits bound tool
+authoring — roughly **1024 characters** per tool/script description and **128
+characters** per field (parameter) description (`exposing_scripts_to_llms.markdown`;
+exact numbers vary by provider). Capability tool descriptions and SKILL tool-facing
+text ([`skills.md`](skills.md)) must fit; a long "when to call this" description gets
+rejected or truncated. Keep descriptions dense, not long.
 
 ### Tier 1 — the always-injected taxonomy skeleton
 

@@ -20,11 +20,25 @@
   ("when X happens") unlock event-driven rules that a timer + LLM-eval
   *fundamentally cannot do*. That — not efficiency — is why you build the
   structured engine.
-- **Reuse HA's engine** (`async_initialize_triggers` + `condition.async_from_config`),
-  **not automation entities.**
-- **Two trigger backends, one `condition → delivery` pipeline:** *time* (our
-  watermark/catch-up) + *state/event* (HA's trigger engine). The watermark is
-  **time-only** and does not apply to state triggers.
+- **Reuse the trigger + condition halves, build the body.** Reuse HA's *trigger* engine
+  (`async_initialize_triggers`, incl. `for:` durations) and *condition* helpers
+  (`condition.async_from_config`, minus Jinja); **do not** reuse the action/script engine.
+  The action **body is a bounded list of Assist primitives** (the same intents/tools the
+  model calls live) with a single-level `choose` — no arbitrary `service:`, no templates,
+  no loops. This makes the exposure bound **inherited by construction** ([`security.md`](security.md)),
+  keeps effects **undoable** ([`undo.md`](undo.md)), and makes the body literally the
+  `tool_use` format the model already emits: *a recorded, trigger-gated tool-call sequence*.
+- **One authoring primitive; the model fills fields, it does not pick a mechanism.**
+  "reminder," "delayed command," "conditional," "state-triggered," "override" are all
+  **field-fillings** of one shape `{trigger, condition?, body}` — not separate tools to
+  choose between. That dissolves the reminder-vs-automation wobble: the fuzzy line the LLM
+  used to move around ("is this a delayed command or an automation?") collapses to
+  *parsing words into fields* (§5.4), which is inherent to the request's meaning and
+  backend-count-independent. `create_reminder` ([`reminders.md`](reminders.md)) is the
+  degenerate front-door (time trigger + deliver body), not its own authoring shape.
+- **Two trigger backends, one `condition → body` pipeline:** *time* (our watermark/catch-up)
+  + *state/event* (HA's trigger engine). The watermark is **time-only** and does not apply
+  to state triggers.
 - **LLM-at-fire survives only as the fallback** for genuinely fuzzy,
   non-compilable conditions.
 - **This split is also the offline story.** Compile-at-creation → the rule **fires with
@@ -35,14 +49,18 @@
   snapshot on a boundary trigger`. The boundary is just a trigger (time for "15 minutes,"
   sun/state for "until sunset" / "until I leave"), so it composes from the machinery here +
   [`undo.md`](undo.md)'s scene snapshot. No dedicated path in v1; see the worked case below.
-- **Authoring is the v1 [`SKILL`](skills.md) consumer.** The `{trigger, condition, action}`
-  grammar + entity-id discipline + examples the LLM needs to *author* a rule are too big for
-  the base prompt and needed only rarely — and there's **no deterministic gate** ("start the
-  dryer when the laundry's done" is an automation vs. reminder vs. one-shot is semantic). So
-  it's the LLM-signaled class: a resident ~25-tok header, model pulls the body via
-  `read_file` (skill-sandboxed). The pull costs one generation, but authoring is already multi-gen/deliberate,
-  and **compile-once/run-deterministic amortizes it to zero at fire** — you pay to *build*
-  the rule, never to run it. This is the single case that earns the SKILL registry in v1.
+- **Authoring is the v1 [`SKILL`](skills.md) consumer.** The trigger/condition config grammar
+  + tool-call body discipline (entity-ids via `find_entities`) + examples the LLM needs to
+  *author* a rule are too big for the base prompt and needed only rarely. The skill teaches
+  the model to **fill the one shape's fields** ("in 5 min" → time trigger, "if still open" →
+  condition, "when it closes" → state trigger, the doing → a tool-call body) — **not** to
+  *classify* a request into automation-vs-reminder-vs-one-shot (there's no such choice, and
+  no deterministic gate for one; those are just different field-fillings). It's the
+  LLM-signaled class: a resident ~25-tok header, model pulls the body via `read_file`
+  (skill-sandboxed). The pull costs one generation, but authoring is already
+  multi-gen/deliberate, and **compile-once/run-deterministic amortizes it to zero at fire** —
+  you pay to *build* the rule, never to run it. This is the single case that earns the SKILL
+  registry in v1.
 
 ---
 
@@ -114,28 +132,61 @@ because you must, but because you already have the machinery.
 
 ---
 
-## Reuse HA's engine, not automation entities
+## Reuse the trigger + condition halves; build the action body over Assist primitives
 
-Structurally these are automations — so reuse the **helpers**, not the automation
-**entity**:
+Structurally these are automations, but the reuse/build line runs **through the middle**
+of "automation," not around it. Reuse the two halves that are hard and valuable; **do not**
+reuse HA's action/script engine — once bounded (below) it's dead weight *and* a security
+liability.
 
-- **Trigger** → `async_initialize_triggers` (`helpers/trigger.py:1824`) *is* the
-  standard automation trigger engine, callable programmatically. It takes the same
-  trigger config dicts as an automation's `trigger:` block (state, numeric_state,
-  template, event, …) and runs your callback on fire. You are **not recreating
-  state triggers** — you invoke the exact engine automations use, without a
-  visible automation. (`async_track_state_change_event`, `helpers/event.py:304`,
-  is the lower-level primitive.)
-- **Condition** → `condition.async_from_config` (`helpers/condition.py:1330`)
-  compiles a condition dict into a `ConditionCheckerType` callable evaluated
-  against live state. Deterministic; covers state/numeric/template/time.
-- **Action / delivery** → the `scheduling-model.md` delivery engine
-  (announce/notify/command + snooze/ack).
+- **Trigger → reuse.** `async_initialize_triggers` (`helpers/trigger.py:1824`) *is* the
+  standard automation trigger engine, callable programmatically. It takes the same trigger
+  config dicts as an automation's `trigger:` block (state, numeric_state, event, sun, and
+  crucially `for:` durations — "the door's been open *for* 5 minutes"). This is the hard,
+  capability-defining part and the entire reason state-triggers are possible; rebuilding it
+  well is a project. You invoke the exact engine automations use, without a visible
+  automation entity. (`async_track_state_change_event`, `helpers/event.py:304`, is the
+  lower-level primitive.)
+- **Condition → reuse.** `condition.async_from_config` (`helpers/condition.py:1330`)
+  compiles a condition dict into a deterministic `ConditionCheckerType` over live state;
+  covers state/numeric/time/and/or/not. **Minus template (Jinja) conditions** — excluded
+  for security (see the fuzzy-condition fallback for the genuinely-uncompilable residual).
+- **Action body → build (do NOT reuse the script engine).** The body is a **bounded
+  sequence of Assist primitives** — the *same* intents / capability-tools the model can
+  invoke live (§2.2), plus the sanctioned snapshot-restore primitive the override/undo
+  mechanism uses (worked case below). It is **not** HA's `Script`/`action:` schema: **no
+  arbitrary `service:` calls, no Jinja, no `repeat`/`wait`/`parallel`.** Branching is a
+  single-level `choose` (one condition → body-A else body-B — enough for "if the door's
+  closed say 'good job', else notify my phone"); that's the only control-flow. Reminder
+  delivery richness (announce/ack/escalate/snooze) isn't lost — it's what a body *tool*
+  calls (the `scheduling-model.md` delivery engine), not a raw `notify`.
 
-**Not** auto-generated automation config entries: they clutter the user's
-automation list (the surprise problem), dynamic create/delete is a heavyweight
-lifecycle the subsystem isn't meant for, **and it still wouldn't give you time
-catch-up.** So: the automation engine's *guts* over our own durable store.
+Why the body-over-primitives is actively better than bounded automation YAML, on four axes
+we already care about:
+
+1. **Security is bound by construction** ([`security.md`](security.md)). The action surface
+   *is* the exposed-tool/intent surface — there's no `service:` escape hatch to sandbox,
+   because the only verbs are ones the LLM can already call live. "Author an automation to
+   unlock the door" is impossible: if the model can't do it live, it can't defer it either.
+2. **Undo works** ([`undo.md`](undo.md)). Each body tool declares its inverse, so the
+   rule's *effects* are reversible via the journal — not just the rule deleted. Raw
+   `service:` calls have no inverse.
+3. **Localization / provider-agnosticism** come free — intents are localized (§5.7) and the
+   tool surface is the Assist API's own vocabulary (§5.5), not HA service config.
+4. **It's the format the model already emits.** The body is `tool_use` blocks, not a novel
+   DSL — an ephemeral automation is *"a recorded, trigger-gated tool-call sequence."*
+   Authoring reliability stays high; the mental model is clean.
+
+**"Aren't you reinventing automations?"** — only the *bounded action body*, the small part;
+the substantive engine (triggers/conditions) is reused. The line is defensible on
+**authority**: real automations are human-authored, UI-visible, full-power, service-level;
+ephemeral ones are model-authored, hidden, bounded, tool-level. Different authority models
+justify different action surfaces — a principled distinction, not an accident.
+
+**Not** auto-generated automation config entries either: they clutter the user's automation
+list (the surprise problem), dynamic create/delete is a heavyweight lifecycle the subsystem
+isn't meant for, **and it still wouldn't give you time catch-up.** So: the trigger engine's
+*guts* + our own bounded body, over our own durable store.
 
 ---
 
@@ -189,9 +240,13 @@ subsystem and doesn't: it's this engine plus a state snapshot, composed.
    a thin layer on the engine above: "for 15 minutes" is a time trigger, "until sunset" a sun
    trigger, "until I leave" a presence trigger. Same two backends, same pipeline.
 
-Because the snapshot is baked into the compiled automation as a literal service call, the
-revert is **compile-once/run-deterministic**: it fires with no model in the loop, so an
-offline window can't strand the lights at 100% ([`offline.md`](offline.md) L2).
+The snapshot-restore here is the **sanctioned system primitive** the body allows
+(mechanism-synthesized, from [`undo.md`](undo.md)'s scene capture) — *not* an arbitrary
+LLM-authored `service:` call, so the override composes within the bounded-body rule above,
+not as an exception to it. Because the snapshot is baked into the compiled automation as
+that literal restore, the revert is **compile-once/run-deterministic**: it fires with no
+model in the loop, so an offline window can't strand the lights at 100%
+([`offline.md`](offline.md) L2).
 
 **Revert is literal and unconditional by default.** "For 15 minutes" means: restore the
 captured state at t+15, whatever happened in between. Do **not** add a silent "unless the

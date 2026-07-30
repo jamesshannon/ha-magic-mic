@@ -762,6 +762,11 @@ not; never a baked-in English string.** Every path classifies into three buckets
   - **Any local intent we contribute** (`find_entities`, calendar-write, `HassUndo`,
     what's-playing, forecast) ships **localized sentence templates** in
     `home-assistant/intents` — the hard core gate (a new intent isn't accepted otherwise).
+    That contribution has **two coupled halves**, not one: `sentences/<lang>/` (how the
+    command is *said*) **and** `responses/<lang>/` (how the result is *spoken back*), plus
+    reuse of the shared `_common.yaml` `expansion_rules` for area/floor/domain carriers
+    (`builtin_sentences.markdown`). A localized response definition is part of the gate, not
+    an afterthought.
   - **The §5.2 tier-2 keyword→domain booster** must be **derived from HA's *localized*
     device-class / domain strings** (e.g. `cover/strings.json` `entity_component`), **not a
     hardcoded English dict** — dynamic by construction (see
@@ -782,6 +787,37 @@ per-script threshold tuning need eval coverage ([`docs/find-entities.md`](docs/f
 
 Designing language-agnostic **now** avoids a rewrite at core-merge — the cheapest time to
 honor this is before the English assumptions calcify.
+
+---
+
+### 5.8 LLM-path coverage is a superset of hassil (proven, not assumed)
+
+`prefer_local_intents` (§2.9) routes the common commands to hassil, and the offline story
+([`docs/offline.md`](docs/offline.md)) leans on the local matcher as a fallback. Both are
+**optimizations layered under our path — neither discharges our obligation to cover the
+command ourselves.** The rule: **anything hassil can do, our LLM path must also do, plus
+more.** We never ship a capability gap on the reasoning that "hassil catches it," because:
+
+- **Local routing is user-toggleable and situational.** A persona/never-break-character
+  user turns `prefer_local_intents` **off** (every turn goes to the LLM,
+  `assist_create_open_ai_personality.markdown`); a cloud-STT deployment may not have the
+  local matcher in the resilient position at all. If hassil is our coverage, those users
+  lose table stakes.
+- **hassil is an optimization for the happy path, not a floor under ours.** When it
+  pre-empts us it's *faster*; when it's absent or off, we must be **complete on our own** —
+  the LLM path standing alone has to reach at least parity with the built-in sentence set
+  before it adds anything.
+- **This is the concrete meaning of "never degrade the no-AI path" inverted:** the AI path
+  must not silently *under*-cover relative to no-AI. Table stakes (turn on/off, set,
+  covers, media transport, timers, list add, date/time, weather current-conditions,
+  nevermind/undo) are **our** responsibility to hit, then exceed.
+
+**Proven, not assumed.** The parity claim is an eval gate, not a design assertion: the
+hassil **built-in sentence set** (`builtin_sentences.markdown`) plus the per-language
+`home-assistant/intents` test sentences, run **through our path at LLM-only scope**, are a
+**required regression corpus** — our path must reach ≥ parity on them before any
+value-add counts ([`docs/evaluation.md`](docs/evaluation.md) Part E). Treat a parity miss
+as a blocking regression, the same as a broken tool.
 
 ---
 
@@ -832,7 +868,9 @@ disciplines keep it from becoming a setup wall:
 Named config surfaces the docs already imply (accrete as built): API key / model /
 prompt-caching (anthropic fork); web_search + web_fetch + max_uses (auto-filled location);
 memory enable + retention; device→owner map (§5.1); todo default lists; ambient
-user-sound library; Voice-ID enrollment (Phase 4). Keep each **minimal and default-good.**
+user-sound library; **response verbosity dial (terse ⇄ conversational; default terse — the
+verbosity-complaint lever, [`docs/prompt-context.md`](docs/prompt-context.md))**; Voice-ID
+enrollment (Phase 4). Keep each **minimal and default-good.**
 
 ### 6.2 Integration topology — module vs. integration (design to the boundary, split JIT)
 
@@ -875,7 +913,11 @@ one agent, so Magic Mic's entity is necessarily a single integration.
 several providers' APIs merges their tools *and* prompt text → more budget pressure (the
 bloat [`docs/prompt-context.md`](docs/prompt-context.md) fights), so third-party providers
 must honor the same dynamic `async_get_tools` gating — the discipline matters **more** with
-providers in the mix. Crucially, this is exactly the kind of thing to **discover and
+providers in the mix. And there is a **hard** ceiling underneath the soft token one: the
+total tool/script count exposed to the model **cannot exceed 128** (an API-inherited hard
+failure, not a slowdown; see [`docs/prompt-context.md`](docs/prompt-context.md)) — merging
+providers is exactly what pushes a many-script home over it, so the gate/filter is
+cap-avoidance, not only cost. Crucially, this is exactly the kind of thing to **discover and
 mitigate in Magic Mic (the throwaway proving ground) before the extension contract freezes
 in core** — a mitigation like **realtime provider/tool filtering** (a quick relevance search
 over tool descriptions to inject only the likely-relevant providers per request) is far

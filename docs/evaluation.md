@@ -183,9 +183,10 @@ Two independent knobs frame the whole harness — set per run:
   local-vs-LLM routing + end-to-end latency) vs **LLM-only** (isolate the model's decision,
   to attribute a regression). Same corpus, different entry point.
 - **Metric:** *tool/action correctness*, *task-completion*, **turns-to-completion**,
-  **tokens** (summed across generations), *latency* (TTFT/TTLT), and **helpfulness**. The
-  last separates an *assistant* from a command parser and is the only one needing
-  **LLM-as-judge** — so it's sampled + threshold-gated, never CI-blocking.
+  **tokens** (summed across generations), *latency* (TTFT/TTLT), **response brevity** (the
+  verbosity complaint, [`prompt-context.md`](prompt-context.md)), and
+  **helpfulness**. The last separates an *assistant* from a command parser and is the only
+  one needing **LLM-as-judge** — so it's sampled + threshold-gated, never CI-blocking.
 
 - **Corpus — two shapes:**
   - *Single-turn:* `(utterance [, context: device/area/exposed-entities] → expected
@@ -197,6 +198,15 @@ Two independent knobs frame the whole harness — set per run:
 
   Seed from real usage + adapt external corpora (**SMH-Bench**, **HomeBench**, **HomeFlow**)
   mapped onto our entities/intents (Part H).
+  - *hassil-parity set (required, non-optional):* the built-in **starter sentences**
+    (`builtin_sentences.markdown`) + the per-language `home-assistant/intents` test
+    sentences, mapped onto our entities. Run at **LLM-only scope** (not the hassil→LLM
+    path — routing to hassil would hide an LLM-path gap behind the local matcher). This is
+    the operational form of PRODUCT_PLAN §5.8: **our path must reach ≥ parity with hassil
+    before any value-add counts.** A parity miss is a **blocking** regression, scored in
+    the deterministic buckets below, not a helpfulness sample. All these utterances are
+    caught by hassil when local routing is on, so their value is specifically as the
+    *LLM-path* regression set — not a `home-assistant/intents` contribution.
 - **Runner:** execute each case at the chosen scope, capturing both the conversation trace
   (actions) and pipeline events (timing).
 - **Scoring:**
@@ -213,6 +223,20 @@ Two independent knobs frame the whole harness — set per run:
     similarity, sampled, pass-rate thresholds. Distinct from correctness: a response can emit
     the right tool yet be unhelpful, or answer well with no tool at all.
   - *Latency* — TTFT/TTLT distributions from the event stream.
+  - *Response brevity* — length of the spoken response, in **spoken-seconds** (the honest
+    unit: it's the TTLT the user actually feels; words/chars/tokens are proxies). **Two
+    regimes, because most of the corpus has no local baseline:**
+    - *hassil-comparable cases* — score as **excess-or-shortfall vs. the per-case baseline**
+      (the hassil canned response / deterministic template for that command). This isolates
+      the *unnecessary* verbosity — the actual complaint — and is directly comparable across
+      hassil-vs-LLM and across model/prompt updates.
+    - *LLM-only cases* — genuinely model-only requests ("turn off the light in the room where
+      I cook food," conversational Q&A) have **no hassil response to compare to**, and these
+      are a large and growing share. Track **absolute** length and its **drift across config
+      versions over time** (this model/prompt vs. the last), not against a phantom baseline.
+    Necessary verbosity (disambiguation, failure explanation) is **expected, not penalized** —
+    it surfaces as *justified* excess tied to the low-confidence / failure outcome buckets,
+    so the metric separates "verbose because it had to be" from "verbose for no reason."
 - **Reporting — the outcome SCORECARD (this *is* the build-sequence "value dashboard",
   [`build-sequence.md`](build-sequence.md) / [`../PRODUCT_PLAN.md`](../PRODUCT_PLAN.md) §8).**
   Don't just pass/fail each case — report the **distribution** across the corpus and its

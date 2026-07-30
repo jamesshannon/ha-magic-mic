@@ -109,6 +109,22 @@ quality — a **legible** deployment tradeoff to surface, not to hide. This is a
 HA built **speech-to-phrase** (fast local STT tuned for intents): the local path only
 pays off end-to-end if STT is local.
 
+**Caveat — the two local STT choices are not interchangeable for us, and Speech-to-Phrase
+is largely incompatible with the LLM assistant.** Speech-to-Phrase is a **close-ended**
+model: it "transcribes what it knows" and, per HA's own docs, "open-ended items such as
+shopping lists, naming a timer, and broadcasts are not usable out of the box"
+(`voice_remote_local_assistant.markdown`). That's fine for hassil device control (fixed
+sentence set) but it **structurally breaks the LLM path** — an arbitrary question, a
+memory write, a free-form reminder body never gets transcribed, so nothing reaches our
+agent. The STT that is *both* local-resilient *and* LLM-capable is **Whisper**, which is
+open-ended but ~8 s per command on a Pi 4 (sub-second only on a NUC/beefier box). So the
+"fully-local resilient pipeline" and "LLM assistant" are, below our layer, close to an
+**either/or on modest hardware**: Speech-to-Phrase → fast, resilient, no LLM; Whisper →
+LLM-capable and local but slow on a Pi; cloud STT → LLM-capable and fast but not
+outage-resilient. This is a deployment tradeoff to **surface in onboarding guidance**
+(§6.1 "detect and surface"), not something our code can resolve — a Speech-to-Phrase user
+has effectively opted out of the open-ended half of the assistant.
+
 ### Cached / pre-rendered system phrases (so we can still speak)
 Even with cloud TTS, a fixed set of **system phrases** can be made offline-playable,
 because **HA's TTS has a disk cache** (`SpeechManager`, `use_file_cache` / `cache_dir`,

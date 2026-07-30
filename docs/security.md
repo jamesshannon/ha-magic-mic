@@ -103,6 +103,18 @@ If the lock isn't a tool, **no injection can unlock it.** Recommend conservative
 exposure for high-consequence domains. This is policy/config, not code, and it's the
 highest-impact move.
 
+**L1 must survive *deferred* actions too — and it does, by construction.** An
+LLM-authored **ephemeral automation** ([`ephemeral-automations.md`](ephemeral-automations.md))
+could otherwise be an end-run around L1: HA's automation engine assumes human-authored,
+full-authority YAML, so an automation can call **any** service (`lock.unlock`) and run
+arbitrary Jinja. The design forecloses this: the automation's **action body is a bounded
+list of the same Assist tools/intents the model can invoke live** — *not* HA's `service:`
+schema, no arbitrary calls, no templates. So a deferred action's authority is exactly the
+live action's authority: **if the model can't do it live (unexposed lock), it can't defer
+it either.** The exposure bound is inherited, not re-enforced. (Human-authored real
+automations keep full authority — the distinction is *who authored it*, and it's the same
+authority line drawn in `ephemeral-automations.md`.)
+
 ### L2 — High-consequence actions behind an injection-independent gate
 The docs already say **behavioral writes confirm first** (memory / find-entities /
 reminders). Reframe that as a *security* control: physical/destructive/irreversible

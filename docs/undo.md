@@ -72,7 +72,7 @@ capability-specific and **produced by the acting tool**:
 | **Alias add** | the added alias string + entity | remove that alias (registry read-modify-write, [`memory.md`](memory.md)) |
 | **Reminder / calendar / todo create** | the created **id/UID** | delete by id |
 | **Calendar delete** (destructive) | the **full deleted event** payload | recreate it |
-| **Ephemeral automation create** | the rule id | remove the rule |
+| **Ephemeral automation create** | the rule id (+ each fired body tool's own journal entry) | remove the rule; **already-fired effects reverse via their body tools' inverses** |
 | **Music play** | — | *correction*, not state-undo (below) |
 
 The snapshot for device control is the load-bearing case, and HA hands it to us:

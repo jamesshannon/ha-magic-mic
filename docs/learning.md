@@ -112,9 +112,35 @@ command alias) → no crisp deterministic gate, coarse necessary-condition only,
 
 ## Command aliases (the new member)
 
-A command alias rewrites a whole utterance to one the assistant already handles reliably —
-`"what should I wear tomorrow?"` → `"what's the forecast tomorrow morning?"`,
-`"goodbye"` → `"turn off all the lights"` — applied **before** the model runs.
+A command alias is a **routing-neutral rewrite at the front of the pipeline**: phrase →
+*text*, re-injected **ahead of hassil** (not just ahead of the model). It is deliberately
+dumb — it does **not** know or care whether its expansion is a local command or an LLM
+behavior, because it re-enters the **normal §2.9 routing** and lets *that* decide where the
+rewritten text lands:
+
+- `goodnight → "turn off the living room lights"` → hassil-strict catches it → **local**,
+  deterministic, offline-capable.
+- `goodnight → "invent a random bedtime story"` → hassil misses → falls through to the
+  **LLM**.
+- `good morning → "give me a spoken brief: today's high/low + precip, agenda before noon,
+  reminders due today, under four sentences"` → hassil misses → **LLM**, richer.
+- `"what should I wear tomorrow?" → "what's the forecast tomorrow morning?"` → routed like
+  any other utterance.
+
+Same mechanism for all of them; the only thing that varies is the target text, and the
+landing site is an **emergent consequence of what that text matches** — not a property of
+the alias. (Earlier drafts defined the alias by its local-short-circuit; that was backwards
+— see benefit 2.)
+
+### Late binding is the property that makes one mechanism span all of that
+
+Alias = phrase → **text**, *re-routed* (late-bound: the action is chosen downstream, per
+request). HA's existing `intent_script` / conversation sentence triggers = phrase →
+**action**, *early-bound* (wired straight to a fixed service call at authoring time). Late
+binding is exactly why a **single** alias primitive covers local commands, LLM behaviors,
+*and* rich prompts, while HA's early-bound triggers cannot: they commit to the action up
+front, so they can't be "whatever the pipeline decides." (This is the phrase→phrase vs
+phrase→action gap in "What HA lacks" below, restated as the load-bearing design property.)
 
 ### Two things it buys (beyond "LLM makes deterministic commands")
 
@@ -127,12 +153,43 @@ A command alias rewrites a whole utterance to one the assistant already handles 
    opposite of a toy. This also gives a **proactive, non-semantic detector**: two skills
    claiming overlapping phrasings is an **install-time collision**, observable with no
    "confusion" ever occurring.
-2. **It can move an utterance off the cloud path entirely.** If the rewrite target is a
-   *locally-matchable* command, the utterance short-circuits to hassil and **never touches
-   the LLM** — faster, cheaper, private, offline-capable. This is the §2.9 / offline
-   dual-payoff made concrete: a command alias is a lever that relocates work from cloud to
-   local. (If the target still needs the model — e.g. the forecast tool — you keep the
-   *reliability* win but not the local win.)
+2. **It *can* land locally — one emergent case, not the definition.** When the rewrite
+   target happens to be a *locally-matchable* command, the utterance short-circuits to
+   hassil and **never touches the LLM** — faster, cheaper, private, offline-capable (the
+   §2.9 / offline dual-payoff, made concrete). But that is a property of *that target*, not
+   of aliases: a rich-prompt target deliberately routes *to* the LLM. The mechanism is
+   routing-neutral; "relocate work off the cloud" is one thing you can *do* with it, not
+   what it *is*. (If the target still needs the model — e.g. the forecast tool — you keep
+   the *reliability* win but not the local win.)
+
+### The rich-prompt target: routines are aliases, not a new primitive
+
+Because the target is arbitrary text, a command alias whose target is a **multi-sentence
+prompt** is a first-class use, not an abuse — this is the "assistant Routine" (Alexa/Google
+name it that; HA's no-LLM answer is a script + sentence trigger + set-conversation-response).
+So **"good morning" / "good night" summaries are just aliases with rich targets**, and
+Magic Mic can *ship a few as defaults* in the **same phrase→text list the user edits** —
+shipped and user-authored entries become the *same object*, one editor. That dissolves the
+divergence (why should a shipped "good morning" be a skill while a user's "good night" is a
+hand-built automation? they're the same thing). The **time-triggered** sibling lives in
+[`scheduling-model.md`](scheduling-model.md): the *same* rewrite target fired by a schedule
+instead of a phrase (payload ⊥ invocation — one payload, many front-doors).
+
+One substrate, but likely **two authoring front-doors** over it: a quick *"also call it…"*
+synonym vs a *saved routine* with a prompt body. Same store underneath; the split is UI
+legibility, because a user won't look under "alias" to write a bedtime-story routine.
+
+Two consequences that follow from the **target**, not the mechanism:
+
+- **The offer-to-learn engine proposes only terse rewrites.** Friction detection offers
+  routing pins ("always send *this* to *that* route"), never volunteers to *author a
+  bedtime-story prompt* — even though both write the same store. The offer path targets the
+  synonym flavor; rich routines stay hand-authored.
+- **Determinism / undo / eval are target-dependent.** A terse-command alias is repeatable,
+  undoable, and scorable exactly like the command it expands to; a **rich-prompt alias is
+  not** (a different bedtime story each time, no clean inverse, no exact expected output).
+  So the [`undo.md`](undo.md) journal and the eval corpus must key off the **landing
+  intent**, not the alias, and must not assume every alias is deterministic.
 
 ### What HA has today (checked `ha-core/`)
 
@@ -203,9 +260,11 @@ hatch, not a black box.
 ## v1 scope & open questions
 
 - **v1:** the offer engine + registry with **two resolvers** — `add_entity_alias` (already
-  cheap per `memory.md`) and `add_command_alias` (YAML store + agent-entry rewrite + local
-  short-circuit). Typed-detector routing; no separate filter. Annotations/thresholds stay
-  deferred (`memory.md`).
+  cheap per `memory.md`) and `add_command_alias` (YAML store + agent-entry, routing-neutral
+  rewrite; local short-circuit is one emergent target, not the definition). Typed-detector
+  routing; no separate filter. Annotations/thresholds stay deferred (`memory.md`). The
+  rich-prompt "routine" target and its second authoring front-door are **post-v1** (the v1
+  offer path only proposes terse rewrites).
 - **Open (implementation-level):**
   - Command-alias detector tuning — which repair signals fire an offer, install-collision
     threshold (reuse the `find_entities` scorer over registered phrasings).

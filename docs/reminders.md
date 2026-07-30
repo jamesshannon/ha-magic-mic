@@ -20,6 +20,13 @@
   medication" reminder or an overnight-update-eaten wake alarm destroys trust.
 - **Build = one create/write tool** that normalizes the time, picks the store, and
   names it back; recurrence stays **simple** (one-shot / daily / weekly / interval).
+- **A reminder is the degenerate field-filling of the ephemeral-automation shape**, not a
+  separate authoring mechanism ([`ephemeral-automations.md`](ephemeral-automations.md)):
+  `{trigger: time, condition: —, body: deliver(content)}`. `create_reminder` is a
+  **legible front-door** over that one primitive (the common time→notify case), so the LLM
+  never chooses "reminder vs. automation" — it fills fields. Delivery richness lives in the
+  **body's `deliver` call** (announce/ack/escalate/snooze), keeping reminders rich without a
+  bespoke action surface.
 - **"Broadcast/intercom"** ("tell everyone dinner's ready") is a thin consumer of the
   same content-free announce — noted below, not a separate build.
 

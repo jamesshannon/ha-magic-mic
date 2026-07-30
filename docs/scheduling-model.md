@@ -227,6 +227,39 @@ The delivery engine is shared across timers/alarms/reminders — they differ onl
 **default target + escalation profile**, not mechanism (timers are already
 device-bound via `register_handler`; alarms want the longest escalation).
 
+### Modality follows origin (voice-in → voice-out)
+Two orthogonal delivery axes: **which device** (the targeting resolver below) and **which
+channel/modality** (spoken vs. off-satellite text/notify). The default on the second is
+**the response is delivered in the modality the request arrived in.** A voice-initiated
+query — "tell me my summary," "what's on my calendar today" — is **spoken back on the
+satellite**, never silently turned into a phone text; text/notify delivery is the
+**opt-out**, taken only when the user expresses it ("text me the summary"). Same
+never-interrogate rule as targeting: accept a volunteered channel, never demand one, never
+branch on an invisible preference.
+
+**Why this is also the safe first use of `get_resolved_user()`.** Off-satellite text
+delivery needs identity, but only for **destination routing** (which person's notify
+target), *not* for reading personal data — a much lower-stakes personalization than
+calendar/PII access ([`docs/security.md`](docs/security.md)'s personalization-not-auth
+line). So "text me my summary" is a clean early identity consumer: a wrong resolution
+sends a benign summary to the wrong phone, it doesn't leak a protected read. The
+**proactive/solicited daily summary** (the `assist_daily_summary.markdown` blueprint
+pattern — conversation agent summarizes weather + calendar, ships via `notify`) is the
+canonical case: valuable, but its text-push half stays **gated on user-resolution** and is
+a Phase-4 proactive candidate, not a shipped default automation.
+
+**What the "summary" payload actually is (payload ⊥ invocation).** The summary itself is
+not a bespoke feature — it's a **rich-prompt command alias** (a routine:
+[`learning.md`](learning.md) "rich-prompt target"), i.e. a saved prompt like *"give me a
+spoken brief: today's weather, agenda before noon, reminders due today, under four
+sentences."* That one payload is reachable through **multiple invocation front-doors**: a
+**phrase** ("good morning" / "tell me my summary" → the alias fires), a **time** (7am → the
+scheduling substrate fires the *same* rewrite target as a deferred `conversation_command`),
+or a dashboard button. So "good morning" and a 7am auto-brief are the **same routine, two
+invocations** — not a skill vs. an automation. This is the general shape for time-triggered
+LLM behaviors here: the schedule carries a **rewrite-target payload**, and delivery-modality
+(above) + targeting (below) decide how the result comes back.
+
 ### Magical vs. kludgy = FRICTION, not error
 **Kludgy is the *effort of getting it right*, not the risk of getting it wrong.** A
 reminder request that triggers setup questions ("you're James — should this follow
