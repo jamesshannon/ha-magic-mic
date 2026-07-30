@@ -29,7 +29,7 @@ from homeassistant.helpers import (
 from homeassistant.util.json import JsonObjectType
 
 from ..const import FIND_ENTITIES_DEFAULT_LIMIT, FIND_ENTITIES_MAX_LIMIT
-from ..fuzzy import resolve_candidates
+from ..fuzzy import Candidate, resolve_candidates
 
 # async_match_targets reports why a match produced nothing; these two mean the model
 # named an area/floor that does not exist (a fixable mistake worth surfacing), as
@@ -137,7 +137,7 @@ class FindEntitiesTool(llm.Tool):
             return {"success": True, "results": results}
 
         candidates = {
-            state.entity_id: _candidate_phrases(hass, registries, state)
+            state.entity_id: _candidate(hass, registries, state)
             for state in match_result.states
         }
         resolution = resolve_candidates(name, candidates, limit)
@@ -173,24 +173,24 @@ class _Registries:
         self.floors = fr.async_get(hass)
 
 
-def _candidate_phrases(
-    hass: HomeAssistant, registries: _Registries, state: State
-) -> list[str]:
-    """Build a candidate's descriptive phrases: names/aliases plus location terms.
+def _candidate(hass: HomeAssistant, registries: _Registries, state: State) -> Candidate:
+    """Build the scorer input for one entity: its names/aliases and location context.
 
-    The scorer joins these into one document (`fuzzy.score_candidates`), so an entity
-    named "Ceiling Light" in the "Kitchen" resolves for "kitchen light" without a bare
-    area token resolving anything on its own (find-entities.md area matching).
+    Names/aliases are matched as separate documents; the area (and floor) become shared
+    context appended to each, so an entity named "Ceiling Light" in the "Kitchen"
+    resolves for "kitchen light" without a bare area token resolving anything on its own
+    (find-entities.md area matching).
     """
     entry = registries.entities.async_get(state.entity_id)
-    phrases = intent.async_get_entity_aliases(hass, entry, state=state)
+    names = intent.async_get_entity_aliases(hass, entry, state=state)
+    context: list[str] = []
     if (area := _resolve_area(registries, state.entity_id)) is not None:
-        phrases = [*phrases, area.name]
+        context.append(area.name)
         if area.floor_id and (
             floor := registries.floors.async_get_floor(area.floor_id)
         ):
-            phrases.append(floor.name)
-    return phrases
+            context.append(floor.name)
+    return Candidate(names=tuple(names), context=tuple(context))
 
 
 def _entity_result(

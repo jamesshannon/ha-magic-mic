@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from custom_components.magic_mic.fuzzy import Resolution, Scored
+from custom_components.magic_mic.fuzzy import Candidate, Resolution, Scored
 from evals.harness.resolution import (
     Expectation,
     Outcome,
@@ -143,7 +143,7 @@ def test_correct_resolve() -> None:
     """A decisive match on the expected entity passes."""
     result = evaluate_case(
         _case(Expectation.RESOLVES_TO, resolves_to="light.a"),
-        {"light.a": ["Alpha Lamp"]},
+        {"light.a": Candidate(("Alpha Lamp",))},
         _fixed(Resolution(Scored("light.a", 95.0))),
     )
     assert result.outcome is Outcome.CORRECT_RESOLVE

@@ -27,15 +27,15 @@ from typing import Any
 import yaml
 
 from custom_components.magic_mic.const import FIND_ENTITIES_DEFAULT_LIMIT
-from custom_components.magic_mic.fuzzy import Resolution, resolve_candidates
+from custom_components.magic_mic.fuzzy import Candidate, Resolution, resolve_candidates
 
 CORPUS_DIR = Path(__file__).resolve().parent.parent / "corpus" / "resolution"
 SEED_SET = CORPUS_DIR / "seed.yaml"
 
-# A resolver maps (query, {entity_id: phrases}, limit) to a guard Resolution, where
-# phrases are a candidate's names/aliases plus location terms. The default is the
+# A resolver maps (query, {entity_id: Candidate}, limit) to a guard Resolution, where a
+# Candidate carries a candidate's names/aliases and location context. The default is the
 # production scorer; a candidate variant (IDF-weighted, phonetic) is a drop-in.
-type Resolver = Callable[[str, dict[str, list[str]], int], Resolution]
+type Resolver = Callable[[str, dict[str, Candidate], int], Resolution]
 
 
 class ResolutionCorpusError(ValueError):
@@ -125,19 +125,18 @@ class ResCorpus:
     homes: dict[str, tuple[ResEntity, ...]]
     cases: tuple[ResCase, ...]
 
-    def candidates(self, home: str) -> dict[str, list[str]]:
-        """Return the ``{entity_id: phrases}`` candidate map for a home.
+    def candidates(self, home: str) -> dict[str, Candidate]:
+        """Return the ``{entity_id: Candidate}`` map for a home.
 
-        Each candidate's phrases are its names plus its location terms (area, floor).
-        The scorer joins them into one descriptive document, so the discriminating token
-        can live in the registry (area "Kitchen") rather than the name ("Ceiling Light").
-        This mirrors what the find_entities tool feeds the same scorer.
+        Each entity's names become separate documents and its area/floor the shared
+        context, so the discriminating token can live in the registry (area "Kitchen")
+        rather than the name ("Ceiling Light"). Mirrors what find_entities feeds the scorer.
         """
         return {
-            entity.entity_id: [
-                *entity.names,
-                *(term for term in (entity.area, entity.floor) if term),
-            ]
+            entity.entity_id: Candidate(
+                names=entity.names,
+                context=tuple(term for term in (entity.area, entity.floor) if term),
+            )
             for entity in self.homes[home]
         }
 
@@ -246,7 +245,7 @@ class Scorecard:
 
 
 def default_resolver(
-    query: str, candidates: dict[str, list[str]], limit: int
+    query: str, candidates: dict[str, Candidate], limit: int
 ) -> Resolution:
     """The production scorer: union `token_set_ratio` with the IDF tie-break on top."""
     return resolve_candidates(query, candidates, limit)
@@ -268,7 +267,7 @@ def run(
 
 def evaluate_case(
     case: ResCase,
-    candidates: dict[str, list[str]],
+    candidates: dict[str, Candidate],
     resolver: Resolver = default_resolver,
     limit: int = FIND_ENTITIES_DEFAULT_LIMIT,
 ) -> CaseEval:

@@ -14,6 +14,7 @@ from custom_components.magic_mic.const import (
     FUZZY_MARGIN_SCORE,
 )
 from custom_components.magic_mic.fuzzy import (
+    Candidate,
     Scored,
     resolve,
     resolve_candidates,
@@ -24,11 +25,11 @@ from custom_components.magic_mic.fuzzy import (
 # A candidate set where union ties the target with a distractor on a shared token
 # ("living room"), but IDF separates them: only the blind matches the rare "blind".
 _SHARED_WORD_HOME = {
-    "cover.blind": ["Living Room Blind"],
-    "media_player.tv": ["Living Room TV", "TV"],
-    "light.bed": ["Bedroom Light"],
-    "light.kitchen": ["Kitchen Light"],
-    "fan.bath": ["Bathroom Fan"],
+    "cover.blind": Candidate(("Living Room Blind",)),
+    "media_player.tv": Candidate(("Living Room TV", "TV")),
+    "light.bed": Candidate(("Bedroom Light",)),
+    "light.kitchen": Candidate(("Kitchen Light",)),
+    "fan.bath": Candidate(("Bathroom Fan",)),
 }
 
 
@@ -52,14 +53,37 @@ def test_score_candidates_ranks_by_best_name_and_drops_nameless() -> None:
     ranked = score_candidates(
         "reading light",
         {
-            "light.lr": ["Overhead", "Reading Lamp"],
-            "light.kitchen": ["Kitchen Light"],
-            "light.nameless": [],
+            "light.lr": Candidate(("Overhead", "Reading Lamp")),
+            "light.kitchen": Candidate(("Kitchen Light",)),
+            "light.nameless": Candidate(()),
         },
     )
 
     assert [scored.key for scored in ranked] == ["light.lr", "light.kitchen"]
     assert ranked[0].score >= ranked[1].score
+
+
+def test_aliases_score_as_separate_documents() -> None:
+    """A query cannot combine one token from one alias with another from a second alias.
+
+    The joined blob "Reading Light Desk Lamp" would be a full subset match for "reading
+    lamp" (score 100); scored per-alias, neither alias is more than a partial match.
+    """
+    combo = {"light.combo": Candidate(("Reading Light", "Desk Lamp"))}
+
+    [scored] = score_candidates("reading lamp", combo)
+
+    assert scored.score < 100
+
+
+def test_location_context_still_completes_a_name() -> None:
+    """Per-alias scoring keeps location on each document, so the area completes the name."""
+    ranked = score_candidates(
+        "kitchen light",
+        {"light.ceiling": Candidate(("Ceiling Light",), context=("Kitchen",))},
+    )
+
+    assert ranked[0].score == pytest.approx(100.0)
 
 
 def test_resolve_decisive_single_winner() -> None:
@@ -143,8 +167,8 @@ def test_idf_tiebreak_resolves_shared_word_cluster() -> None:
 def test_idf_tiebreak_skipped_below_min_candidates() -> None:
     """With too few candidates to estimate rarity, the union ambiguity is left alone."""
     two = {
-        "cover.blind": ["Living Room Blind"],
-        "media_player.tv": ["Living Room TV"],
+        "cover.blind": Candidate(("Living Room Blind",)),
+        "media_player.tv": Candidate(("Living Room TV",)),
     }
     assert len(two) < FUZZY_IDF_MIN_CANDIDATES
 
@@ -157,7 +181,7 @@ def test_idf_tiebreak_skipped_below_min_candidates() -> None:
 def test_resolve_candidates_keeps_a_decisive_union_result() -> None:
     """When union already resolves, the tie-break is not consulted and does not interfere."""
     resolution = resolve_candidates(
-        "reading lamp", _SHARED_WORD_HOME | {"light.r": ["Reading Lamp"]}, 5
+        "reading lamp", _SHARED_WORD_HOME | {"light.r": Candidate(("Reading Lamp",))}, 5
     )
 
     assert resolution.match is not None

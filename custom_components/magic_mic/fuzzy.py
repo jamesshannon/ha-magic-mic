@@ -7,15 +7,17 @@ alongside `identity.py` and `store.py`, because it is a cross-capability seam ra
 than a capability of its own.
 
 `resolve_candidates` is the entry point the consumers call; it runs a two-stage
-pipeline. Stage one is rapidfuzz `token_set_ratio` over each candidate's descriptive
-*document* (name + aliases + location joined into one string): order- and duplicate-
-insensitive, rewards shared tokens ("reading light" ↔ "Reading Lamp") without punishing
-word order, and lets a query span fields ("kitchen light" ↔ a "Ceiling Light" in the
-"Kitchen"). Stage two runs only when stage one leaves an above-floor cluster ambiguous
-and the candidate set is large enough to estimate term rarity: it re-ranks just that
-cluster by IDF-weighted coverage, down-weighting tokens common across the set (a shared
-"light", or the area token inside an area-filtered set) so the discriminating token
-decides. Union stays the floor, so small homes and recall are never sacrificed to IDF.
+pipeline. Stage one is rapidfuzz `token_set_ratio` over each candidate's *documents*:
+one per name/alias, each enriched with the candidate's shared location context (area,
+floor), scored separately and maxed. Per-alias (not one joined blob) so a query cannot
+match "reading" from one alias and "lamp" from another; location on each so a query can
+still span fields ("kitchen light" ↔ a "Ceiling Light" in the "Kitchen").
+`token_set_ratio` is order- and duplicate-insensitive and rewards shared tokens without
+punishing word order. Stage two runs only when stage one leaves an above-floor cluster
+ambiguous and the candidate set is large enough to estimate term rarity: it re-ranks
+just that cluster by IDF-weighted coverage, down-weighting tokens common across the set
+(a shared "light", or the area token inside an area-filtered set) so the discriminating
+token decides. Union stays the floor, so small homes and recall are never sacrificed.
 
 A stdlib `difflib` approximation stands in behind both `token_set_ratio` and the
 per-token ratio when rapidfuzz is absent, so the eventual core PR can treat the
@@ -73,6 +75,25 @@ class Resolution:
     ambiguous: bool = False
 
 
+@dataclass(slots=True, frozen=True)
+class Candidate:
+    """One entity to score against: its names/aliases plus shared location context.
+
+    ``names`` are the entity's name and aliases; each is matched as its own document, so
+    a query cannot combine tokens across two different aliases. ``context`` is location
+    (area, floor) appended to *every* name document, so a query can match a name token
+    and an area token together without a bare area token resolving anything on its own.
+    """
+
+    names: tuple[str, ...]
+    context: tuple[str, ...] = ()
+
+    def documents(self) -> list[str]:
+        """Return one scorable document per name, each with the location appended."""
+        suffix = f" {' '.join(self.context)}" if self.context else ""
+        return [f"{name}{suffix}" for name in self.names if name]
+
+
 def score(query: str, name: str) -> float:
     """Return the fuzzy similarity of ``query`` to a single ``name`` in ``[0, 100]``."""
     if _HAVE_RAPIDFUZZ:
@@ -80,23 +101,19 @@ def score(query: str, name: str) -> float:
     return _difflib_token_set_ratio(query, name)
 
 
-def score_candidates(query: str, candidates: dict[str, list[str]]) -> list[Scored]:
-    """Score each candidate against its descriptive document, ranked high to low.
+def score_candidates(query: str, candidates: dict[str, Candidate]) -> list[Scored]:
+    """Score each candidate by its best-matching document, ranked high to low.
 
-    ``candidates`` maps an opaque key (an ``entity_id`` for the entity consumers) to
-    the phrases that describe it: its names and aliases, plus location terms (area,
-    floor) for the entity consumers. The phrases are joined into one *document* and
-    scored once, rather than scored separately and maxed. That union is deliberate: it
-    lets a query span fields ("kitchen light" ↔ name "Ceiling Light" in area "Kitchen")
-    while a bare area token cannot resolve on its own, because `token_set_ratio` only
-    credits a subset match when *all* the query's tokens are present in the document.
-    Scoring the area as a separate phrase instead would let every entity in the kitchen
-    tie at 100 on the shared "kitchen" token. Candidates with no phrases are dropped.
+    ``candidates`` maps an opaque key (an ``entity_id`` for the entity consumers) to a
+    `Candidate`. Each candidate's documents (one per name/alias, with location appended)
+    are scored separately and the best is kept: per-alias so a query cannot span two
+    different aliases, location-on-each so it can span a name token and an area token.
+    Candidates with no documents are dropped.
     """
     ranked = [
-        Scored(key, score(query, " ".join(phrases)))
-        for key, phrases in candidates.items()
-        if any(phrases)
+        Scored(key, max(score(query, document) for document in documents))
+        for key, candidate in candidates.items()
+        if (documents := candidate.documents())
     ]
     ranked.sort(key=lambda scored: scored.score, reverse=True)
     return ranked
@@ -123,7 +140,7 @@ def resolve(ranked: list[Scored], limit: int) -> Resolution:
 
 
 def resolve_candidates(
-    query: str, candidates: dict[str, list[str]], limit: int
+    query: str, candidates: dict[str, Candidate], limit: int
 ) -> Resolution:
     """Resolve a fuzzy ``query`` against ``candidates`` (the shared primitive entry point).
 
@@ -155,25 +172,27 @@ def resolve_candidates(
     return reranked if reranked.match is not None else union
 
 
-def _score_candidates_idf(query: str, candidates: dict[str, list[str]]) -> list[Scored]:
+def _score_candidates_idf(query: str, candidates: dict[str, Candidate]) -> list[Scored]:
     """Score each candidate by IDF-weighted token coverage over the candidate set.
 
-    Every candidate is a set of document tokens (name + aliases + location); a token's
-    weight is its inverse document frequency across this set, so words common here (a
-    shared "light", or the area token when the set is one area) count for little. A
-    candidate's score is the higher of its query-side coverage (how much of the query's
-    weight it matched) and its doc-side coverage (how much of its own weight the query
-    matched), which keeps a query that is a subset of a longer name scoring high while an
-    unmatched *content* word in the query still costs.
+    Each candidate contributes one token set per document (name/alias + location); a
+    token's weight is its inverse document frequency across the *candidates*, counted
+    once per candidate, so words common here (a shared "light", or the area token when
+    the set is one area) count for little. A candidate's score is the best of its
+    documents, each the higher of its query-side coverage (how much of the query's weight
+    it matched) and its doc-side coverage (how much of its own weight the query matched):
+    query-side keeps a subset of a longer name scoring high, doc-side stops an unmatched
+    content word in the query from being ignored. Per-document (not one pooled bag) so a
+    match cannot span two different aliases.
     """
     docs = {
-        key: tokens
-        for key, phrases in candidates.items()
-        if (tokens := _tokenize(" ".join(phrases)))
+        key: token_docs
+        for key, candidate in candidates.items()
+        if (token_docs := [t for d in candidate.documents() if (t := _tokenize(d))])
     }
     document_frequency: Counter[str] = Counter()
-    for tokens in docs.values():
-        document_frequency.update(tokens)
+    for token_docs in docs.values():
+        document_frequency.update(set().union(*token_docs))
     total = len(docs)
 
     def idf(token: str) -> float:
@@ -183,8 +202,10 @@ def _score_candidates_idf(query: str, candidates: dict[str, list[str]]) -> list[
 
     query_tokens = _tokenize(query)
     return [
-        Scored(key, _idf_coverage(query_tokens, tokens, idf))
-        for key, tokens in docs.items()
+        Scored(
+            key, max(_idf_coverage(query_tokens, tokens, idf) for tokens in token_docs)
+        )
+        for key, token_docs in docs.items()
     ]
 
 
