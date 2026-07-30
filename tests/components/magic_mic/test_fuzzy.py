@@ -6,12 +6,30 @@ the thresholds, independent of whatever the underlying scorer emits.
 
 import pytest
 
+from custom_components.magic_mic import fuzzy
 from custom_components.magic_mic.const import (
     FUZZY_ACCEPT_SCORE,
     FUZZY_FLOOR_SCORE,
+    FUZZY_IDF_MIN_CANDIDATES,
     FUZZY_MARGIN_SCORE,
 )
-from custom_components.magic_mic.fuzzy import Scored, resolve, score, score_candidates
+from custom_components.magic_mic.fuzzy import (
+    Scored,
+    resolve,
+    resolve_candidates,
+    score,
+    score_candidates,
+)
+
+# A candidate set where union ties the target with a distractor on a shared token
+# ("living room"), but IDF separates them: only the blind matches the rare "blind".
+_SHARED_WORD_HOME = {
+    "cover.blind": ["Living Room Blind"],
+    "media_player.tv": ["Living Room TV", "TV"],
+    "light.bed": ["Bedroom Light"],
+    "light.kitchen": ["Kitchen Light"],
+    "fan.bath": ["Bathroom Fan"],
+}
 
 
 def test_score_rewards_shared_tokens_over_distractors() -> None:
@@ -103,3 +121,54 @@ def test_margin_boundary_is_inclusive() -> None:
     )
 
     assert resolution.match == Scored("a", FUZZY_ACCEPT_SCORE)
+
+
+def test_union_alone_leaves_shared_word_cluster_ambiguous() -> None:
+    """Baseline: the union scorer cannot separate the target from the shared-token TV."""
+    resolution = resolve(score_candidates("living room blind", _SHARED_WORD_HOME), 5)
+
+    assert resolution.match is None
+    assert resolution.ambiguous is True
+    assert {"cover.blind", "media_player.tv"} <= {s.key for s in resolution.candidates}
+
+
+def test_idf_tiebreak_resolves_shared_word_cluster() -> None:
+    """The IDF tie-break down-weights the shared 'living room' so the blind wins."""
+    resolution = resolve_candidates("living room blind", _SHARED_WORD_HOME, 5)
+
+    assert resolution.match is not None
+    assert resolution.match.key == "cover.blind"
+
+
+def test_idf_tiebreak_skipped_below_min_candidates() -> None:
+    """With too few candidates to estimate rarity, the union ambiguity is left alone."""
+    two = {
+        "cover.blind": ["Living Room Blind"],
+        "media_player.tv": ["Living Room TV"],
+    }
+    assert len(two) < FUZZY_IDF_MIN_CANDIDATES
+
+    resolution = resolve_candidates("living room blind", two, 5)
+
+    assert resolution.match is None
+    assert resolution.ambiguous is True
+
+
+def test_resolve_candidates_keeps_a_decisive_union_result() -> None:
+    """When union already resolves, the tie-break is not consulted and does not interfere."""
+    resolution = resolve_candidates(
+        "reading lamp", _SHARED_WORD_HOME | {"light.r": ["Reading Lamp"]}, 5
+    )
+
+    assert resolution.match is not None
+    assert resolution.match.key == "light.r"
+
+
+def test_idf_tiebreak_works_without_rapidfuzz(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The difflib fallback drives the same tie-break when rapidfuzz is unavailable."""
+    monkeypatch.setattr(fuzzy, "_HAVE_RAPIDFUZZ", False)
+
+    resolution = resolve_candidates("living room blind", _SHARED_WORD_HOME, 5)
+
+    assert resolution.match is not None
+    assert resolution.match.key == "cover.blind"

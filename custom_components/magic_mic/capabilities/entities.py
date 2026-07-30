@@ -29,7 +29,7 @@ from homeassistant.helpers import (
 from homeassistant.util.json import JsonObjectType
 
 from ..const import FIND_ENTITIES_DEFAULT_LIMIT, FIND_ENTITIES_MAX_LIMIT
-from ..fuzzy import resolve, score_candidates
+from ..fuzzy import resolve_candidates
 
 # async_match_targets reports why a match produced nothing; these two mean the model
 # named an area/floor that does not exist (a fixable mistake worth surfacing), as
@@ -140,7 +140,7 @@ class FindEntitiesTool(llm.Tool):
             state.entity_id: _candidate_phrases(hass, registries, state)
             for state in match_result.states
         }
-        resolution = resolve(score_candidates(name, candidates), limit)
+        resolution = resolve_candidates(name, candidates, limit)
 
         chosen = (
             [resolution.match]

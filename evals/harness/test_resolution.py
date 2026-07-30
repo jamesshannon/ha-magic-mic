@@ -24,12 +24,13 @@ from evals.harness.resolution import (
     run,
 )
 
-# Current measured floor for the seed set (30 cases across regimes). The union-document
-# scorer reads area/floor, so location resolves; the remaining misses are the shared-word
-# and area-filtered cases, the IDF-weighting target. Raise this as the scorer improves; a
-# drop with no new cases is a regression. Never lower the false-resolve gate - decisively
-# acting on the wrong entity is the one failure the guard exists to prevent.
-_SEED_MIN_DECISIVE_ACCURACY = 0.84
+# Current measured floor for the seed set (30 cases across regimes). Union-document plus
+# the IDF tie-break resolves location, medium-home, and most shared-word/area-filtered
+# cases; the two survivors are a synonym (reading light -> Reading Lamp, out of scope for
+# weighting) and one 3-shared-token area case, both recall-safe. Raise this as the scorer
+# improves; a drop with no new cases is a regression. Never lower the false-resolve gate -
+# decisively acting on the wrong entity is the one failure the guard exists to prevent.
+_SEED_MIN_DECISIVE_ACCURACY = 0.92
 
 # Regimes that must stay perfect regardless of scorer changes. Small homes are too sparse
 # for IDF to estimate term rarity, so a weighting change must never make them cautious;

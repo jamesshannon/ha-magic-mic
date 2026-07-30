@@ -27,6 +27,18 @@ FUZZY_FLOOR_SCORE = 60.0
 FUZZY_ACCEPT_SCORE = 70.0
 FUZZY_MARGIN_SCORE = 15.0
 
+# IDF tie-break (docs/find-entities.md term weighting). When the union scorer leaves an
+# above-floor cluster ambiguous, re-rank just that cluster by IDF-weighted coverage,
+# which down-weights tokens common across the candidate set (a shared "light", or the
+# area token inside an area-filtered set) so the discriminating token decides. Gated so
+# it never fires where it would misjudge:
+#   TOKEN_MATCH  - two tokens count as the same only at/above this char similarity (0-100),
+#                  so "light"~"lights" match but "lamp"/"light" do not.
+#   IDF_MIN_CANDIDATES - below this many candidates, df cannot estimate term rarity (a
+#                  common word looks rare just by being absent), so stay on union.
+FUZZY_TOKEN_MATCH_SCORE = 82.0
+FUZZY_IDF_MIN_CANDIDATES = 5
+
 # Default and hard cap on how many candidates find_entities returns per lookup.
 FIND_ENTITIES_DEFAULT_LIMIT = 5
 FIND_ENTITIES_MAX_LIMIT = 25

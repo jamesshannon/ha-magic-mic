@@ -27,7 +27,7 @@ from typing import Any
 import yaml
 
 from custom_components.magic_mic.const import FIND_ENTITIES_DEFAULT_LIMIT
-from custom_components.magic_mic.fuzzy import Resolution, resolve, score_candidates
+from custom_components.magic_mic.fuzzy import Resolution, resolve_candidates
 
 CORPUS_DIR = Path(__file__).resolve().parent.parent / "corpus" / "resolution"
 SEED_SET = CORPUS_DIR / "seed.yaml"
@@ -248,8 +248,8 @@ class Scorecard:
 def default_resolver(
     query: str, candidates: dict[str, list[str]], limit: int
 ) -> Resolution:
-    """The production scorer: score every candidate, then apply the ambiguity guard."""
-    return resolve(score_candidates(query, candidates), limit)
+    """The production scorer: union `token_set_ratio` with the IDF tie-break on top."""
+    return resolve_candidates(query, candidates, limit)
 
 
 def run(
