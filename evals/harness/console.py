@@ -35,11 +35,13 @@ Run it with a live key (from the environment or a project-root ``.env``):
 
 import argparse
 import asyncio
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager, nullcontext
 import copy
 from dataclasses import dataclass, field
+import json
 import sys
+from time import perf_counter
 from typing import Any
 
 from pytest_homeassistant_custom_component.common import (
@@ -125,6 +127,7 @@ class CapturedRequest:
     tool_names: tuple[str, ...]
     deferred_tools: tuple[str, ...]
     messages: tuple[dict[str, Any], ...]
+    elapsed_ms: float | None = None
 
     @classmethod
     def from_kwargs(cls, kwargs: dict[str, Any]) -> "CapturedRequest":
@@ -166,6 +169,34 @@ class _Capture:
     requests: list[CapturedRequest] = field(default_factory=list)
 
 
+class _TimedStream:
+    """Wrap the provider's response stream to time a whole model round.
+
+    ``messages.create(stream=True)`` returns before any tokens arrive; the generation happens
+    as the provider consumes the stream. Wrapping the stream lets us stop the clock when it's
+    exhausted, so the recorded time is the round's real latency (request + generation), not
+    just the call setup. The provider only iterates the stream, so proxying ``__aiter__`` /
+    ``__anext__`` is enough.
+    """
+
+    def __init__(self, stream: Any, on_done: Callable[[], None]) -> None:
+        self._stream = stream
+        self._on_done = on_done
+        self._iterator: AsyncIterator[Any] | None = None
+
+    def __aiter__(self) -> "_TimedStream":
+        self._iterator = self._stream.__aiter__()
+        return self
+
+    async def __anext__(self) -> Any:
+        assert self._iterator is not None
+        try:
+            return await self._iterator.__anext__()
+        except StopAsyncIteration:
+            self._on_done()
+            raise
+
+
 @asynccontextmanager
 async def capture_requests(client: Any) -> AsyncIterator[_Capture]:
     """Wrap the provider client's ``messages.create`` to snapshot each round's payload.
@@ -174,14 +205,21 @@ async def capture_requests(client: Any) -> AsyncIterator[_Capture]:
     it to ``client.messages.create`` once per model round. Snapshotting a deep copy there is
     the whole "what actually went to the LLM": the composed prompt is not on the conversation
     trace, so this patch is how the CLI sees it. The copy matters because the provider reuses
-    and extends the ``messages`` list across rounds in place.
+    and extends the ``messages`` list across rounds in place. The returned stream is wrapped
+    so the recorded ``elapsed_ms`` spans the full round, not just the call.
     """
     capture = _Capture()
     original = client.messages.create
 
     async def _wrapped(**kwargs: Any) -> Any:
-        capture.requests.append(CapturedRequest.from_kwargs(copy.deepcopy(kwargs)))
-        return await original(**kwargs)
+        request = CapturedRequest.from_kwargs(copy.deepcopy(kwargs))
+        capture.requests.append(request)
+        start = perf_counter()
+
+        def _done() -> None:
+            request.elapsed_ms = (perf_counter() - start) * 1000
+
+        return _TimedStream(await original(**kwargs), _done)
 
     client.messages.create = _wrapped
     try:
@@ -259,6 +297,7 @@ class TurnResult:
     speech: str
     error: str | None
     conversation_id: str | None
+    hassil_ms: float | None = None
 
 
 async def _probe_local(
@@ -320,8 +359,11 @@ async def drive_turn(
     """
     local: LocalOutcome | None = None
     current_id = conversation_id
+    hassil_ms: float | None = None
     if hassil:
+        start = perf_counter()
         local, current_id = await _probe_local(session.hass, utterance, current_id)
+        hassil_ms = (perf_counter() - start) * 1000
         if local.resolved:
             return TurnResult(
                 local=local,
@@ -332,6 +374,7 @@ async def drive_turn(
                 speech=local.speech,
                 error=None,
                 conversation_id=current_id,
+                hassil_ms=hassil_ms,
             )
 
     error: str | None = None
@@ -370,6 +413,7 @@ async def drive_turn(
         speech=speech,
         error=error,
         conversation_id=current_id,
+        hassil_ms=hassil_ms,
     )
 
 
@@ -413,6 +457,67 @@ def _clip(text: str, limit: int = 160) -> str:
     return flat if len(flat) <= limit else flat[: limit - 1] + "…"
 
 
+def _fmt_ms(ms: float | None) -> str:
+    """Format an elapsed time for the trace (ms under a second, else seconds)."""
+    if ms is None:
+        return "?"
+    return f"{ms:.0f} ms" if ms < 1000 else f"{ms / 1000:.2f} s"
+
+
+def _format_value(value: Any) -> str:
+    """Render a tool input/result in full: pretty JSON, one line when short."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (ValueError, TypeError):
+            return value
+    try:
+        compact = json.dumps(value, sort_keys=True, ensure_ascii=False)
+    except (TypeError, ValueError):
+        return str(value)
+    if len(compact) <= 100:
+        return compact
+    return json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False)
+
+
+def _tool_exchanges(
+    requests: Sequence[CapturedRequest],
+) -> list[tuple[str, Any, Any]]:
+    """Pair each tool call with its result across the captured rounds.
+
+    The provider echoes a round's ``tool_use`` and the following ``tool_result`` into the
+    *next* request's messages, so scanning every captured request recovers the full call →
+    result exchange (in first-seen order). This is the source for the full result the summary
+    line clips.
+    """
+    uses: dict[str, tuple[str, Any]] = {}
+    results: dict[str, Any] = {}
+    order: list[str] = []
+    for request in requests:
+        for message in request.messages:
+            content = message.get("content")
+            if not isinstance(content, list):
+                continue
+            for block in content:
+                if block.get("type") == "tool_use":
+                    tool_id = block.get("id")
+                    if tool_id not in uses:
+                        uses[tool_id] = (block.get("name", "?"), block.get("input", {}))
+                        order.append(tool_id)
+                elif block.get("type") == "tool_result":
+                    results[block.get("tool_use_id")] = block.get("content", "")
+    return [(uses[t][0], uses[t][1], results.get(t)) for t in order]
+
+
+def _render_kv(label: str, value: Any, style: _Style) -> list[str]:
+    """Render a labelled value block, indenting any wrapped JSON under the label."""
+    parts = _format_value(value).splitlines() or [""]
+    return [
+        f"      {style.dim(label + ':')} {parts[0]}",
+        *(f"        {line}" for line in parts[1:]),
+    ]
+
+
 def render_turn(result: TurnResult, style: _Style, *, verbose: bool) -> str:
     """Render a driven turn: local outcome, per-round requests, tool calls, cost, answer."""
     out: list[str] = []
@@ -420,9 +525,15 @@ def render_turn(result: TurnResult, style: _Style, *, verbose: bool) -> str:
     if result.local is not None:
         tag = style.green("resolved") if result.local.resolved else style.dim("passed")
         recog = "recognized" if result.local.recognized else "no-match"
+        timing = (
+            style.dim(f"  [{_fmt_ms(result.hassil_ms)}]")
+            if result.hassil_ms is not None
+            else ""
+        )
         out.append(
             f"{style.bold('HASSIL')}  {tag} ({recog})"
             + (f"  {_clip(result.local.speech)}" if result.local.speech else "")
+            + timing
         )
     if result.handled_locally:
         return "\n".join(out)
@@ -432,7 +543,10 @@ def render_turn(result: TurnResult, style: _Style, *, verbose: bool) -> str:
 
     for index, request in enumerate(result.requests, start=1):
         out.append("")
-        out.append(style.cyan(f"── round {index}/{len(result.requests)} ──"))
+        header = f"── round {index}/{len(result.requests)} ──"
+        if request.elapsed_ms is not None:
+            header += f"  {_fmt_ms(request.elapsed_ms)}"
+        out.append(style.cyan(header))
         if index == 1:
             marker = " (cache_control: ephemeral)" if request.system_cached else ""
             out.append(
@@ -453,11 +567,22 @@ def render_turn(result: TurnResult, style: _Style, *, verbose: bool) -> str:
         out.append(style.bold(tool_line))
         out.append(style.dim("  " + ", ".join(request.tool_names)))
 
-    out.append("")
-    if result.tools:
+    exchanges = _tool_exchanges(result.requests)
+    if exchanges:
+        out.append("")
+        out.append(style.bold("TOOL CALLS"))
+        for name, tool_input, tool_result in exchanges:
+            out.append(f"  {style.yellow('→ ' + name)}")
+            out.extend(_render_kv("input", tool_input, style))
+            if tool_result is not None:
+                out.extend(_render_kv("result", tool_result, style))
+    elif result.tools:
+        # No exchange was captured (e.g. a call still open at the iteration cap); fall back
+        # to the trace's call list, which has the name and args but not the result.
+        out.append("")
         out.append(style.bold("TOOL CALLS"))
         out.extend(
-            f"  {style.yellow(call.name)} {_clip(str(call.args))}"
+            f"  {style.yellow('→ ' + call.name)} {_clip(str(call.args))}"
             for call in result.tools
         )
 
@@ -471,11 +596,14 @@ def render_turn(result: TurnResult, style: _Style, *, verbose: bool) -> str:
                 "cache_creation_tokens",
             )
         }
+        total_ms = sum(r.elapsed_ms or 0 for r in result.requests)
+        out.append("")
         out.append(
             style.bold(f"COST  {len(result.generations)} round(s)")
             + style.dim(
                 f"  in {totals['input_tokens']} / out {totals['output_tokens']}"
                 f"  cache read {totals['cache_read_tokens']} / create {totals['cache_creation_tokens']}"
+                f"  time {_fmt_ms(total_ms)}"
             )
         )
 
