@@ -192,7 +192,12 @@ cases:
     routing_truth: local
     resolves_at_wave0: true
     requires: [cover.living_room_blinds]
-    # The blind starts fully open (position 100); 50% leaves it open with position 50.
+    # Stage the blind fully open so the case is order-independent: an earlier case
+    # (close-blinds) leaves it closed, and this case declares only a position, so without
+    # staging the implicit "state unchanged" check would see closed flip to open and fail.
+    # From open (position 100), 50% leaves it open with position 50.
+    setup:
+      cover.living_room_blinds: {state: "open", attributes: {current_position: 100}}
     expect_changes:
       cover.living_room_blinds: {attributes: {current_position: 50}}
     template: "(<numeric_value_set>...) [<the>] {name} [position] to {position} percent"
