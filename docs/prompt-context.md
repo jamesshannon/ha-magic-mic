@@ -431,6 +431,78 @@ Design constraints:
   (can't prebuild at startup, since it depends on the utterance). But it's
   deterministic hashmap work (§5.3, sub-ms) — negligible next to one generation.
 
+#### As built (wave1-prompt-context)
+
+`capabilities/prompt_context.py::select_request_names`, plus the shared
+`entity_candidates.build_candidate` adapter and `async_domain_keyword_map`. It follows
+the two-filter design above:
+
+- Room scope is a **hard gate**: with a resolved area the candidate set is exactly that
+  area's exposed entities (device area inherited as HA does); with no area (typed input,
+  no satellite) it falls back to every exposed entity.
+- Relevance keeps a candidate when its name fuzzy-matches the utterance (union
+  `token_set_ratio`, the shared scorer) **or** its domain was named by a keyword. Keyword
+  widening is gated on having a room, because unbounded it would inject a whole domain
+  (every light in the house). A domain-only hit is floored in at `NAME_INJECTION_FLOOR`
+  (55, at or below the resolution floor: a spurious inclusion wastes tokens, not a wrong
+  action), so genuine name matches still outrank it. Top-N is `NAME_INJECTION_LIMIT` (10).
+- The keyword map is derived from `entity_component` translations (each domain's display
+  name plus its device-class names), so it is localized, not a hardcoded English dict. It
+  is deliberately thin: canonical terms ("Light", "Blind"), not colloquial synonyms
+  ("lamp", "music"), and misses degrade to fuzzy-name plus one lookup.
+
+Two design choices below were weighed during that build and deferred. Both are recorded
+here so they are not re-derived from scratch; revisit them when the eval says the fast
+path is leaving turns on the table.
+
+#### Refinement A — domain-name decoration instead of keyword widening
+
+An alternative to the separate keyword filter: append each entity's localized domain and
+device-class name to its `Candidate` context (alongside area and floor), then let plain
+`token_set_ratio` carry domain relevance. A blind in the kitchen scores against "close the
+kitchen blinds" through its "Cover"/"Blind" tokens, with no utterance keyword-parse step.
+
+- **For.** It subsumes widening for injection and grades it: a light that also matches on
+  name outranks a bare domain match, instead of everything flat at the floor. It drops the
+  `keyword_domains` utterance loop. Because the adapter is shared, it also helps
+  `find_entities` fuzzy lookups that omit a structured `domain` (the "ask for a bedroom
+  light, the entity is a bedroom lamp" case), which widening cannot reach: widening only
+  fires at prompt-build.
+- **Against.** The resolution consumers (`find_entities`, the match-layer fallback) filter
+  domain **structurally** and should (PRODUCT_PLAN §1: exhaustive filtering is
+  deterministic code's job). When the model passes `domain=light`, the candidate set is
+  already all lights, so a uniform "Light" token on every document compresses the top-1/
+  top-2 margin the ambiguity guard reads. That is the failure the IDF tie-break
+  ([`find-entities.md`](find-entities.md)) was added to fight; IDF absorbs it for sets of
+  five or more but not for a two-lamp office on the plain-union path, where decoration can
+  turn a clean resolve into "ambiguous."
+- **And** it blends the domain signal into the score, so the explicit "domain-only match"
+  flag that lets us room-gate widening is gone; the no-room flood it prevents does not go
+  away, it just gets harder to gate.
+- **If revisited:** decorate in the shared `build_candidate`, drop injection's widening,
+  and gate on the resolver micro-benchmark (the guardrail regimes, `false-resolve == 0`).
+  If small homogeneous sets regress, scope decoration to the injection candidate build
+  only (an `extra_context` arg), leaving the resolution consumers on structured domain.
+
+#### Refinement B — soft room scope with a house-wide strong-match escape
+
+Room scope is a hard gate today, so an explicit cross-room reference ("turn off the kitchen
+ceiling light" spoken from the living room) injects nothing and degrades to a lookup. Model
+it instead as three sources into one candidate set:
+
+- **room domain** (widening or decoration) and **room fuzzy** at the normal floor: the
+  structural prior, admitted generously.
+- **house-wide fuzzy** at a **higher** floor (strong, confident matches only): the escape
+  for utterances that name a specific entity elsewhere. A weak house-wide match is the
+  noise room-scope exists to suppress; only a specific reference like "kitchen ceiling
+  light" clears the bar.
+
+Room entities keep a ranking bonus so they sort above equal-scoring house-wide ones, and
+top-N still caps the total. Cost: the fuzzy pass runs over all exposed entities, not just
+the room (still bounded hashmap/rapidfuzz work, but O(all) not O(room)). Whether the
+explicit-cross-room case is frequent enough to justify it is an eval question, not an
+armchair one, hence deferred.
+
 ### Tier 3 — retrieval (unbounded stores only)
 
 Long-term memories/notes via retrieval into the prompt — off the critical path,
