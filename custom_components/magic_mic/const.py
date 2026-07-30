@@ -15,3 +15,18 @@ LOGGER = logging.getLogger(__package__)
 # surface, and the baseline agent keeps the roster for the measured comparison.
 CONF_TAXONOMY_SKELETON = "taxonomy_skeleton"
 DEFAULT_TAXONOMY_SKELETON = True
+
+# Fuzzy entity resolution (docs/find-entities.md, the scorer + ambiguity guard). Scores
+# are rapidfuzz token_set_ratio, 0-100. These are starting values calibrated against the
+# doc's examples ("reading light" -> "Reading Lamp" resolves; "couch lamp" does not), to
+# be tuned on the eval harness:
+#   FLOOR  - discard candidates below this (stops "the thermostat" matching a light).
+#   ACCEPT - a single winner must clear this to auto-resolve without asking.
+#   MARGIN - and must lead the runner-up by this, or the match is treated as ambiguous.
+FUZZY_FLOOR_SCORE = 60.0
+FUZZY_ACCEPT_SCORE = 70.0
+FUZZY_MARGIN_SCORE = 15.0
+
+# Default and hard cap on how many candidates find_entities returns per lookup.
+FIND_ENTITIES_DEFAULT_LIMIT = 5
+FIND_ENTITIES_MAX_LIMIT = 25
