@@ -15,6 +15,8 @@ Provider-agnostic and core-shaped: depends only on `hass`, the assistant id, and
 registries (§5.5).
 """
 
+import re
+
 from homeassistant.components.homeassistant import async_should_expose
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import (
@@ -23,6 +25,11 @@ from homeassistant.helpers import (
     entity_registry as er,
     floor_registry as fr,
 )
+from homeassistant.helpers.translation import async_get_translations
+
+from ..const import FUZZY_TOKEN_MATCH_SCORE, NAME_INJECTION_FLOOR
+from ..entity_candidates import Registries, build_candidate, resolve_area
+from ..fuzzy import Candidate, score, score_candidates
 
 # Leads the skeleton so the model reads the counts as structure, not as an
 # actionable name list. Kept tool-agnostic on purpose: the lookup tool it points to
@@ -33,6 +40,23 @@ SKELETON_HEADER = (
     "the available tools when a command needs one."
 )
 UNASSIGNED_LABEL = "Unassigned"
+
+# Leads the Tier-2 name block. Frames the names as a fast path (use directly) with the
+# lookup tool as the fallback for anything not listed, so a miss is a lookup, not a dead
+# end. Kept tool-agnostic like SKELETON_HEADER.
+NAME_INJECTION_HEADER = (
+    "Entities relevant to this request, with their exact names and entity_ids. Use these "
+    "directly when they fit; look up anything else by name with the available tools."
+)
+
+# entity_component translations flatten to component.<domain>.entity_component.<class>.name
+# = the localized display name for a domain (class "_") or one of its device classes. We
+# read those names to learn, per language, which words denote which domain.
+_ENTITY_COMPONENT_NAME = re.compile(
+    r"^component\.(?P<domain>[^.]+)\.entity_component\.[^.]+\.name$"
+)
+# Collapse every non-alphanumeric run to a space, matching how the fuzzy scorer tokenizes.
+_NON_ALNUM = re.compile(r"[^0-9a-z]+")
 
 
 @callback
@@ -112,6 +136,121 @@ def _resolve_area_id(
     ):
         return device.area_id
     return None
+
+
+async def async_domain_keyword_map(
+    hass: HomeAssistant, language: str
+) -> dict[str, set[str]]:
+    """Map localized domain/device-class name tokens to the domains they denote.
+
+    Derived from HA's ``entity_component`` translations (each domain's display name plus
+    its device-class names), so the Tier-2 keyword booster is localized per HA convention
+    (PRODUCT_PLAN §5.7) rather than a hardcoded English dict, which would both fail
+    non-English homes and block a core merge. The map is deliberately thin: it carries
+    canonical names ("Light", "Blind"), not colloquial synonyms ("lamp", "music"), and
+    those misses degrade to fuzzy-name match plus one ``find_entities`` lookup, never a
+    failure (prompt-context.md Tier 2). A single token can denote several domains (a
+    shared "sensor"), so values are sets.
+    """
+    translations = await async_get_translations(hass, language, "entity_component")
+    keyword_map: dict[str, set[str]] = {}
+    for key, value in translations.items():
+        match = _ENTITY_COMPONENT_NAME.match(key)
+        # Skip unresolved [%key%] references defensively; the cache normally resolves them.
+        if match is None or "[%" in value:
+            continue
+        domain = match.group("domain")
+        for token in _tokenize(value):
+            keyword_map.setdefault(token, set()).add(domain)
+    return keyword_map
+
+
+def keyword_domains(utterance: str, keyword_map: dict[str, set[str]]) -> set[str]:
+    """Return the domains whose localized name tokens the utterance mentions.
+
+    Exact token hits win outright; otherwise each utterance token is compared to the map's
+    tokens with the shared fuzzy scorer, so a plural or minor variant ("lights" ↔ "light",
+    "blinds" ↔ "blind") still lands on its domain without a hardcoded stemmer.
+    """
+    domains: set[str] = set()
+    for token in _tokenize(utterance):
+        if (exact := keyword_map.get(token)) is not None:
+            domains |= exact
+            continue
+        for map_token, map_domains in keyword_map.items():
+            if score(token, map_token) >= FUZZY_TOKEN_MATCH_SCORE:
+                domains |= map_domains
+    return domains
+
+
+@callback
+def select_request_names(
+    hass: HomeAssistant,
+    assistant: str,
+    utterance: str,
+    area_id: str | None,
+    *,
+    keyword_map: dict[str, set[str]],
+    limit: int,
+) -> str | None:
+    """Return the Tier-2 request-conditioned name block, or None when nothing is relevant.
+
+    Two filters, layered (prompt-context.md Tier 2). The structural prior is room scope:
+    the candidate set is the entities in ``area_id`` (device area inherited as HA does),
+    or every exposed entity when the request has no area (typed input, no satellite). The
+    relevance filter then keeps a candidate when its name fuzzy-matches the utterance *or*
+    its domain was named by a keyword. Room-scoped keyword widening is bounded by the room;
+    without a room it is skipped (it would pull every light in the house), leaving
+    fuzzy-name match as the sole narrower. Rendered as ``name (entity_id)`` lines, capped
+    at ``limit``, most relevant first.
+    """
+    registries = Registries(hass)
+    candidates: dict[str, Candidate] = {}
+    domains: dict[str, str] = {}
+    for state in hass.states.async_all():
+        if not async_should_expose(hass, assistant, state.entity_id):
+            continue
+        if area_id is not None:
+            area = resolve_area(registries, state.entity_id)
+            if area is None or area.id != area_id:
+                continue
+        candidates[state.entity_id] = build_candidate(hass, registries, state)
+        domains[state.entity_id] = state.domain
+
+    if not candidates:
+        return None
+
+    fuzzy = {
+        scored.key: scored.score for scored in score_candidates(utterance, candidates)
+    }
+    # Keyword widening only inside a bounded room; unbounded it would inject a whole domain.
+    widened = keyword_domains(utterance, keyword_map) if area_id is not None else set()
+
+    ranked: list[tuple[float, str]] = []
+    for entity_id in candidates:
+        relevance = fuzzy.get(entity_id, 0.0)
+        if domains[entity_id] in widened:
+            # A domain match alone earns inclusion at the floor; a better name match
+            # keeps its higher score and so still outranks bare keyword hits.
+            relevance = max(relevance, NAME_INJECTION_FLOOR)
+        if relevance >= NAME_INJECTION_FLOOR:
+            ranked.append((relevance, entity_id))
+
+    if not ranked:
+        return None
+
+    ranked.sort(key=lambda row: (-row[0], row[1]))
+    lines = [NAME_INJECTION_HEADER]
+    for _relevance, entity_id in ranked[:limit]:
+        state = hass.states.get(entity_id)
+        name = state.name if state else entity_id
+        lines.append(f"{name} ({entity_id})")
+    return "\n".join(lines)
+
+
+def _tokenize(value: str) -> set[str]:
+    """Lowercase and split on non-alphanumeric runs, as the fuzzy scorer does."""
+    return {token for token in _NON_ALNUM.sub(" ", value.lower()).split() if token}
 
 
 def _render_domain(domain: str, device_class_counts: dict[str | None, int]) -> str:
