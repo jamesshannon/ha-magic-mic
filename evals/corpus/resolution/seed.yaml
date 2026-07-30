@@ -36,6 +36,18 @@ homes:
     - {entity_id: light.overhead, names: [Overhead Light]}
     - {entity_id: lock.door, names: [Front Door Lock]}
 
+  # Location as the discriminating signal (see find-entities.md area matching). The
+  # discriminator "kitchen" lives in the registry, not in these entities' names, so a
+  # name-only scorer cannot see it. Carried here so the corpus states the truth; the
+  # cases below miss today and are the target for location-aware scoring.
+  named_by_room:
+    - {entity_id: light.kitchen_ceiling, names: [Ceiling Light], area: Kitchen}
+    - {entity_id: switch.kitchen_counter, names: [Kitchen Counter], area: Kitchen}
+    - {entity_id: light.bedroom_ceiling, names: [Ceiling Light], area: Bedroom}
+  same_name_two_rooms:
+    - {entity_id: light.kitchen, names: [Light], area: Kitchen}
+    - {entity_id: light.living, names: [Light], area: Living Room}
+
 cases:
   # --- decisive hits (a clear single winner) ---
   - {id: reading-lamp-exact, home: demo, query: reading lamp, expect: {resolves_to: light.reading}}
@@ -58,6 +70,15 @@ cases:
   - {id: bedroom-family, home: demo, query: bedroom,
      expect: {ambiguous: [light.bedroom_lamp, light.bedroom_ceiling, fan.bedroom]},
      note: "three bedroom devices tie; ask which"}
+
+  # --- location headroom: the discriminating token is the area, not the name ---
+  - {id: room-completes-name, home: named_by_room, query: kitchen light, expect: {resolves_to: light.kitchen_ceiling},
+     note: "headroom - 'Ceiling Light' in the Kitchen; a name-only scorer even ranks the Kitchen Counter switch above it"}
+  - {id: room-disambiguates, home: same_name_two_rooms, query: kitchen light, expect: {resolves_to: light.kitchen},
+     note: "headroom - two entities named 'Light'; only the area picks the kitchen one"}
+  - {id: no-room-stays-ambiguous, home: same_name_two_rooms, query: light,
+     expect: {ambiguous: [light.kitchen, light.living]},
+     note: "control - with no room in the query the two Lights are genuinely ambiguous, and must stay so"}
 
   # --- nothing should match ---
   - {id: nonsense, home: demo, query: xylophone, expect: {none: true}}

@@ -82,10 +82,18 @@ _PASSING_OUTCOMES = frozenset(
 
 @dataclass(frozen=True)
 class ResEntity:
-    """One candidate entity: its id and the names/aliases the scorer matches against."""
+    """One candidate entity: its id, its names/aliases, and where it lives.
+
+    ``area`` / ``floor`` are the entity's location. The current name-only scorer does not
+    read them (a location case therefore misses, quantifying the gap); they exist so the
+    corpus can express the truth a location-aware scorer will match against - the
+    discriminating token for "kitchen light" is often the area, not the name.
+    """
 
     entity_id: str
     names: tuple[str, ...]
+    area: str | None = None
+    floor: str | None = None
 
 
 @dataclass(frozen=True)
@@ -109,7 +117,11 @@ class ResCorpus:
     cases: tuple[ResCase, ...]
 
     def candidates(self, home: str) -> dict[str, list[str]]:
-        """Return the ``{entity_id: names}`` candidate map for a home."""
+        """Return the ``{entity_id: names}`` candidate map for a home.
+
+        Names only: this is what today's scorer consumes. Location-aware scoring will
+        widen this to a richer candidate (name + area + floor) behind the `Resolver` seam.
+        """
         return {entity.entity_id: list(entity.names) for entity in self.homes[home]}
 
 
@@ -330,7 +342,12 @@ def load_corpus(path: Path = SEED_SET) -> ResCorpus:
 
     homes = {
         name: tuple(
-            ResEntity(entity_id=entity["entity_id"], names=tuple(entity["names"]))
+            ResEntity(
+                entity_id=entity["entity_id"],
+                names=tuple(entity["names"]),
+                area=entity.get("area"),
+                floor=entity.get("floor"),
+            )
             for entity in entities or ()
         )
         for name, entities in (raw["homes"] or {}).items()

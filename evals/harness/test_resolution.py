@@ -24,10 +24,12 @@ from evals.harness.resolution import (
     run,
 )
 
-# Current measured floor for the seed set. Raise these as the scorer improves; never
-# lower the false-resolve gate - decisively acting on the wrong entity is the one
-# failure the guard exists to prevent.
-_SEED_MIN_DECISIVE_ACCURACY = 0.80
+# Current measured floor for the seed set. It legitimately dropped from 0.80 when the
+# location cases were added (harder cases, not a scorer regression); it should climb back
+# past 0.80 once the scorer reads area/floor. Raise it as the scorer improves; a drop
+# with no new cases is a regression. Never lower the false-resolve gate - decisively
+# acting on the wrong entity is the one failure the guard exists to prevent.
+_SEED_MIN_DECISIVE_ACCURACY = 0.66
 
 
 def _corpus(*cases: ResCase) -> ResCorpus:
@@ -74,6 +76,18 @@ def test_seed_set_meets_baseline_accuracy(hass_free_seed: Scorecard) -> None:
 def hass_free_seed() -> Scorecard:
     """Score the seed corpus with the production scorer (no HA world involved)."""
     return run(load_corpus())
+
+
+def test_seed_carries_entity_location() -> None:
+    """The corpus can express an entity's area/floor, even though the scorer ignores it.
+
+    Location is the discriminating signal a name-only scorer misses; the corpus records
+    it so those cases are expressible and measurable now, ahead of location-aware scoring.
+    """
+    corpus = load_corpus()
+    by_id = {entity.entity_id: entity for entity in corpus.homes["named_by_room"]}
+    assert by_id["light.kitchen_ceiling"].area == "Kitchen"
+    assert by_id["light.bedroom_ceiling"].area == "Bedroom"
 
 
 def test_correct_resolve() -> None:
