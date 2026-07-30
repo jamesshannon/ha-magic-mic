@@ -1,0 +1,211 @@
+"""Tests for the resolver micro-benchmark: the CI safety gate and the harness logic.
+
+The gate (`test_seed_set_*`) runs the real scorer over the seed corpus and asserts the
+invariants that must always hold; the rest drive the classifier and metrics with stub
+resolvers so the harness is verified independent of the scorer under test.
+"""
+
+from pathlib import Path
+
+import pytest
+
+from custom_components.magic_mic.fuzzy import Resolution, Scored
+from evals.harness.resolution import (
+    Expectation,
+    Outcome,
+    ResCase,
+    ResCorpus,
+    ResEntity,
+    ResolutionCorpusError,
+    Resolver,
+    Scorecard,
+    evaluate_case,
+    load_corpus,
+    run,
+)
+
+# Current measured floor for the seed set. Raise these as the scorer improves; never
+# lower the false-resolve gate - decisively acting on the wrong entity is the one
+# failure the guard exists to prevent.
+_SEED_MIN_DECISIVE_ACCURACY = 0.80
+
+
+def _corpus(*cases: ResCase) -> ResCorpus:
+    """Build a one-home corpus over a fixed candidate set for the given cases."""
+    return ResCorpus(
+        homes={
+            "h": (
+                ResEntity("light.a", ("Alpha Lamp",)),
+                ResEntity("light.b", ("Beta Lamp",)),
+            )
+        },
+        cases=cases,
+    )
+
+
+def _fixed(resolution: Resolution) -> Resolver:
+    """A resolver that ignores its input and always returns the given resolution."""
+    return lambda query, candidates, limit: resolution
+
+
+def _case(expectation: Expectation, **kw: object) -> ResCase:
+    return ResCase(id="c", home="h", query="alpha", expectation=expectation, **kw)
+
+
+def test_seed_set_never_false_resolves(hass_free_seed: Scorecard) -> None:
+    """The safety invariant: the guard must never decisively pick the wrong entity."""
+    assert hass_free_seed.false_resolve_rate == 0.0
+    assert hass_free_seed.false_resolves == 0
+
+
+def test_seed_set_target_always_retrievable(hass_free_seed: Scorecard) -> None:
+    """Every should-resolve case at least returns its target (decisive or shortlisted)."""
+    assert hass_free_seed.resolve_recall == 1.0
+
+
+def test_seed_set_meets_baseline_accuracy(hass_free_seed: Scorecard) -> None:
+    """Decisive accuracy holds at or above the recorded floor (no regression)."""
+    assert hass_free_seed.decisive_accuracy >= _SEED_MIN_DECISIVE_ACCURACY
+    assert hass_free_seed.ambiguous_accuracy == 1.0
+    assert hass_free_seed.none_accuracy == 1.0
+
+
+@pytest.fixture
+def hass_free_seed() -> Scorecard:
+    """Score the seed corpus with the production scorer (no HA world involved)."""
+    return run(load_corpus())
+
+
+def test_correct_resolve() -> None:
+    """A decisive match on the expected entity passes."""
+    result = evaluate_case(
+        _case(Expectation.RESOLVES_TO, resolves_to="light.a"),
+        {"light.a": ["Alpha Lamp"]},
+        _fixed(Resolution(Scored("light.a", 95.0))),
+    )
+    assert result.outcome is Outcome.CORRECT_RESOLVE
+    assert result.outcome.passed
+
+
+def test_false_resolve_is_unsafe_and_fails() -> None:
+    """A decisive match on the wrong entity is the false-resolve outcome."""
+    scorecard = run(
+        _corpus(_case(Expectation.RESOLVES_TO, resolves_to="light.a")),
+        _fixed(Resolution(Scored("light.b", 95.0))),
+    )
+    result = scorecard.results[0]
+    assert result.outcome is Outcome.FALSE_RESOLVE
+    assert not result.outcome.passed
+    assert scorecard.false_resolve_rate == 1.0
+
+
+def test_missed_in_shortlist_vs_entirely() -> None:
+    """A non-decisive result splits on whether the target survived in the shortlist."""
+    ambiguous = Resolution(
+        None, [Scored("light.a", 66.0), Scored("light.b", 66.0)], ambiguous=True
+    )
+    in_shortlist = evaluate_case(
+        _case(Expectation.RESOLVES_TO, resolves_to="light.a"),
+        {},
+        _fixed(ambiguous),
+    )
+    assert in_shortlist.outcome is Outcome.MISSED_IN_SHORTLIST
+
+    dropped = evaluate_case(
+        _case(Expectation.RESOLVES_TO, resolves_to="light.c"),
+        {},
+        _fixed(ambiguous),
+    )
+    assert dropped.outcome is Outcome.MISSED_ENTIRELY
+
+
+def test_correct_ambiguous_requires_expected_subset() -> None:
+    """An ambiguous case passes only when its expected members are all shortlisted."""
+    resolver = _fixed(
+        Resolution(
+            None, [Scored("light.a", 80.0), Scored("light.b", 80.0)], ambiguous=True
+        )
+    )
+    ok = evaluate_case(
+        _case(Expectation.AMBIGUOUS, ambiguous=("light.a", "light.b")), {}, resolver
+    )
+    assert ok.outcome is Outcome.CORRECT_AMBIGUOUS
+
+    missing = evaluate_case(
+        _case(Expectation.AMBIGUOUS, ambiguous=("light.a", "light.c")), {}, resolver
+    )
+    assert missing.outcome is Outcome.WRONG_AMBIGUOUS
+
+
+def test_none_expectation_over_reach_fails() -> None:
+    """A none case fails if anything resolves or is flagged ambiguous."""
+    empty = evaluate_case(_case(Expectation.NONE), {}, _fixed(Resolution(None)))
+    assert empty.outcome is Outcome.CORRECT_NONE
+
+    over = evaluate_case(
+        _case(Expectation.NONE), {}, _fixed(Resolution(Scored("light.a", 90.0)))
+    )
+    assert over.outcome is Outcome.WRONG_NONE
+
+
+def test_decisive_accuracy_denominator_is_resolve_cases_only() -> None:
+    """Accuracy is over should-resolve cases; ambiguous/none cases do not dilute it."""
+    scorecard = run(
+        ResCorpus(
+            homes={"h": (ResEntity("light.a", ("Alpha",)),)},
+            cases=(
+                ResCase(
+                    "r", "h", "alpha", Expectation.RESOLVES_TO, resolves_to="light.a"
+                ),
+                ResCase("n", "h", "zzz", Expectation.NONE),
+            ),
+        ),
+        _fixed(Resolution(Scored("light.a", 95.0))),
+    )
+    # The none case is scored WRONG_NONE here, but decisive accuracy ignores it entirely.
+    assert scorecard.decisive_accuracy == 1.0
+
+
+_ONE_HOME = "homes:\n  h:\n    - {entity_id: light.a, names: [Alpha]}\ncases:\n"
+
+
+def test_loader_rejects_multiple_expectation_forms(tmp_path: Path) -> None:
+    """A case must set exactly one of resolves_to / ambiguous / none."""
+    corpus = _ONE_HOME + (
+        "  - {id: bad, home: h, query: x, expect: {resolves_to: light.a, none: true}}\n"
+    )
+    with pytest.raises(ResolutionCorpusError, match="exactly one"):
+        load_corpus(_write(tmp_path, corpus))
+
+
+def test_loader_rejects_unknown_home(tmp_path: Path) -> None:
+    """Validation flags a case pointing at a home that is not defined."""
+    corpus = _ONE_HOME + "  - {id: n, home: ghost, query: x, expect: {none: true}}\n"
+    with pytest.raises(ResolutionCorpusError, match="unknown home"):
+        load_corpus(_write(tmp_path, corpus))
+
+
+def test_loader_rejects_absent_target_entity(tmp_path: Path) -> None:
+    """Validation flags a resolves_to that names an entity absent from the home."""
+    corpus = _ONE_HOME + (
+        "  - {id: n, home: h, query: x, expect: {resolves_to: light.missing}}\n"
+    )
+    with pytest.raises(ResolutionCorpusError, match="absent from home"):
+        load_corpus(_write(tmp_path, corpus))
+
+
+def test_loader_rejects_duplicate_ids(tmp_path: Path) -> None:
+    """Validation flags two cases sharing an id."""
+    corpus = _ONE_HOME + (
+        "  - {id: dup, home: h, query: x, expect: {none: true}}\n"
+        "  - {id: dup, home: h, query: y, expect: {none: true}}\n"
+    )
+    with pytest.raises(ResolutionCorpusError, match="duplicate case id"):
+        load_corpus(_write(tmp_path, corpus))
+
+
+def _write(tmp_path: Path, text: str) -> Path:
+    """Write a full corpus document to a temp file and return its path."""
+    path = tmp_path / "corpus.yaml"
+    path.write_text(text, encoding="utf-8")
+    return path

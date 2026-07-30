@@ -17,10 +17,12 @@ evals/
   README.md                     this file
   corpus/
     wave0_golden_set.yaml        the seed cases + the fixture "home" they run against
+    resolution/seed.yaml         the resolver micro-benchmark (model-free, see below)
   harness/                       corpus loader, scorer, routing measurement, runner
     baseline.py                  the live-baseline entry point (needs a key)
     console.py                   interactive CLI to hand-drive turns (needs a key)
     backing.py                   real executable entities for the fixture home
+    resolution.py                the resolver micro-benchmark loader + runner + scorecard
   results/
     wave0_baseline.json          the recorded live baseline Wave 1 measures against
 ```
@@ -92,6 +94,35 @@ stay tool-scored on purpose.
   so it routes to the LLM regardless; the split metric is where this shows up.
 - Time/date/state answers depend on the fixture clock and states. Answer predicates stay
   loose (a shape, not a literal) so they survive a changing fixture.
+
+## Resolver micro-benchmark (model-free)
+
+`corpus/resolution/seed.yaml` + `harness/resolution.py` are a separate, deterministic tier
+from everything above: they measure the fuzzy entity **scorer** in isolation
+([`docs/find-entities.md`](../docs/find-entities.md), [`docs/evaluation.md`](../docs/evaluation.md)
+Part G), with no LLM and no Home Assistant world. The scorer only ever sees candidate names,
+so a case is plain data: a `query` against a named `home`'s entity names, plus the expected
+guard outcome (`resolves_to` one entity / `ambiguous` shortlist / `none`). Structured filters
+(area, domain, state, exposure) are `async_match_targets`' job and are not scored here; the
+tool-level integration that exercises them lives in `tests/.../test_find_entities.py`.
+
+That purity is the point: cases run in microseconds, so the set can scale to thousands and A/B
+two scorers cheaply. A `home` doubles as the candidate universe *and* as the document corpus a
+future IDF-weighted scorer would learn term weights from, so a richer scorer drops in behind
+the `Resolver` seam without touching the corpus.
+
+```
+.venv/bin/python -m evals.harness.resolution     # print the scorecard
+```
+
+The scorecard reports **false-resolve rate** (decisively acting on the wrong entity, the one
+unsafe failure), **decisive accuracy**, **resolve recall** (target returned at all, even if
+only shortlisted), and ambiguous / none handling. `harness/test_resolution.py` is the
+CI-blocking gate: false-resolve rate stays at zero and decisive accuracy holds at or above its
+recorded floor. Cases tagged "headroom" in the seed are semantically unambiguous but the
+current `token_set_ratio` scorer only shortlists them (a shared category word like "light"
+dilutes the discriminating token); they are the tuning target for IDF weighting, and they
+lower decisive accuracy *without* ever becoming false resolves.
 
 ## Interactive console (manual tracing)
 

@@ -1,0 +1,65 @@
+# Resolver micro-benchmark seed set (docs/find-entities.md, evaluation.md Part G).
+#
+# Pure data: each case is a query against a named home's candidate names, plus the
+# expected guard outcome. No Home Assistant world, no state/area/exposure - those are
+# async_match_targets' job, not the scorer's. Run it with:
+#
+#   .venv/bin/python -m evals.harness.resolution
+#
+# Homes are candidate universes (and the document corpus a future IDF-weighted scorer
+# would learn term weights from). `expect` sets exactly one of:
+#   resolves_to: <id>        the guard should decisively pick this entity
+#   ambiguous: [<id>, ...]   the guard should return a shortlist containing these
+#   none: true               nothing should clear the floor
+#
+# Cases tagged "headroom" below are semantically unambiguous to a human but the current
+# token_set_ratio scorer does not resolve them yet (a shared category word like "light"
+# dilutes the discriminating token). They are the tuning target for IDF weighting, and
+# they lower decisive-accuracy without ever becoming false resolves - the guard asks
+# instead of guessing wrong, which is the safe failure.
+
+homes:
+  demo:
+    - {entity_id: light.reading, names: [Reading Lamp]}
+    - {entity_id: light.kitchen, names: [Kitchen Light]}
+    - {entity_id: light.kitchen_ceiling, names: [Ceiling Light Kitchen]}
+    - {entity_id: light.bedroom_lamp, names: [Bedroom Lamp]}
+    - {entity_id: light.bedroom_ceiling, names: [Bedroom Light]}
+    - {entity_id: fan.bedroom, names: [Bedroom Fan]}
+    - {entity_id: lock.front, names: [Front Door Lock, Front Door]}
+    - {entity_id: cover.living_blind, names: [Living Room Blind]}
+    - {entity_id: media_player.living_tv, names: [Living Room TV, TV]}
+    - {entity_id: climate.hall, names: [Hallway Thermostat]}
+    - {entity_id: switch.xmas, names: [Christmas Tree]}
+  studio:
+    - {entity_id: light.desk, names: [Desk Lamp]}
+    - {entity_id: light.overhead, names: [Overhead Light]}
+    - {entity_id: lock.door, names: [Front Door Lock]}
+
+cases:
+  # --- decisive hits (a clear single winner) ---
+  - {id: reading-lamp-exact, home: demo, query: reading lamp, expect: {resolves_to: light.reading}}
+  - {id: reading-bare-token, home: demo, query: reading, expect: {resolves_to: light.reading}}
+  - {id: thermostat, home: demo, query: thermostat, expect: {resolves_to: climate.hall}}
+  - {id: christmas-tree, home: demo, query: the christmas tree, expect: {resolves_to: switch.xmas}}
+  - {id: front-door-alias, home: demo, query: front door, expect: {resolves_to: lock.front}}
+  - {id: tv-alias, home: demo, query: tv, expect: {resolves_to: media_player.living_tv}}
+  - {id: desk-lamp-studio, home: studio, query: desk lamp, expect: {resolves_to: light.desk}}
+
+  # --- headroom: should resolve, currently diluted by a shared category word ---
+  - {id: reading-light, home: demo, query: reading light, expect: {resolves_to: light.reading},
+     note: "headroom - 'light' dilutes 'reading'; Kitchen Light collides"}
+  - {id: kitchen-ceiling-order, home: demo, query: kitchen ceiling, expect: {resolves_to: light.kitchen_ceiling},
+     note: "headroom - collides with Kitchen Light on the shared 'kitchen' token"}
+  - {id: living-room-blind, home: demo, query: living room blind, expect: {resolves_to: cover.living_blind},
+     note: "headroom - 'living room' shared with the TV dilutes 'blind'"}
+
+  # --- genuinely ambiguous (the guard should ask) ---
+  - {id: bedroom-family, home: demo, query: bedroom,
+     expect: {ambiguous: [light.bedroom_lamp, light.bedroom_ceiling, fan.bedroom]},
+     note: "three bedroom devices tie; ask which"}
+
+  # --- nothing should match ---
+  - {id: nonsense, home: demo, query: xylophone, expect: {none: true}}
+  - {id: absent-domain, home: studio, query: garage door, expect: {none: true},
+     note: "no garage entity in the studio home"}
