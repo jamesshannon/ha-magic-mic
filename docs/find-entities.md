@@ -245,6 +245,31 @@ constants.
 > Levenshtein over-penalizes reorder/length. Blend with `partial_ratio` if
 > substring hits ("lamp" → "Reading Lamp") matter — tune against evals.
 
+**As built** (`fuzzy.resolve_candidates`, the entry point all consumers call): a
+two-stage pipeline, tuned against the model-free resolver micro-benchmark
+([`evaluation.md`](evaluation.md) Part G, `evals/corpus/resolution/`).
+
+1. **Descriptive-document union.** Score `token_set_ratio` over each candidate's
+   name + aliases + **area + floor** joined into one document, so a query can match
+   across fields ("kitchen light" → a "Ceiling Light" in the Kitchen) — this is how
+   **area matching** lands without a fuzzy area matcher. Joining is load-bearing: a
+   bare area token can't resolve alone (a subset match needs *all* query tokens
+   present), so it strengthens a name match without every kitchen entity tying at 100
+   on "kitchen".
+2. **IDF tie-break, regime-gated.** Only when stage 1 leaves an above-floor cluster
+   ambiguous *and* the candidate set is large enough to estimate term rarity
+   (`FUZZY_IDF_MIN_CANDIDATES`), re-rank that cluster by IDF-weighted coverage:
+   down-weight tokens common across the set (a shared "light", or the area token
+   inside an `area=`-filtered set — TF-IDF's sweet spot) so the discriminating token
+   decides. **Union is always the floor**: IDF can break a tie but never demote a
+   union result, so tiny homes (where df can't estimate rarity) and recall are never
+   sacrificed. Pure IDF and a `max(union, idf)` blend were both measured and rejected
+   (pure IDF regressed small homes and recall; `max` can't suppress a distractor).
+
+Out of scope for weighting and tracked separately: **synonyms** ("light" ↔ "lamp",
+the one benchmark case IDF can't close), phonetic matching, and `preferred_area_id`
+bias.
+
 ---
 
 ## Reused HA machinery (not rebuilt)
