@@ -35,18 +35,23 @@ def _system_text(mock_create: AsyncMock) -> str:
 
 
 def _expose_light(hass: HomeAssistant) -> None:
-    """Create, place, state, and expose one named light for a driven turn."""
+    """Create, place, state, and expose one named light for a driven turn.
+
+    Names the entity via ``original_name``, as a real integration does: the default
+    COMPUTED_NAME alias then resolves to it, so the roster carries the name without a
+    synthetic user alias.
+    """
     area_reg = ar.async_get(hass)
     ent_reg = er.async_get(hass)
     living = area_reg.async_create("Living Room")
     entry = ent_reg.async_get_or_create(
-        "light", "test", "light.lr", suggested_object_id="lr"
+        "light",
+        "test",
+        "light.lr",
+        suggested_object_id="lr",
+        original_name="Reading Lamp",
     )
-    # A registry entry with empty aliases yields no matchable name in the roster, so
-    # register the name as an alias (as the eval world does) to make it appear.
-    ent_reg.async_update_entity(
-        entry.entity_id, area_id=living.id, aliases={"Reading Lamp"}
-    )
+    ent_reg.async_update_entity(entry.entity_id, area_id=living.id)
     hass.states.async_set(entry.entity_id, "on", {ATTR_FRIENDLY_NAME: "Reading Lamp"})
     async_expose_entity(hass, ASSISTANT, entry.entity_id, True)
 
