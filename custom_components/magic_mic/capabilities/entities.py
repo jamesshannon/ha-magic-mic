@@ -16,20 +16,13 @@ from typing import override
 
 import voluptuous as vol
 
-from homeassistant.core import HomeAssistant, State
-from homeassistant.helpers import (
-    area_registry as ar,
-    config_validation as cv,
-    device_registry as dr,
-    entity_registry as er,
-    floor_registry as fr,
-    intent,
-    llm,
-)
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_validation as cv, intent, llm
 from homeassistant.util.json import JsonObjectType
 
 from ..const import FIND_ENTITIES_DEFAULT_LIMIT, FIND_ENTITIES_MAX_LIMIT
-from ..fuzzy import Candidate, resolve_candidates
+from ..entity_candidates import Registries, build_candidate, resolve_area
+from ..fuzzy import resolve_candidates
 
 # async_match_targets reports why a match produced nothing; these two mean the model
 # named an area/floor that does not exist (a fixable mistake worth surfacing), as
@@ -126,7 +119,7 @@ class FindEntitiesTool(llm.Tool):
                 }
             return {"success": True, "results": []}
 
-        registries = _Registries(hass)
+        registries = Registries(hass)
         if name is None:
             # Pure structured list: return the matched set as-is, most relevant first
             # is undefined, so keep HA's order and just cap it.
@@ -137,7 +130,7 @@ class FindEntitiesTool(llm.Tool):
             return {"success": True, "results": results}
 
         candidates = {
-            state.entity_id: _candidate(hass, registries, state)
+            state.entity_id: build_candidate(hass, registries, state)
             for state in match_result.states
         }
         resolution = resolve_candidates(name, candidates, limit)
@@ -162,40 +155,9 @@ def async_get_tools(hass: HomeAssistant, llm_context: llm.LLMContext) -> list[ll
     return [FindEntitiesTool()]
 
 
-class _Registries:
-    """The four registries an entity result needs, fetched once per tool call."""
-
-    def __init__(self, hass: HomeAssistant) -> None:
-        """Cache the registry handles for the duration of one lookup."""
-        self.areas = ar.async_get(hass)
-        self.devices = dr.async_get(hass)
-        self.entities = er.async_get(hass)
-        self.floors = fr.async_get(hass)
-
-
-def _candidate(hass: HomeAssistant, registries: _Registries, state: State) -> Candidate:
-    """Build the scorer input for one entity: its names/aliases and location context.
-
-    Names/aliases are matched as separate documents; the area (and floor) become shared
-    context appended to each, so an entity named "Ceiling Light" in the "Kitchen"
-    resolves for "kitchen light" without a bare area token resolving anything on its own
-    (find-entities.md area matching).
-    """
-    entry = registries.entities.async_get(state.entity_id)
-    names = intent.async_get_entity_aliases(hass, entry, state=state)
-    context: list[str] = []
-    if (area := _resolve_area(registries, state.entity_id)) is not None:
-        context.append(area.name)
-        if area.floor_id and (
-            floor := registries.floors.async_get_floor(area.floor_id)
-        ):
-            context.append(floor.name)
-    return Candidate(names=tuple(names), context=tuple(context))
-
-
 def _entity_result(
     hass: HomeAssistant,
-    registries: _Registries,
+    registries: Registries,
     entity_id: str,
     score: float | None = None,
 ) -> JsonObjectType:
@@ -209,7 +171,7 @@ def _entity_result(
     if state is not None:
         result["state"] = state.state
 
-    if (area := _resolve_area(registries, entity_id)) is not None:
+    if (area := resolve_area(registries, entity_id)) is not None:
         result["area"] = area.name
         if area.floor_id and (
             floor := registries.floors.async_get_floor(area.floor_id)
@@ -219,20 +181,6 @@ def _entity_result(
     if score is not None:
         result["score"] = round(score, 1)
     return result
-
-
-def _resolve_area(registries: _Registries, entity_id: str) -> ar.AreaEntry | None:
-    """Resolve an entity's area, falling back to its device's area (as HA does)."""
-    entry = registries.entities.async_get(entity_id)
-    if entry is None:
-        return None
-    area_id = entry.area_id
-    if area_id is None and entry.device_id is not None:
-        if (device := registries.devices.async_get(entry.device_id)) is not None:
-            area_id = device.area_id
-    if area_id is None:
-        return None
-    return registries.areas.async_get_area(area_id)
 
 
 def _as_list(value: str | list[str] | None) -> list[str] | None:
