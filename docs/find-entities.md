@@ -257,6 +257,13 @@ two-stage pipeline, tuned against the model-free resolver micro-benchmark
    lands without a fuzzy area matcher. A bare area token still can't resolve alone (a
    subset match needs *all* query tokens present), so location strengthens a name match
    without every kitchen entity tying at 100 on "kitchen".
+
+   > **Per-alias is a conservative default, not a settled best practice** (`Candidate`).
+   > The counter-case: complementary aliases ("Reading Light" + "Nook Lamp") where
+   > "reading lamp" arguably *should* hit the entity — per-alias gives that up so it
+   > can't manufacture a spurious cross-alias match (the kind that can false-resolve
+   > rather than ask). The seed has neither case; revisit if complementary aliases show
+   > up. Flip by joining the names into one document.
 2. **IDF tie-break, regime-gated.** Only when stage 1 leaves an above-floor cluster
    ambiguous *and* the candidate set is large enough to estimate term rarity
    (`FUZZY_IDF_MIN_CANDIDATES`), re-rank that cluster by IDF-weighted coverage:

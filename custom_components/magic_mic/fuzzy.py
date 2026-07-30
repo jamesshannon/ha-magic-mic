@@ -79,10 +79,28 @@ class Resolution:
 class Candidate:
     """One entity to score against: its names/aliases plus shared location context.
 
-    ``names`` are the entity's name and aliases; each is matched as its own document, so
-    a query cannot combine tokens across two different aliases. ``context`` is location
-    (area, floor) appended to *every* name document, so a query can match a name token
-    and an area token together without a bare area token resolving anything on its own.
+    ``names`` are the entity's name and aliases. Each is scored as its *own* document
+    (see `documents`), so a query cannot combine tokens across two different aliases:
+    "reading lamp" will not match an entity whose aliases are "Reading Light" and "Desk
+    Lamp" just because the two together contain {reading, lamp}.
+
+    This is a deliberate, conservative choice, and the trade-off runs both ways - keep it
+    in mind before changing it:
+
+    - Per-alias (here) can't manufacture a match no single alias supports, and a spurious
+      cross-alias match is the dangerous kind: it can become a *false resolve* (a wrong
+      physical action) instead of a clarifying question.
+    - It gives up *legitimate* cross-alias matches. If the aliases were complementary
+      fragments ("Reading Light" + "Nook Lamp"), "reading lamp" arguably should hit this
+      entity, and now won't - the guard asks instead.
+
+    We lean conservative (a wrong action costs more than a question, find-entities.md),
+    but the seed corpus has neither case, so this is a reasoned default, not a measured
+    one. To allow cross-alias matching, join ``names`` into one document below.
+
+    ``context`` is location (area, floor) appended to *every* name document, so a query
+    can match a name token and an area token together without a bare area token resolving
+    anything on its own.
     """
 
     names: tuple[str, ...]
