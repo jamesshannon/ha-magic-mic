@@ -59,10 +59,10 @@ from custom_components.magic_mic.internal.claude.const import (  # noqa: E402
 )
 
 from .backing import (  # noqa: E402
-    EVAL_DEVICE_ID,
     ExecutableWorld,
+    Satellite,
     build_executable_world,
-    register_timer_device,
+    register_satellite,
 )
 from .corpus import WAVE0_GOLDEN_SET, Case, Corpus, load_corpus  # noqa: E402
 from .runner import run_case  # noqa: E402
@@ -137,12 +137,13 @@ def _baseline_agent_id(hass: HomeAssistant, entry: MockConfigEntry) -> str:
 
 async def stand_up_agent(
     hass: HomeAssistant, corpus: Corpus, api_key: str
-) -> tuple[str, ExecutableWorld]:
+) -> tuple[str, ExecutableWorld, Satellite]:
     """Set up the local core, the live integration, and the fixture world.
 
-    Returns the baseline agent's entity id and the world handle (for per-case reset). The
-    config-entry setup makes a real ``models.list`` call, so a bad key fails loudly here
-    before any turn runs.
+    Returns the baseline agent's entity id, the world handle (for per-case reset), and the
+    voice satellite the turns are issued from (area-less here, so the baseline scores as it
+    did before locations existed). The config-entry setup makes a real ``models.list`` call,
+    so a bad key fails loudly here before any turn runs.
     """
     # Force HA to re-scan for custom integrations so it discovers the grafted
     # `custom_components/` path (the `enable_custom_integrations` fixture's job).
@@ -157,8 +158,8 @@ async def stand_up_agent(
     await hass.async_block_till_done()
 
     world = await build_executable_world(hass, corpus.world)
-    register_timer_device(hass)
-    return _baseline_agent_id(hass, entry), world
+    satellite = register_satellite(hass)
+    return _baseline_agent_id(hass, entry), world, satellite
 
 
 async def run_baseline(
@@ -175,13 +176,15 @@ async def run_baseline(
     case runs at the LLM scope (`prefer_local` OFF), scored against its
     ``expected_for(llm=True)`` expectation.
     """
-    agent_id, world = await stand_up_agent(hass, corpus, api_key)
+    agent_id, world, satellite = await stand_up_agent(hass, corpus, api_key)
     results: list[CaseResult] = []
     for index, case in enumerate(cases, start=1):
         await world.reset(hass)
         print(f"  [{index:>2}/{len(cases)}] {case.id} ...", flush=True)
         results.append(
-            await run_case(hass, agent_id, case, llm=True, device_id=EVAL_DEVICE_ID)
+            await run_case(
+                hass, agent_id, case, llm=True, device_id=satellite.device_id
+            )
         )
     return build_scorecard(results)
 

@@ -109,10 +109,18 @@ from the environment or a project-root `.env`, same as `baseline.py`).
 
 Each turn shows, per model round, the **durable** system prompt (the `cache_control`-marked
 block, printed once since it is cached and unchanged across rounds) and the **volatile**
-message list as it grows, plus the tools sent, the tool calls made, the token/cache cost, and
-the spoken answer. The composed prompt is not on the conversation trace, so the console
-captures it harness-side by wrapping the provider client's `messages.create` for the turn;
-nothing in `custom_components/` changes.
+message list as it grows, plus the tools sent, the tool calls made (with full inputs and
+results), the token/cache cost, and the spoken answer. Every round is timed (including the
+HASSIL probe), so you can see where a turn spends its latency. The composed prompt is not on
+the conversation trace, so the console captures it harness-side by wrapping the provider
+client's `messages.create` for the turn; nothing in `custom_components/` changes.
+
+The turn is issued from a voice **satellite** placed in a room (default the living room), so a
+bare "turn on the lights" resolves to that room the way a real satellite would: HASSIL injects
+the room as `preferred_area_id`, and the LLM's `IntentTool` fills the same slot from the
+device. `:here <room>` moves the satellite between the fixture's rooms (`:here nowhere` clears
+it, `--here` sets the start), and `:world` prints the fixture as a table ordered by area with
+the satellite in its room.
 
 Two knobs, both live-toggleable, are the Scope and agent selectors from
 [`docs/evaluation.md`](../docs/evaluation.md) Part E:
@@ -126,8 +134,9 @@ Two knobs, both live-toggleable, are the Scope and agent selectors from
 Unlike the corpus runner, the fixture world is **not** reset between turns: state
 accumulates, so "turn it on" then "now turn it off" behave, and a follow-up ("no, I meant the
 bedroom") works because the conversation carries a stable id across turns. `:reset` restores
-the world; `:new` starts a fresh conversation; `:req` dumps the last turn's full requests;
-`:help` lists every command.
+the world; `:new` starts a fresh conversation; `:here` moves the satellite; `:world` prints
+the room-ordered table; `:req` dumps the last turn's full requests; `:help` lists every
+command.
 
 ## Reuse plan
 
@@ -199,18 +208,20 @@ Findings the keyless routing measurement surfaced:
   `media_player`, `todo`), so the domain's services and Assist intents both load and the full
   tool roster is exposed and executes. Without it, tool calls hit missing services, the model
   retried, and per-turn generation counts were inflated. Timers are device-scoped, not
-  entity-scoped: `register_timer_device` registers a no-op handler for a synthetic device id
-  that the turn carries, standing in for the voice satellite so `HassStartTimer` is exposed
-  and runs.
+  entity-scoped: `register_satellite` stands up the voice satellite (a registry-backed device
+  the turn carries) with a no-op timer handler so `HassStartTimer` is exposed and runs. Being
+  registry-backed, the satellite can hold a room, so a bare "turn on the lights" resolves to
+  its area; the baseline leaves it area-less (scores unchanged), while the console places it.
 - Live baseline: done (`harness/baseline.py`, run recorded in `results/wave0_baseline.json`).
   Runs the full corpus by default; `--case ID`, `--category CAT`, and `--routing local|llm`
   select a subset for a cheap re-run after a targeted fix. A subset never overwrites the
   locked baseline (it prints, or writes to `--out`); `--list` shows the selection without a
   key.
 - Interactive console: done (`harness/console.py`). Hand-drive utterances against the fixture
-  world and inspect the turn (durable/volatile prompt split, tools, tool calls, cost, answer),
-  with live HASSIL/agent toggles and multi-turn conversation continuity. See "Interactive
-  console" above.
+  world and inspect the turn (durable/volatile prompt split, tools, tool calls with full
+  results, per-round timing, cost, answer), with live HASSIL/agent toggles, a room-placed
+  satellite (`:here`) for area-context testing, and multi-turn conversation continuity. See
+  "Interactive console" above.
 
 ### Wave 0 exit gate (blocks Wave 1): done
 

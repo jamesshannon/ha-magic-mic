@@ -14,14 +14,18 @@ executable surface in the corpus (``weather``) stay state-only.
 
 Timers are device-scoped rather than entity-scoped: HA strips the timer intents from the
 roster unless the turn carries a timer-capable ``device_id`` (`helpers/llm.py`). A voice
-satellite registers itself as that device; headless, ``register_timer_device`` stands in
-for the satellite so ``HassStartTimer`` is exposed and runs.
+satellite registers itself as that device; headless, ``register_satellite`` stands one up
+(so ``HassStartTimer`` is exposed and runs) and, being registry-backed, lets it hold a room
+for location context (see :class:`Satellite`).
 """
 
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-from pytest_homeassistant_custom_component.common import setup_test_component_platform
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    setup_test_component_platform,
+)
 
 from homeassistant.components import conversation
 from homeassistant.components.climate import (
@@ -59,7 +63,11 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import area_registry as ar, entity_registry as er
+from homeassistant.helpers import (
+    area_registry as ar,
+    device_registry as dr,
+    entity_registry as er,
+)
 from homeassistant.helpers.entity import Entity
 from homeassistant.setup import async_setup_component
 
@@ -233,8 +241,47 @@ class _TodoList(_BackedEntity, TodoListEntity):
         self.async_write_ha_state()
 
 
-# A stable synthetic device id standing in for the voice satellite that would issue turns.
+# A stable identifier for the synthetic voice satellite that issues turns. Used as the
+# device's registry identifier, not as its device_id (that is a generated registry id).
 EVAL_DEVICE_ID = "magic_mic_eval_satellite"
+_SATELLITE_NAME = "Voice Satellite"
+
+
+@dataclass
+class Satellite:
+    """The voice satellite a turn is issued from: a real device, optionally in a room.
+
+    A turn carries its ``device_id`` so both paths can resolve "here": HASSIL injects the
+    device's area as ``preferred_area_id`` before matching, and the LLM's ``IntentTool`` fills
+    the same slot at execution from ``llm_context.device_id`` (`helpers/llm.py`). ``move_to``
+    relocates it, so a bare "turn on the lights" can be watched resolving to different rooms.
+    """
+
+    device_id: str
+
+    def area_id(self, hass: HomeAssistant) -> str | None:
+        """Return the id of the area the satellite currently sits in, if any."""
+        device = dr.async_get(hass).async_get(self.device_id)
+        return device.area_id if device else None
+
+    def area_name(self, hass: HomeAssistant) -> str | None:
+        """Return the spoken name of the satellite's area, or None when placed nowhere."""
+        if not (area_id := self.area_id(hass)):
+            return None
+        area = ar.async_get(hass).async_get_area(area_id)
+        return area.name if area else None
+
+    def move_to(self, hass: HomeAssistant, area_id: str | None) -> None:
+        """Place the satellite in ``area_id`` (``None`` clears its location).
+
+        Also clears HASSIL's recognition cache: it keys on ``(text, language, satellite_id)``
+        and not the device area (`default_agent.py`), so without this a repeated utterance
+        would resolve against the room the satellite just left.
+        """
+        dr.async_get(hass).async_update_device(self.device_id, area_id=area_id)
+        agent = conversation.async_get_agent(hass)
+        if (cache := getattr(agent, "_intent_cache", None)) is not None:
+            cache.clear()
 
 
 def _assert_world_healthy(hass: HomeAssistant, entity_ids: list[str]) -> None:
@@ -255,20 +302,33 @@ def _assert_world_healthy(hass: HomeAssistant, entity_ids: list[str]) -> None:
         )
 
 
-def register_timer_device(hass: HomeAssistant) -> str:
-    """Register a no-op timer handler so timer intents are exposed and execute.
+def register_satellite(hass: HomeAssistant, *, area_id: str | None = None) -> Satellite:
+    """Create the voice-satellite device (with its timer handler) and return a handle.
 
-    Returns the device id to pass as the turn's ``device_id``. The handler only has to
-    exist: `async_device_supports_timers` is satisfied by a registered handler, and the
-    device needs no registry entry.
+    The device is registry-backed so it can hold an area for location context; it hangs off
+    its own throwaway config entry rather than magic_mic's, since a satellite is its own
+    integration's device. It doubles as the timer device: timer intents are device-scoped and
+    HA strips them from the roster unless the turn carries a timer-capable ``device_id``
+    (`helpers/llm.py`), which the registered handler satisfies. Area-less by default, matching
+    a turn from an unknown location; pass ``area_id`` (or call ``move_to``) to place it.
     """
+    entry = MockConfigEntry(domain=_SATELLITE_NAME.lower().replace(" ", "_"))
+    entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(EVAL_DEVICE_ID, EVAL_DEVICE_ID)},
+        name=_SATELLITE_NAME,
+    )
+    satellite = Satellite(device_id=device.id)
+    if area_id:
+        satellite.move_to(hass, area_id)
 
     @callback
     def _handle(event_type: TimerEventType, timer: TimerInfo) -> None:
         """Record nothing; the timer running is all the eval needs."""
 
-    async_register_timer_handler(hass, EVAL_DEVICE_ID, _handle)
-    return EVAL_DEVICE_ID
+    async_register_timer_handler(hass, device.id, _handle)
+    return satellite
 
 
 # Domains with an executable backing. Everything else (weather) stays state-only.

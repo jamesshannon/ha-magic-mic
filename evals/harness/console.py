@@ -56,7 +56,7 @@ from homeassistant.components.conversation.trace import async_get_traces
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import entity_registry as er, intent
+from homeassistant.helpers import area_registry as ar, entity_registry as er, intent
 
 from .baseline import REPO_ROOT, load_api_key, pin_pre_magic_roster
 
@@ -70,18 +70,26 @@ if _REPO_CC not in custom_components.__path__:
 from custom_components.magic_mic.const import DOMAIN  # noqa: E402
 
 from .backing import (  # noqa: E402
-    EVAL_DEVICE_ID,
     ExecutableWorld,
+    Satellite,
     build_executable_world,
-    register_timer_device,
+    register_satellite,
 )
-from .corpus import load_corpus  # noqa: E402
+from .corpus import World, load_corpus  # noqa: E402
 from .routing import LocalOutcome  # noqa: E402
 from .runner import _observe_from_trace  # noqa: E402
 from .scoring import ToolCall  # noqa: E402
 from .world import async_setup_local_agent  # noqa: E402
 
 _AGENT_SUFFIXES = {"baseline": "_claude_baseline", "testbed": "_testbed"}
+
+# Tokens (from --here or :here) that place the satellite in no room at all.
+_NOWHERE = {"clear", "none", "nowhere", "unset"}
+
+
+def _normalize_room(token: str) -> str:
+    """Normalize a room token to a corpus area key (``Dining Room`` → ``dining_room``)."""
+    return token.strip().lower().replace(" ", "_")
 
 
 # ── Terminal styling (no dependency; degrades to plain text when not a tty) ──────────
@@ -240,6 +248,8 @@ class Session:
     world: ExecutableWorld
     agents: dict[str, str]
     client: Any
+    satellite: Satellite
+    area_ids: dict[str, str]
 
 
 def _agent_id(hass: HomeAssistant, entry: MockConfigEntry, suffix: str) -> str:
@@ -252,12 +262,48 @@ def _agent_id(hass: HomeAssistant, entry: MockConfigEntry, suffix: str) -> str:
     raise RuntimeError(f"agent {unique_id!r} not registered")
 
 
-async def stand_up(hass: HomeAssistant, api_key: str) -> Session:
+def _area_ids(hass: HomeAssistant, world: World) -> dict[str, str]:
+    """Map each corpus area key to the id it registered under (built by the world)."""
+    area_reg = ar.async_get(hass)
+    return {
+        key: area_reg.async_get_or_create(key.replace("_", " ")).id
+        for key in world.areas
+    }
+
+
+def _default_area(world: World) -> str | None:
+    """Pick the room the console's satellite starts in (living room, else the first)."""
+    if "living_room" in world.areas:
+        return "living_room"
+    return world.areas[0] if world.areas else None
+
+
+def _start_area_id(
+    here: str | None, world: World, area_ids: dict[str, str]
+) -> str | None:
+    """Resolve the ``--here`` argument (or the default) to a starting area id.
+
+    ``None`` means "not given", so use the default room; ``nowhere`` (and friends) place the
+    satellite in no room; anything else matches a corpus area by key or spoken name, falling
+    back to no room when it names nothing.
+    """
+    if here is None:
+        default = _default_area(world)
+        return area_ids.get(default) if default else None
+    norm = _normalize_room(here)
+    if norm in _NOWHERE:
+        return None
+    return area_ids.get(norm)
+
+
+async def stand_up(hass: HomeAssistant, api_key: str, *, here: str | None) -> Session:
     """Set up the local core, the live integration, and the fixture world.
 
     Mirrors `baseline.stand_up_agent`, but keeps a handle to both agents and the client so
-    the REPL can switch agents and wrap the client per turn. The config-entry setup makes a
-    real ``models.list`` call, so a bad key fails loudly here before any turn runs.
+    the REPL can switch agents and wrap the client per turn, and places the voice satellite in
+    a room (``here``, a corpus area key; default the living room) so a bare "the lights"
+    resolves to it. The config-entry setup makes a real ``models.list`` call, so a bad key
+    fails loudly here before any turn runs.
     """
     hass.data.pop(loader.DATA_CUSTOM_COMPONENTS, None)
     await async_setup_local_agent(hass)
@@ -268,8 +314,12 @@ async def stand_up(hass: HomeAssistant, api_key: str) -> Session:
         raise RuntimeError("integration failed to set up (check the key is live)")
     await hass.async_block_till_done()
 
-    world = await build_executable_world(hass, load_corpus().world)
-    register_timer_device(hass)
+    corpus_world = load_corpus().world
+    world = await build_executable_world(hass, corpus_world)
+    area_ids = _area_ids(hass, corpus_world)
+    satellite = register_satellite(
+        hass, area_id=_start_area_id(here, corpus_world, area_ids)
+    )
     return Session(
         hass=hass,
         entry=entry,
@@ -279,6 +329,8 @@ async def stand_up(hass: HomeAssistant, api_key: str) -> Session:
             for name, suffix in _AGENT_SUFFIXES.items()
         },
         client=entry.runtime_data.client,
+        satellite=satellite,
+        area_ids=area_ids,
     )
 
 
@@ -301,16 +353,25 @@ class TurnResult:
 
 
 async def _probe_local(
-    hass: HomeAssistant, utterance: str, conversation_id: str | None
+    hass: HomeAssistant,
+    utterance: str,
+    conversation_id: str | None,
+    device_id: str | None,
 ) -> tuple[LocalOutcome, str | None]:
     """Run one utterance through the default (HASSIL) agent and reduce the response.
 
     Returns the outcome and the id HA assigned the conversation, so the caller can thread it
-    on to the LLM (same session) and into the next turn.
+    on to the LLM (same session) and into the next turn. ``device_id`` is the satellite, so a
+    bare "the lights" resolves against its room (HASSIL injects it as ``preferred_area_id``).
     """
     try:
         result = await conversation.async_converse(
-            hass, utterance, conversation_id, Context(), agent_id=None
+            hass,
+            utterance,
+            conversation_id,
+            Context(),
+            agent_id=None,
+            device_id=device_id,
         )
     except HomeAssistantError as err:
         # HASSIL matched a sentence but executing it raised (e.g. a fixture entity that
@@ -357,12 +418,15 @@ async def drive_turn(
     reuse the returned ``TurnResult.conversation_id`` on the next turn (HA rejects a
     self-minted ULID it didn't issue, so the id must come from a prior turn's result).
     """
+    device_id = session.satellite.device_id
     local: LocalOutcome | None = None
     current_id = conversation_id
     hassil_ms: float | None = None
     if hassil:
         start = perf_counter()
-        local, current_id = await _probe_local(session.hass, utterance, current_id)
+        local, current_id = await _probe_local(
+            session.hass, utterance, current_id, device_id
+        )
         hassil_ms = (perf_counter() - start) * 1000
         if local.resolved:
             return TurnResult(
@@ -389,7 +453,7 @@ async def drive_turn(
                 current_id,
                 Context(),
                 agent_id=session.agents[agent],
-                device_id=EVAL_DEVICE_ID,
+                device_id=device_id,
             )
         except HomeAssistantError as err:
             error = str(err)
@@ -620,15 +684,51 @@ def _indent(text: str, prefix: str = "  ") -> str:
 
 
 def _render_world(session: Session, style: _Style) -> str:
-    """List the current fixture entity states."""
-    lines = [style.bold("WORLD")]
-    for state in sorted(session.hass.states.async_all(), key=lambda s: s.entity_id):
+    """Render the fixture world as a table ordered by area (satellite included).
+
+    Every row is area · entity id · name · state, so the satellite reads consistently with the
+    entities: it sits in its room's group with ``(satellite)`` in the entity column.
+    """
+    hass = session.hass
+    ent_reg = er.async_get(hass)
+    area_reg = ar.async_get(hass)
+
+    def area_of(entity_id: str) -> str | None:
+        entry = ent_reg.async_get(entity_id)
+        if entry and entry.area_id and (area := area_reg.async_get_area(entry.area_id)):
+            return area.name
+        return None
+
+    # (area, entity id, name, state); the satellite is a row like any other.
+    rows: list[tuple[str | None, str, str, str]] = [
+        (session.satellite.area_name(hass), "(satellite)", "Voice Satellite", "")
+    ]
+    for state in hass.states.async_all():
         if state.domain in ("conversation", "person", "zone"):
             continue
-        lines.append(
-            f"  {state.entity_id}  {style.dim(state.name)} = {style.cyan(state.state)}"
+        rows.append(
+            (area_of(state.entity_id), state.entity_id, state.name, state.state)
         )
-    return "\n".join(lines)
+    # Order by area (unplaced last), then entity id within the area.
+    rows.sort(key=lambda r: (r[0] is None, r[0] or "", r[1]))
+
+    headers = ("AREA", "ENTITY", "NAME", "STATE")
+    cells = [(area or "—", entity, name, st) for area, entity, name, st in rows]
+    widths = [
+        max(len(header), *(len(row[col]) for row in cells))
+        for col, header in enumerate(headers)
+    ]
+    # One colour per column, so the satellite row matches the entity rows.
+    painters = (style.bold, str, style.dim, style.cyan)
+
+    def line(values: tuple[str, ...], paint: bool) -> str:
+        parts = [
+            (painters[col] if paint else style.bold)(value.ljust(widths[col]))
+            for col, value in enumerate(values)
+        ]
+        return "  " + "  ".join(parts).rstrip()
+
+    return "\n".join([line(headers, paint=False), *(line(row, True) for row in cells)])
 
 
 # ── REPL ────────────────────────────────────────────────────────────────────────────
@@ -639,7 +739,8 @@ Type an utterance to drive a turn. Meta-commands:
   :agent [name]      switch agent (baseline | testbed)
   :new               start a fresh conversation (keeps the world)
   :reset             restore the fixture world and start a fresh conversation
-  :world             list current entity states
+  :here [room]       move the satellite to a room (or 'nowhere'); show it with no arg
+  :world             list the satellite's room and current entity states
   :req               dump the last turn's raw requests (full system + messages)
   :tools             list the tools sent on the last turn
   :verbose           toggle full system-prompt printing
@@ -686,6 +787,20 @@ async def _handle_command(
         await session.world.reset(session.hass)
         state.conversation_id = None
         print(style.dim("world reset; new conversation"))
+    elif cmd == ":here":
+        if args:
+            norm = _normalize_room(" ".join(args))
+            if norm in _NOWHERE:
+                session.satellite.move_to(session.hass, None)
+            elif norm in session.area_ids:
+                session.satellite.move_to(session.hass, session.area_ids[norm])
+            else:
+                print(
+                    style.red(f"unknown room {' '.join(args)!r}; ")
+                    + style.dim("rooms: " + ", ".join(sorted(session.area_ids)))
+                )
+        room = session.satellite.area_name(session.hass)
+        print(style.dim(f"satellite @ {room or 'nowhere'}"))
     elif cmd == ":world":
         print(_render_world(session, style))
     elif cmd == ":verbose":
@@ -771,6 +886,12 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         help="drive this utterance and exit (repeatable; skips the REPL)",
     )
     parser.add_argument(
+        "--here",
+        metavar="ROOM",
+        help="room the satellite starts in, e.g. 'dining_room' (default: living room; "
+        "'nowhere' for no location). Move it live with :here",
+    )
+    parser.add_argument(
         "--pin-baseline",
         action="store_true",
         help="disable the shipped web tools (the locked pre-magic reference)",
@@ -796,7 +917,7 @@ async def main(argv: Sequence[str] | None = None) -> None:
 
     async with async_test_home_assistant() as hass:
         with pin_pre_magic_roster() if args.pin_baseline else nullcontext():
-            session = await stand_up(hass, api_key)
+            session = await stand_up(hass, api_key, here=args.here)
             state = ReplState(
                 agent=args.agent,
                 hassil=not args.skip_hassil,
