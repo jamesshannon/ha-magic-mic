@@ -40,6 +40,7 @@ from contextlib import asynccontextmanager, nullcontext
 import copy
 from dataclasses import dataclass, field
 import json
+import logging
 import sys
 from time import perf_counter
 from typing import Any
@@ -909,10 +910,31 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _quiet_handled_intent_failures() -> None:
+    """Silence HA's traceback for a *handled* intent service failure.
+
+    When an intent matches an entity whose service isn't supported (e.g. the fixture
+    thermostat has no ``climate.turn_off``, so "turn off the heat" raises
+    ``ServiceNotSupported``), intent handling logs the failure with a full traceback via
+    ``_LOGGER.exception`` before falling back to a normal spoken response
+    (`helpers/intent.py`). The failure is already handled and the console reports the turn's
+    outcome, so drop that one record rather than dump a traceback to the terminal.
+    """
+
+    class _DropServiceCallFailed(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            return not record.getMessage().startswith("Service call failed for ")
+
+    logging.getLogger("homeassistant.helpers.intent").addFilter(
+        _DropServiceCallFailed()
+    )
+
+
 async def main(argv: Sequence[str] | None = None) -> None:
     """Stand up the world and either run one-shot utterances or the REPL."""
     args = _parse_args(argv)
     style = _Style(enabled=not args.no_color and sys.stdout.isatty())
+    _quiet_handled_intent_failures()
     api_key = load_api_key()
 
     async with async_test_home_assistant() as hass:
