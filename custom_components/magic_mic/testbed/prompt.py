@@ -16,8 +16,9 @@ from typing import override
 
 from homeassistant.core import callback
 from homeassistant.helpers import llm
-from homeassistant.helpers.llm import AssistAPI, LLMContext
+from homeassistant.helpers.llm import AssistAPI, LLMContext, Tool
 
+from ..capabilities.entities import async_get_tools as async_get_entity_tools
 from ..capabilities.prompt_context import async_build_taxonomy_skeleton
 
 
@@ -36,6 +37,22 @@ class SkeletonAssistAPI(AssistAPI):
         """Record the assistant id, then compose the instance as AssistAPI does."""
         self._assistant = llm_context.assistant
         return await super().async_get_api_instance(llm_context)
+
+    @override
+    @callback
+    def _async_get_tools(
+        self, llm_context: LLMContext, exposed_entities: dict | None
+    ) -> list[Tool]:
+        """Add find_entities alongside the stock Assist tools.
+
+        The skeleton retires the name roster, so the model needs a lookup tool to
+        recover exact names on demand (find-entities.md): skeleton and find_entities
+        ship as a pair. The stock intent tools (device control) are unchanged; their
+        fuzzy fallback is the separate match-layer track.
+        """
+        tools = super()._async_get_tools(llm_context, exposed_entities)
+        tools.extend(async_get_entity_tools(self.hass, llm_context))
+        return tools
 
     @callback
     def _async_get_exposed_entities_prompt(

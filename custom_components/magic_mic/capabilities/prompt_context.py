@@ -25,8 +25,8 @@ from homeassistant.helpers import (
 )
 
 # Leads the skeleton so the model reads the counts as structure, not as an
-# actionable name list. Kept tool-agnostic: the lookup tool it points to
-# (find_entities) lands later in Wave 1.
+# actionable name list. Kept tool-agnostic on purpose: the lookup tool it points to
+# (find_entities) is offered in the tool schema, so the prose need not name it.
 SKELETON_HEADER = (
     "Home structure below lists each area and how many devices of each type it "
     "contains. Specific device names are not included; look them up by name with "
