@@ -263,15 +263,29 @@ class TurnResult:
 
 async def _probe_local(
     hass: HomeAssistant, utterance: str, conversation_id: str | None
-) -> tuple[LocalOutcome, str]:
+) -> tuple[LocalOutcome, str | None]:
     """Run one utterance through the default (HASSIL) agent and reduce the response.
 
     Returns the outcome and the id HA assigned the conversation, so the caller can thread it
     on to the LLM (same session) and into the next turn.
     """
-    result = await conversation.async_converse(
-        hass, utterance, conversation_id, Context(), agent_id=None
-    )
+    try:
+        result = await conversation.async_converse(
+            hass, utterance, conversation_id, Context(), agent_id=None
+        )
+    except HomeAssistantError as err:
+        # HASSIL matched a sentence but executing it raised (e.g. a fixture entity that
+        # doesn't support the mapped service raises ServiceNotSupported). Surface the
+        # exception text as an error outcome rather than letting the traceback escape; the
+        # turn then falls through to the LLM, since an errored local path isn't "resolved".
+        return (
+            LocalOutcome(
+                response_type=intent.IntentResponseType.ERROR.value,
+                error_code=intent.IntentResponseErrorCode.FAILED_TO_HANDLE.value,
+                speech=str(err),
+            ),
+            conversation_id,
+        )
     response = result.response
     speech = ""
     if response.speech:
@@ -483,7 +497,9 @@ def _render_world(session: Session, style: _Style) -> str:
     for state in sorted(session.hass.states.async_all(), key=lambda s: s.entity_id):
         if state.domain in ("conversation", "person", "zone"):
             continue
-        lines.append(f"  {state.entity_id} = {style.cyan(state.state)}")
+        lines.append(
+            f"  {state.entity_id}  {style.dim(state.name)} = {style.cyan(state.state)}"
+        )
     return "\n".join(lines)
 
 
