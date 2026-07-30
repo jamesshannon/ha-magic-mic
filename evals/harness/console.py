@@ -35,8 +35,8 @@ Run it with a live key (from the environment or a project-root ``.env``):
 
 import argparse
 import asyncio
-from collections.abc import AsyncIterator, Callable, Sequence
-from contextlib import asynccontextmanager, nullcontext
+from collections.abc import AsyncIterator, Callable, Iterator, Sequence
+from contextlib import asynccontextmanager, contextmanager, nullcontext
 import copy
 from dataclasses import dataclass, field
 import json
@@ -237,6 +237,44 @@ async def capture_requests(client: Any) -> AsyncIterator[_Capture]:
         client.messages.create = original
 
 
+@contextmanager
+def capture_service_failures() -> Iterator[list[str]]:
+    """Capture handled intent service failures for the turn, without the traceback.
+
+    When an intent matches an entity whose service isn't supported (e.g. the fixture
+    thermostat has no ``climate.turn_off``), intent handling logs the failure with a full
+    traceback via ``_LOGGER.exception`` and then falls back to a normal response
+    (`helpers/intent.py`). This filter pulls the exception off that one record, keeps it as a
+    concise ``module.Class: message`` note for the console to show, and drops the record so
+    the traceback never reaches the terminal. Other intent errors pass through untouched.
+    """
+    notes: list[str] = []
+    logger = logging.getLogger("homeassistant.helpers.intent")
+
+    class _Capture(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            if not record.getMessage().startswith("Service call failed for "):
+                return True
+            exc = record.exc_info[1] if record.exc_info else None
+            if exc is not None:
+                cls = type(exc)
+                try:
+                    detail = str(exc)
+                except Exception:  # noqa: BLE001 - never let formatting fail the turn
+                    detail = repr(exc)
+                notes.append(f"{cls.__module__}.{cls.__qualname__}: {detail}")
+            else:
+                notes.append(record.getMessage())
+            return False
+
+    log_filter = _Capture()
+    logger.addFilter(log_filter)
+    try:
+        yield notes
+    finally:
+        logger.removeFilter(log_filter)
+
+
 # ── Standing up the world ───────────────────────────────────────────────────────────
 
 
@@ -351,6 +389,7 @@ class TurnResult:
     error: str | None
     conversation_id: str | None
     hassil_ms: float | None = None
+    service_failures: tuple[str, ...] = ()
 
 
 async def _probe_local(
@@ -423,63 +462,68 @@ async def drive_turn(
     local: LocalOutcome | None = None
     current_id = conversation_id
     hassil_ms: float | None = None
-    if hassil:
-        start = perf_counter()
-        local, current_id = await _probe_local(
-            session.hass, utterance, current_id, device_id
+    # A handled service failure on either path (the thermostat rejecting climate.turn_off) is
+    # logged with a traceback deep in HA; capture it as a concise note for the whole turn.
+    with capture_service_failures() as failures:
+        if hassil:
+            start = perf_counter()
+            local, current_id = await _probe_local(
+                session.hass, utterance, current_id, device_id
+            )
+            hassil_ms = (perf_counter() - start) * 1000
+            if local.resolved:
+                return TurnResult(
+                    local=local,
+                    handled_locally=True,
+                    requests=(),
+                    tools=(),
+                    generations=[],
+                    speech=local.speech,
+                    error=None,
+                    conversation_id=current_id,
+                    hassil_ms=hassil_ms,
+                    service_failures=tuple(failures),
+                )
+
+        error: str | None = None
+        speech = ""
+        tools: tuple[ToolCall, ...] = ()
+        generations: list[dict[str, int]] = []
+        async with capture_requests(session.client) as capture:
+            try:
+                result = await conversation.async_converse(
+                    session.hass,
+                    utterance,
+                    current_id,
+                    Context(),
+                    agent_id=session.agents[agent],
+                    device_id=device_id,
+                )
+            except HomeAssistantError as err:
+                error = str(err)
+            else:
+                current_id = result.conversation_id
+                response = result.response
+                if response.speech:
+                    speech = response.speech.get("plain", {}).get("speech", "")
+                if response.response_type is intent.IntentResponseType.ERROR:
+                    error = speech or response.error_code.value
+                tools, generations = _observe_from_trace(
+                    async_get_traces()[-1].as_dict()["events"]
+                )
+
+        return TurnResult(
+            local=local,
+            handled_locally=False,
+            requests=tuple(capture.requests),
+            tools=tools,
+            generations=generations,
+            speech=speech,
+            error=error,
+            conversation_id=current_id,
+            hassil_ms=hassil_ms,
+            service_failures=tuple(failures),
         )
-        hassil_ms = (perf_counter() - start) * 1000
-        if local.resolved:
-            return TurnResult(
-                local=local,
-                handled_locally=True,
-                requests=(),
-                tools=(),
-                generations=[],
-                speech=local.speech,
-                error=None,
-                conversation_id=current_id,
-                hassil_ms=hassil_ms,
-            )
-
-    error: str | None = None
-    speech = ""
-    tools: tuple[ToolCall, ...] = ()
-    generations: list[dict[str, int]] = []
-    async with capture_requests(session.client) as capture:
-        try:
-            result = await conversation.async_converse(
-                session.hass,
-                utterance,
-                current_id,
-                Context(),
-                agent_id=session.agents[agent],
-                device_id=device_id,
-            )
-        except HomeAssistantError as err:
-            error = str(err)
-        else:
-            current_id = result.conversation_id
-            response = result.response
-            if response.speech:
-                speech = response.speech.get("plain", {}).get("speech", "")
-            if response.response_type is intent.IntentResponseType.ERROR:
-                error = speech or response.error_code.value
-            tools, generations = _observe_from_trace(
-                async_get_traces()[-1].as_dict()["events"]
-            )
-
-    return TurnResult(
-        local=local,
-        handled_locally=False,
-        requests=tuple(capture.requests),
-        tools=tools,
-        generations=generations,
-        speech=speech,
-        error=error,
-        conversation_id=current_id,
-        hassil_ms=hassil_ms,
-    )
 
 
 # ── Rendering ───────────────────────────────────────────────────────────────────────
@@ -600,6 +644,12 @@ def render_turn(result: TurnResult, style: _Style, *, verbose: bool) -> str:
             + (f"  {_clip(result.local.speech)}" if result.local.speech else "")
             + timing
         )
+
+    out.extend(
+        style.yellow("SERVICE FAILED") + f"  {note}"
+        for note in result.service_failures
+    )
+
     if result.handled_locally:
         return "\n".join(out)
 
@@ -910,31 +960,10 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _quiet_handled_intent_failures() -> None:
-    """Silence HA's traceback for a *handled* intent service failure.
-
-    When an intent matches an entity whose service isn't supported (e.g. the fixture
-    thermostat has no ``climate.turn_off``, so "turn off the heat" raises
-    ``ServiceNotSupported``), intent handling logs the failure with a full traceback via
-    ``_LOGGER.exception`` before falling back to a normal spoken response
-    (`helpers/intent.py`). The failure is already handled and the console reports the turn's
-    outcome, so drop that one record rather than dump a traceback to the terminal.
-    """
-
-    class _DropServiceCallFailed(logging.Filter):
-        def filter(self, record: logging.LogRecord) -> bool:
-            return not record.getMessage().startswith("Service call failed for ")
-
-    logging.getLogger("homeassistant.helpers.intent").addFilter(
-        _DropServiceCallFailed()
-    )
-
-
 async def main(argv: Sequence[str] | None = None) -> None:
     """Stand up the world and either run one-shot utterances or the REPL."""
     args = _parse_args(argv)
     style = _Style(enabled=not args.no_color and sys.stdout.isatty())
-    _quiet_handled_intent_failures()
     api_key = load_api_key()
 
     async with async_test_home_assistant() as hass:
