@@ -15,13 +15,13 @@
       "correct": true,
       "generations": 2,
       "id": "current-time",
-      "input_tokens": 827,
-      "output_tokens": 94,
+      "input_tokens": 830,
+      "output_tokens": 103,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
       "routing_truth": "local",
-      "speech": "The current time is **8:54 AM** on **Wednesday, July 29, 2026** (PDT).",
+      "speech": "It is **6:10 PM** (18:10) on **Wednesday, July 29, 2026** (Pacific Daylight Time).",
       "tools": [
         {
           "args": {},
@@ -62,12 +62,12 @@
       "generations": 1,
       "id": "turn-off-all-lights",
       "input_tokens": 357,
-      "output_tokens": 222,
+      "output_tokens": 243,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
       "routing_truth": "local",
-      "speech": "I can help you turn off the lights. You have lights in multiple areas:\n\n- Bedroom Light\n- Desk Lamp (office)\n- Kitchen Light\n- Living Room Lamp\n\nWould you like me to turn off all of them, or lights in a specific area?",
+      "speech": "I can help you turn off the lights! You have lights in several areas:\n\n- **Bedroom Light**\n- **Desk Lamp** (office)\n- **Kitchen Light**\n- **Living Room Lamp**\n\nWhich light(s) would you like to turn off? You can specify by area (e.g., \"bedroom,\" \"kitchen,\" \"living room,\" \"office\") or ask me to turn off all of them.",
       "tools": [],
       "utterance": "turn off the lights"
     },
@@ -79,8 +79,8 @@
       "correct": true,
       "generations": 2,
       "id": "turn-on-kitchen-light",
-      "input_tokens": 943,
-      "output_tokens": 187,
+      "input_tokens": 935,
+      "output_tokens": 179,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
@@ -107,8 +107,8 @@
       "correct": true,
       "generations": 2,
       "id": "turn-off-living-room-lamp",
-      "input_tokens": 1045,
-      "output_tokens": 284,
+      "input_tokens": 953,
+      "output_tokens": 192,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
@@ -135,13 +135,13 @@
       "correct": true,
       "generations": 2,
       "id": "set-bedroom-brightness",
-      "input_tokens": 965,
-      "output_tokens": 207,
+      "input_tokens": 1006,
+      "output_tokens": 247,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
       "routing_truth": "local",
-      "speech": "Done! I've set the Bedroom Light to 30% brightness.",
+      "speech": "Done! I've set the bedroom light to 30% brightness.",
       "tools": [
         {
           "args": {
@@ -161,13 +161,13 @@
       "correct": true,
       "generations": 2,
       "id": "open-garage-door",
-      "input_tokens": 974,
-      "output_tokens": 218,
+      "input_tokens": 992,
+      "output_tokens": 232,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
       "routing_truth": "local",
-      "speech": "Done! I've opened the garage door for you.",
+      "speech": "The garage door is now open!",
       "tools": [
         {
           "args": {
@@ -189,8 +189,8 @@
       "correct": true,
       "generations": 2,
       "id": "close-blinds",
-      "input_tokens": 1061,
-      "output_tokens": 298,
+      "input_tokens": 989,
+      "output_tokens": 226,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
@@ -199,10 +199,12 @@
       "tools": [
         {
           "args": {
-            "name": "Living Room Blinds",
-            "position": 0
+            "domain": [
+              "cover"
+            ],
+            "name": "Living Room Blinds"
           },
-          "name": "HassSetPosition"
+          "name": "HassTurnOff"
         }
       ],
       "utterance": "close the living room blinds"
@@ -215,8 +217,8 @@
       "correct": true,
       "generations": 2,
       "id": "set-blinds-position",
-      "input_tokens": 1005,
-      "output_tokens": 235,
+      "input_tokens": 1027,
+      "output_tokens": 257,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
@@ -241,17 +243,18 @@
       "correct": true,
       "generations": 2,
       "id": "room-temperature",
-      "input_tokens": 1113,
-      "output_tokens": 212,
+      "input_tokens": 991,
+      "output_tokens": 231,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
       "routing_truth": "local",
-      "speech": "The current temperature in the living room is **19\u00b0C**. The thermostat is set to maintain a target temperature of 20\u00b0C and is currently in heating mode.",
+      "speech": "The current temperature in the living room is **19\u00b0C** (according to the thermostat's reading). The thermostat is currently set to maintain a target temperature of 20\u00b0C and is in heating mode.",
       "tools": [
         {
           "args": {
-            "area": "living room"
+            "area": "living room",
+            "domain": "climate"
           },
           "name": "GetLiveContext"
         }
@@ -266,13 +269,13 @@
       "correct": true,
       "generations": 2,
       "id": "weather",
-      "input_tokens": 930,
-      "output_tokens": 265,
+      "input_tokens": 871,
+      "output_tokens": 230,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
       "routing_truth": "local",
-      "speech": "I don't have access to weather information in your Home Assistant setup. There are no weather sensors or integrations currently configured. \n\nTo get weather data, you would need to set up a weather integration in Home Assistant (such as Open-Meteo, Weather.com, or your local weather service). Once configured, I'll be able to provide you with current weather conditions.",
+      "speech": "I don't have access to weather data from your smart home system. Your Home Assistant setup doesn't appear to have a weather integration or sensor configured. \n\nTo get weather information, you could:\n- Add a weather integration to your Home Assistant (like OpenWeatherMap, Weather.gov, or another service)\n- Check a weather service directly online\n- Ask me general weather knowledge questions if you tell me your location\n\nIs there anything else I can help you with for your smart home?",
       "tools": [
         {
           "args": {
@@ -291,13 +294,13 @@
       "correct": true,
       "generations": 2,
       "id": "set-volume",
-      "input_tokens": 972,
-      "output_tokens": 207,
+      "input_tokens": 978,
+      "output_tokens": 213,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
       "routing_truth": "local",
-      "speech": "Done! I've set the living room speaker volume to 40%.",
+      "speech": "Done! I've set the Living Room Speaker volume to 40%.",
       "tools": [
         {
           "args": {
@@ -317,16 +320,19 @@
       "correct": true,
       "generations": 2,
       "id": "pause-music",
-      "input_tokens": 972,
-      "output_tokens": 219,
+      "input_tokens": 971,
+      "output_tokens": 218,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
       "routing_truth": "local",
-      "speech": "Done! I've paused the music on the Living Room Speaker.",
+      "speech": "Done! I've paused the music on your Living Room Speaker.",
       "tools": [
         {
           "args": {
+            "domain": [
+              "media_player"
+            ],
             "name": "Living Room Speaker"
           },
           "name": "HassMediaPause"
@@ -342,8 +348,8 @@
       "correct": true,
       "generations": 2,
       "id": "start-timer",
-      "input_tokens": 944,
-      "output_tokens": 206,
+      "input_tokens": 957,
+      "output_tokens": 219,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
@@ -367,8 +373,8 @@
       "correct": true,
       "generations": 2,
       "id": "add-shopping-item",
-      "input_tokens": 921,
-      "output_tokens": 162,
+      "input_tokens": 930,
+      "output_tokens": 171,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
@@ -394,12 +400,12 @@
       "generations": 1,
       "id": "nevermind",
       "input_tokens": 355,
-      "output_tokens": 134,
+      "output_tokens": 79,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
       "routing_truth": "local",
-      "speech": "No problem! I'm here whenever you need help. Just let me know if there's anything you'd like me to do with your smart home.",
+      "speech": "No problem! Let me know if you need anything else.",
       "tools": [],
       "utterance": "never mind"
     },
@@ -411,13 +417,13 @@
       "correct": true,
       "generations": 2,
       "id": "is-garage-open",
-      "input_tokens": 961,
-      "output_tokens": 182,
+      "input_tokens": 972,
+      "output_tokens": 192,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
       "routing_truth": "local",
-      "speech": "Yes, the garage door is open. It's currently at 100% position (fully open).",
+      "speech": "Yes, the garage door is **open**. Its current position is fully open (100%).",
       "tools": [
         {
           "args": {
@@ -437,13 +443,13 @@
       "correct": true,
       "generations": 2,
       "id": "compound-two-devices",
-      "input_tokens": 1127,
-      "output_tokens": 271,
+      "input_tokens": 1149,
+      "output_tokens": 293,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
       "routing_truth": "llm",
-      "speech": "Done! I've turned off the Kitchen Light and the Bedroom Fan.",
+      "speech": "Done! I've turned off both the kitchen light and the bedroom fan.",
       "tools": [
         {
           "args": {
@@ -474,13 +480,13 @@
       "correct": false,
       "generations": 2,
       "id": "implicit-cold",
-      "input_tokens": 996,
-      "output_tokens": 252,
+      "input_tokens": 966,
+      "output_tokens": 233,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
       "routing_truth": "llm",
-      "speech": "Your thermostat is currently set to 20\u00b0C (current temperature is 19\u00b0C). What temperature would you like me to set it to? A typical comfortable range is 21-22\u00b0C (70-72\u00b0F).",
+      "speech": "I can help you warm up! Your thermostat is currently set to 20\u00b0C and the current temperature in your home is 19\u00b0C. \n\nWhat temperature would you like me to set the thermostat to? Common comfortable temperatures are usually between 21-23\u00b0C.",
       "tools": [
         {
           "args": {
@@ -501,12 +507,12 @@
       "generations": 1,
       "id": "implicit-too-dark",
       "input_tokens": 359,
-      "output_tokens": 232,
+      "output_tokens": 218,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
       "routing_truth": "llm",
-      "speech": "I'd be happy to help brighten things up! Which room are you in? I can turn on lights in:\n\n- **Bedroom**\n- **Office**\n- **Kitchen**\n- **Living Room**\n\nOr would you like me to turn on lights in all areas?",
+      "speech": "I can help you turn on the lights! Which room would you like me to brighten up?\n\nYou have lights in:\n- **Bedroom**\n- **Kitchen**\n- **Living Room**\n- **Office**\n\nJust let me know which area you're in, and I'll turn on the lights for you.",
       "tools": [],
       "utterance": "it's too dark in here"
     },
@@ -518,17 +524,16 @@
       "correct": true,
       "generations": 2,
       "id": "reasoning-did-i-leave-garage",
-      "input_tokens": 966,
-      "output_tokens": 184,
+      "input_tokens": 944,
+      "output_tokens": 159,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
       "routing_truth": "llm",
-      "speech": "Yes, the garage door is currently **open**. Would you like me to close it for you?",
+      "speech": "Yes, your garage door is open. Would you like me to close it for you?",
       "tools": [
         {
           "args": {
-            "domain": "cover",
             "name": "Garage Door"
           },
           "name": "GetLiveContext"
@@ -545,12 +550,12 @@
       "generations": 1,
       "id": "knowledge-capital-france",
       "input_tokens": 360,
-      "output_tokens": 137,
+      "output_tokens": 140,
       "resolved": true,
       "resolves_at_wave0": true,
       "routed_locally": false,
       "routing_truth": "llm",
-      "speech": "The capital of France is Paris. It's located in the north-central part of the country along the Seine River and is known for iconic landmarks like the Eiffel Tower, Notre-Dame Cathedral, and the Louvre Museum.",
+      "speech": "The capital of France is **Paris**. It's the largest city in France and has been the capital since the 12th century. Paris is known for its iconic landmarks like the Eiffel Tower, Notre-Dame Cathedral, and the Louvre Museum.",
       "tools": [],
       "utterance": "what's the capital of France?"
     },
@@ -562,19 +567,25 @@
       "correct": true,
       "generations": 2,
       "id": "conditional-reminder",
-      "input_tokens": 1005,
-      "output_tokens": 278,
+      "input_tokens": 1466,
+      "output_tokens": 629,
       "resolved": true,
       "resolves_at_wave0": false,
       "routed_locally": false,
       "routing_truth": "llm",
-      "speech": "I've set a 1-hour timer to remind you about closing the garage door. When the timer goes off, you'll be notified to check if the garage door is closed.",
+      "speech": "All set! I've started a 1-hour timer called \"Check garage door\" to remind you. I can see your garage door is currently open, so this reminder will go off in an hour to prompt you to close it if you haven't already.",
       "tools": [
         {
           "args": {
-            "conversation_command": "Remind to close garage door",
+            "domain": "cover",
+            "name": "Garage Door"
+          },
+          "name": "GetLiveContext"
+        },
+        {
+          "args": {
             "hours": 1,
-            "name": "Close garage door"
+            "name": "Check garage door"
           },
           "name": "HassStartTimer"
         }
@@ -590,12 +601,12 @@
       "generations": 1,
       "id": "remember-fact",
       "input_tokens": 362,
-      "output_tokens": 279,
+      "output_tokens": 200,
       "resolved": true,
       "resolves_at_wave0": false,
       "routed_locally": false,
       "routing_truth": "llm",
-      "speech": "I've noted the WiFi password for this conversation: **hunter2-galaxy**\n\nHowever, I should mention a couple of important things:\n\n1. **I don't have persistent memory** - I can only remember this information within our current conversation. Once this chat ends, I won't retain it.\n\n2. **Security consideration** - It's generally safer to store sensitive passwords in a dedicated password manager (like Bitwarden, 1Password, LastPass, etc.) rather than relying on voice assistant memory.\n\nIf you need the password during this conversation, just ask and I can help you with it!",
+      "speech": "I appreciate you sharing that, but I'm not able to store or remember passwords, WiFi credentials, or other sensitive security information. This is for your security and privacy.\n\nFor WiFi password management, I'd recommend:\n- Storing it securely in a password manager\n- Writing it down in a secure location\n- Using your router's admin interface to manage WiFi credentials\n\nIs there anything else I can help you with regarding your smart home devices?",
       "tools": [],
       "utterance": "remember the wifi password is hunter2-galaxy"
     },
@@ -608,12 +619,12 @@
       "generations": 1,
       "id": "undo-last",
       "input_tokens": 356,
-      "output_tokens": 128,
+      "output_tokens": 199,
       "resolved": true,
       "resolves_at_wave0": false,
       "routed_locally": false,
       "routing_truth": "llm",
-      "speech": "I don't have any recent actions to undo. This appears to be the start of our conversation, so there's nothing to revert.\n\nIf you'd like to undo a previous action with your smart home, please let me know what you'd like to reverse, and I'll help you with that!",
+      "speech": "I don't have any previous actions to undo in our conversation. This appears to be the start of our chat, so there's nothing I've done yet that I can reverse.\n\nCould you clarify what you'd like me to undo? For example:\n- Did you want me to turn off a device that's currently on?\n- Cancel a timer?\n- Remove an item from a list?\n\nLet me know what you'd like to revert, and I'll be happy to help!",
       "tools": [],
       "utterance": "undo that"
     }
@@ -622,8 +633,8 @@
     "cache_creation_tokens": 4992,
     "cache_read_tokens": 214656,
     "generations": 44,
-    "input_tokens": 20708,
-    "output_tokens": 5176
+    "input_tokens": 20908,
+    "output_tokens": 5386
   },
   "routing_agreement": {
     "agree": 8,
@@ -636,6 +647,7 @@
     "model": "claude-haiku-4-5",
     "prefer_local": false,
     "subset": false,
-    "timestamp": "2026-07-29T15:55:30.973923+00:00"
+    "timestamp": "2026-07-30T01:11:31.435470+00:00",
+    "web_tools": false
   }
 }

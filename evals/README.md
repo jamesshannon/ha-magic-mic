@@ -179,13 +179,16 @@ Ran the live baseline keyed from a project-root `.env`: stock full-roster prompt
 `prefer_local` OFF, so only the 8 `llm`-labelled cases agree); 44 generations. Wave 1 reports
 Δtokens / Δturns / Δhassil-rate against this artifact.
 
-> **Refresh needed before Wave 1 measures against it.** This artifact was scored under
-> tool-name matching, before nine device-control cases moved to `expect_changes`
-> (state scoring). The recorded observations (tools, tokens, generations) are unchanged, but
-> the correctness basis for those cases is not, so the buckets are no longer produced the
-> same way. Re-run the keyed baseline to regenerate `wave0_baseline.json` under state
-> scoring, then compare Wave 1 against the refreshed reference. This is a human-gated, keyed
-> step (it spends tokens); it has not been done yet.
+> **Refreshed under state scoring (keyed re-run, `claude-haiku-4-5`).** After nine
+> device-control cases moved to `expect_changes`, the keyed baseline was re-run so its
+> scoring basis matches. The distribution is unchanged, 21 LLM-correct / 4 wrong-action / 0
+> unresolved, 44 generations: state scoring agrees with the reconciled tool expectations on
+> this corpus while being robust to tool variance (the device cases pass whichever
+> equally-valid tool the model picks). The 4 wrong are the same as before, all model
+> behavior, not harness faults: `turn-off-all-lights` and `implicit-too-dark` ask which
+> entity instead of acting (the world does not change, so state scoring marks them wrong for
+> the right reason); `implicit-cold` reads the thermostat then asks how warm; `remember-fact`
+> is a VISION feature not built yet.
 
 This is the **pre-magic roster**: the shipped agent now enables `web_search`/`web_fetch`
 (the banked free magic), but `build-sequence.md` captures the baseline *before* that bank,
