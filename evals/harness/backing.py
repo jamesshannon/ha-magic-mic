@@ -19,6 +19,7 @@ for the satellite so ``HassStartTimer`` is exposed and runs.
 """
 
 from collections import defaultdict
+from dataclasses import dataclass, field
 
 from pytest_homeassistant_custom_component.common import setup_test_component_platform
 
@@ -61,15 +62,26 @@ from .corpus import Entity as CorpusEntity, World
 
 
 class _BackedEntity(Entity):
-    """Shared setup for a corpus-backed entity: fixed id, name, and no polling."""
+    """Shared setup for a corpus-backed entity: fixed id, name, and no polling.
+
+    Mutable state is assigned in ``reset()``, not ``__init__``, so a case can be returned to
+    the fixture baseline between runs. ``__init__`` pins the identity and calls ``reset()``
+    once; the runner calls ``reset()`` again before each case for a clean, order-independent
+    starting world (the pytest-fixture model, not carry-over state).
+    """
 
     _attr_should_poll = False
 
     def __init__(self, entity: CorpusEntity) -> None:
-        """Pin the entity id and name to the corpus fixture."""
+        """Pin the entity id and name to the corpus fixture, then set baseline state."""
+        self._corpus = entity
         self.entity_id = entity.entity_id
         self._attr_unique_id = entity.entity_id
         self._attr_name = entity.name
+        self.reset()
+
+    def reset(self) -> None:
+        """Restore mutable state to the corpus baseline (overridden per domain)."""
 
 
 class _Light(_BackedEntity, LightEntity):
@@ -78,10 +90,9 @@ class _Light(_BackedEntity, LightEntity):
     _attr_supported_color_modes = {ColorMode.BRIGHTNESS}
     _attr_color_mode = ColorMode.BRIGHTNESS
 
-    def __init__(self, entity: CorpusEntity) -> None:
-        super().__init__(entity)
-        self._attr_is_on = entity.state == "on"
-        self._attr_brightness = entity.attributes.get("brightness")
+    def reset(self) -> None:
+        self._attr_is_on = self._corpus.state == "on"
+        self._attr_brightness = self._corpus.attributes.get("brightness")
 
     async def async_turn_on(self, **kwargs: object) -> None:
         self._attr_is_on = True
@@ -97,9 +108,8 @@ class _Light(_BackedEntity, LightEntity):
 class _Switch(_BackedEntity, SwitchEntity):
     """A plain on/off switch for the generic toggle intents."""
 
-    def __init__(self, entity: CorpusEntity) -> None:
-        super().__init__(entity)
-        self._attr_is_on = entity.state == "on"
+    def reset(self) -> None:
+        self._attr_is_on = self._corpus.state == "on"
 
     async def async_turn_on(self, **kwargs: object) -> None:
         self._attr_is_on = True
@@ -115,9 +125,8 @@ class _Fan(_BackedEntity, FanEntity):
 
     _attr_supported_features = FanEntityFeature.TURN_ON | FanEntityFeature.TURN_OFF
 
-    def __init__(self, entity: CorpusEntity) -> None:
-        super().__init__(entity)
-        self._attr_is_on = entity.state == "on"
+    def reset(self) -> None:
+        self._attr_is_on = self._corpus.state == "on"
 
     async def async_turn_on(self, **kwargs: object) -> None:
         self._attr_is_on = True
@@ -137,11 +146,10 @@ class _Cover(_BackedEntity, CoverEntity):
         | CoverEntityFeature.SET_POSITION
     )
 
-    def __init__(self, entity: CorpusEntity) -> None:
-        super().__init__(entity)
-        if entity.device_class:
-            self._attr_device_class = CoverDeviceClass(entity.device_class)
-        self._attr_current_cover_position = 0 if entity.state == "closed" else 100
+    def reset(self) -> None:
+        if self._corpus.device_class:
+            self._attr_device_class = CoverDeviceClass(self._corpus.device_class)
+        self._attr_current_cover_position = 0 if self._corpus.state == "closed" else 100
 
     @property
     def is_closed(self) -> bool:
@@ -167,11 +175,11 @@ class _Climate(_BackedEntity, ClimateEntity):
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL]
 
-    def __init__(self, entity: CorpusEntity) -> None:
-        super().__init__(entity)
-        self._attr_hvac_mode = HVACMode(entity.state) if entity.state else HVACMode.OFF
-        self._attr_current_temperature = entity.attributes.get("current_temperature")
-        self._attr_target_temperature = entity.attributes.get("temperature")
+    def reset(self) -> None:
+        corpus = self._corpus
+        self._attr_hvac_mode = HVACMode(corpus.state) if corpus.state else HVACMode.OFF
+        self._attr_current_temperature = corpus.attributes.get("current_temperature")
+        self._attr_target_temperature = corpus.attributes.get("temperature")
 
     async def async_set_temperature(self, **kwargs: object) -> None:
         if ATTR_TEMPERATURE in kwargs:
@@ -188,10 +196,10 @@ class _MediaPlayer(_BackedEntity, MediaPlayerEntity):
         | MediaPlayerEntityFeature.VOLUME_SET
     )
 
-    def __init__(self, entity: CorpusEntity) -> None:
-        super().__init__(entity)
-        self._attr_state = MediaPlayerState(entity.state) if entity.state else None
-        self._attr_volume_level = entity.attributes.get("volume_level", 0.5)
+    def reset(self) -> None:
+        corpus = self._corpus
+        self._attr_state = MediaPlayerState(corpus.state) if corpus.state else None
+        self._attr_volume_level = corpus.attributes.get("volume_level", 0.5)
 
     async def async_media_pause(self) -> None:
         self._attr_state = MediaPlayerState.PAUSED
@@ -211,8 +219,7 @@ class _TodoList(_BackedEntity, TodoListEntity):
 
     _attr_supported_features = TodoListEntityFeature.CREATE_TODO_ITEM
 
-    def __init__(self, entity: CorpusEntity) -> None:
-        super().__init__(entity)
+    def reset(self) -> None:
         self._attr_todo_items = []
 
     async def async_create_todo_item(self, item: TodoItem) -> None:
@@ -253,10 +260,33 @@ _ENTITY_TYPES: dict[str, type[_BackedEntity]] = {
 }
 
 
-async def build_executable_world(hass: HomeAssistant, world: World) -> dict[str, str]:
+@dataclass
+class ExecutableWorld:
+    """A built fixture world, with a handle to reset it between cases.
+
+    ``resolved`` maps each corpus entity id to the id it registered under. ``reset`` returns
+    every entity to its fixture baseline so each case runs against a clean, order-independent
+    world (a prior case's actuation does not carry over).
+    """
+
+    resolved: dict[str, str]
+    _entities: list[_BackedEntity] = field(default_factory=list)
+    _bare: dict[str, str] = field(default_factory=dict)
+
+    async def reset(self, hass: HomeAssistant) -> None:
+        """Restore every fixture entity to its baseline state."""
+        for entity in self._entities:
+            entity.reset()
+            entity.async_write_ha_state()
+        for entity_id, state in self._bare.items():
+            hass.states.async_set(entity_id, state)
+        await hass.async_block_till_done()
+
+
+async def build_executable_world(hass: HomeAssistant, world: World) -> ExecutableWorld:
     """Register the fixture entities on real platforms and expose them.
 
-    Returns a map from the corpus entity id to the registered entity id. Domains in
+    Returns an :class:`ExecutableWorld` handle (id map plus a ``reset``). Domains in
     ``_ENTITY_TYPES`` come up as executable entities; any other entity falls back to a
     bare state so queries still have something to read.
     """
@@ -270,18 +300,21 @@ async def build_executable_world(hass: HomeAssistant, world: World) -> dict[str,
     }
 
     by_domain: dict[str, list[_BackedEntity]] = defaultdict(list)
-    corpus_by_id: dict[str, CorpusEntity] = {}
+    instances: list[_BackedEntity] = []
+    bare: dict[str, str] = {}
     resolved: dict[str, str] = {}
     for entity in world.entities:
         domain = entity.entity_id.partition(".")[0]
-        corpus_by_id[entity.entity_id] = entity
         entity_type = _ENTITY_TYPES.get(domain)
         if entity_type is None:
             # No executable surface needed (e.g. weather): a bare state suffices.
-            hass.states.async_set(entity.entity_id, entity.state or "on")
+            bare[entity.entity_id] = entity.state or "on"
+            hass.states.async_set(entity.entity_id, bare[entity.entity_id])
             resolved[entity.entity_id] = entity.entity_id
             continue
-        by_domain[domain].append(entity_type(entity))
+        instance = entity_type(entity)
+        by_domain[domain].append(instance)
+        instances.append(instance)
 
     for domain, entities in by_domain.items():
         setup_test_component_platform(hass, domain, entities)
@@ -303,4 +336,4 @@ async def build_executable_world(hass: HomeAssistant, world: World) -> dict[str,
         resolved[entity.entity_id] = entity.entity_id
 
     await hass.async_block_till_done()
-    return resolved
+    return ExecutableWorld(resolved=resolved, _entities=instances, _bare=bare)

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from evals.harness import Bucket, run_case
-from evals.harness.backing import build_executable_world
+from evals.harness.backing import ExecutableWorld, build_executable_world
 from evals.harness.corpus import (
     Case,
     Entity,
@@ -138,9 +138,9 @@ async def test_run_device_case_wrong_tool_scores_wrong_action(
     assert result.bucket is Bucket.WRONG_ACTION
 
 
-async def _build_cover(hass: HomeAssistant) -> None:
+async def _build_cover(hass: HomeAssistant) -> ExecutableWorld:
     """Stand up a single positionable blind, exposed and executable."""
-    await build_executable_world(
+    return await build_executable_world(
         hass,
         World(
             areas=("living_room",),
@@ -219,6 +219,35 @@ async def test_state_scored_case_fails_when_world_unchanged(
     }
     assert result.correct is False
     assert result.bucket is Bucket.WRONG_ACTION
+
+
+async def test_world_reset_restores_baseline_between_cases(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_create_stream: AsyncMock,
+) -> None:
+    """Resetting the world returns an actuated entity to its fixture baseline.
+
+    This is what makes each case order-independent: whatever a prior case did to the
+    blind, the next case starts from open/100.
+    """
+    world = await _build_cover(hass)
+    agent_id = _testbed_agent_id(hass, setup_integration)
+    mock_create_stream.return_value = [
+        create_tool_use_block(
+            0, "toolu_1", "HassSetPosition", ['{"name": "Blinds", "position": 0}']
+        ),
+        create_content_block(0, ["Done."]),
+    ]
+
+    await run_case(hass, agent_id, _close_blinds_state_case(), llm=True)
+    assert hass.states.get("cover.blinds").state == "closed"
+
+    await world.reset(hass)
+
+    restored = hass.states.get("cover.blinds")
+    assert restored.state == "open"
+    assert restored.attributes["current_position"] == 100
 
 
 async def test_corpus_world_matches_state_scored_assumptions(

@@ -60,6 +60,7 @@ from custom_components.magic_mic.internal.claude.const import (  # noqa: E402
 
 from .backing import (  # noqa: E402
     EVAL_DEVICE_ID,
+    ExecutableWorld,
     build_executable_world,
     register_timer_device,
 )
@@ -134,11 +135,14 @@ def _baseline_agent_id(hass: HomeAssistant, entry: MockConfigEntry) -> str:
     raise BaselineError(f"baseline agent {unique_id!r} not registered")
 
 
-async def stand_up_agent(hass: HomeAssistant, corpus: Corpus, api_key: str) -> str:
+async def stand_up_agent(
+    hass: HomeAssistant, corpus: Corpus, api_key: str
+) -> tuple[str, ExecutableWorld]:
     """Set up the local core, the live integration, and the fixture world.
 
-    Returns the baseline agent's entity id. The config-entry setup makes a real
-    ``models.list`` call, so a bad key fails loudly here before any turn runs.
+    Returns the baseline agent's entity id and the world handle (for per-case reset). The
+    config-entry setup makes a real ``models.list`` call, so a bad key fails loudly here
+    before any turn runs.
     """
     # Force HA to re-scan for custom integrations so it discovers the grafted
     # `custom_components/` path (the `enable_custom_integrations` fixture's job).
@@ -152,9 +156,9 @@ async def stand_up_agent(hass: HomeAssistant, corpus: Corpus, api_key: str) -> s
         raise BaselineError("integration failed to set up (check the key is live)")
     await hass.async_block_till_done()
 
-    await build_executable_world(hass, corpus.world)
+    world = await build_executable_world(hass, corpus.world)
     register_timer_device(hass)
-    return _baseline_agent_id(hass, entry)
+    return _baseline_agent_id(hass, entry), world
 
 
 async def run_baseline(
@@ -166,12 +170,15 @@ async def run_baseline(
     """Drive ``cases`` through the live baseline agent and score the run.
 
     The full corpus world is always stood up (so slot targets resolve), but only
-    ``cases`` are driven. Every case runs at the LLM scope (`prefer_local` OFF), scored
-    against its ``expected_for(llm=True)`` expectation.
+    ``cases`` are driven. The fixture world is reset before each case, so a case runs
+    against a clean, order-independent world rather than one a prior case mutated. Every
+    case runs at the LLM scope (`prefer_local` OFF), scored against its
+    ``expected_for(llm=True)`` expectation.
     """
-    agent_id = await stand_up_agent(hass, corpus, api_key)
+    agent_id, world = await stand_up_agent(hass, corpus, api_key)
     results: list[CaseResult] = []
     for index, case in enumerate(cases, start=1):
+        await world.reset(hass)
         print(f"  [{index:>2}/{len(cases)}] {case.id} ...", flush=True)
         results.append(
             await run_case(hass, agent_id, case, llm=True, device_id=EVAL_DEVICE_ID)
