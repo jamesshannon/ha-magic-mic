@@ -111,10 +111,12 @@ cases:
     routing_truth: local
     resolves_at_wave0: true
     requires: [light.kitchen, light.living_room, light.bedroom, light.office_desk]
-    expected:
-      tools:
-        - name: HassTurnOff
-          args: {domain: light}
+    # State-scored: the two lit lights must end off (bedroom and office start off).
+    # Whatever tool the model uses, the world is judged; asking which light instead of
+    # acting leaves them on and fails.
+    expect_changes:
+      light.kitchen: {state: "off"}
+      light.living_room: {state: "off"}
     template: "<turn> (off|out) [<all>] [<the>] {area} <light>"
     note: Bare "the lights" targets all exposed lights.
 
@@ -124,10 +126,11 @@ cases:
     routing_truth: local
     resolves_at_wave0: true
     requires: [light.kitchen]
-    expected:
-      tools:
-        - name: HassTurnOn
-          args: {name: Kitchen Light}
+    # The fixture light starts on; stage it off so turning it on is a real change.
+    setup:
+      light.kitchen: {state: "off"}
+    expect_changes:
+      light.kitchen: {state: "on"}
     template: "[<the>] {area} <light> on"
 
   - id: turn-off-living-room-lamp
@@ -136,10 +139,8 @@ cases:
     routing_truth: local
     resolves_at_wave0: true
     requires: [light.living_room]
-    expected:
-      tools:
-        - name: HassTurnOff
-          args: {name: Living Room Lamp}
+    expect_changes:
+      light.living_room: {state: "off"}
 
   - id: set-bedroom-brightness
     utterance: set the bedroom light to 30%
@@ -165,10 +166,11 @@ cases:
     routing_truth: local
     resolves_at_wave0: true
     requires: [cover.garage_door]
-    expected:
-      tools:
-        - name: HassTurnOn
-          args: {name: Garage Door}
+    # The fixture garage starts open; stage it closed so opening is a real change.
+    setup:
+      cover.garage_door: {state: "closed"}
+    expect_changes:
+      cover.garage_door: {state: "open"}
     template: "<open> [<the>] {cover_classes:device_class} ..."
     note: Opening a cover maps onto HassTurnOn in the intent set.
 
@@ -178,17 +180,11 @@ cases:
     routing_truth: local
     resolves_at_wave0: true
     requires: [cover.living_room_blinds]
-    expected:
-      tools:
-        - name: HassTurnOff
-          args: {name: Living Room Blinds}
-    # "Close" has two equally-valid resolutions and the model picks between them run to
-    # run: the close intent, or driving position to 0. Accept either so the case does not
-    # flip-flop on sampling.
-    expected_llm:
-      any_of:
-        - tools: [{name: HassTurnOff, args: {name: Living Room Blinds}}]
-        - tools: [{name: HassSetPosition, args: {name: Living Room Blinds, position: 0}}]
+    # State-scored, so the two equally-valid resolutions (the close intent or driving
+    # position to 0) both pass: they land the same state. This is the any_of the tool
+    # scorer needed, made unnecessary by judging the world.
+    expect_changes:
+      cover.living_room_blinds: {state: "closed"}
 
   - id: set-blinds-position
     utterance: set the living room blinds to 50%
@@ -196,10 +192,9 @@ cases:
     routing_truth: local
     resolves_at_wave0: true
     requires: [cover.living_room_blinds]
-    expected:
-      tools:
-        - name: HassSetPosition
-          args: {name: Living Room Blinds, position: 50}
+    # The blind starts fully open (position 100); 50% leaves it open with position 50.
+    expect_changes:
+      cover.living_room_blinds: {attributes: {current_position: 50}}
     template: "(<numeric_value_set>...) [<the>] {name} [position] to {position} percent"
 
   - id: room-temperature
@@ -243,16 +238,10 @@ cases:
     routing_truth: local
     resolves_at_wave0: true
     requires: [media_player.living_room]
-    expected:
-      tools:
-        - name: HassSetVolume
-          args: {area: living_room, volume_level: 40}
-    # "living room volume" names no entity; the live model grounds it to the exposed
-    # media player ("Living Room Speaker") in that area, the one volume-capable target.
-    expected_llm:
-      tools:
-        - name: HassSetVolume
-          args: {name: Living Room Speaker, volume_level: 40}
+    # The speaker starts at the default volume 0.5; 40% lands 0.4. State-scored, so the
+    # area-vs-name grounding that split the tool expectation no longer matters.
+    expect_changes:
+      media_player.living_room: {attributes: {volume_level: 0.4}}
     template: "<numeric_value_set> [<the>] {area} volume to {volume:volume_level} percent"
 
   - id: pause-music
@@ -261,9 +250,8 @@ cases:
     routing_truth: local
     resolves_at_wave0: true
     requires: [media_player.living_room]
-    expected:
-      tools:
-        - name: HassMediaPause
+    expect_changes:
+      media_player.living_room: {state: "paused"}
     template: "pause [[the|my] (music|...)] [in] [<the>] {area}"
 
   - id: start-timer
@@ -338,16 +326,17 @@ cases:
     routing_truth: llm
     resolves_at_wave0: true
     requires: [light.kitchen, fan.bedroom]
-    expected:
-      tools:
-        - name: HassTurnOff
-          args: {name: Kitchen Light}
-        - name: HassTurnOff
-          args: {name: Bedroom Fan}
+    # The fan starts off; stage it on so both halves of the conjunction are real changes.
+    # State-scored, so "did both" is judged by both devices ending off, independent of
+    # whether the model emitted one combined call or two.
+    setup:
+      fan.bedroom: {state: "on"}
+    expect_changes:
+      light.kitchen: {state: "off"}
+      fan.bedroom: {state: "off"}
     note: >
       Each half is a supported single intent, but the conjunction is not one HASSIL
-      template. The model splits it into two tool calls: a clean LLM-only routing case
-      with fully supported actions.
+      template. A clean LLM-only routing case with fully supported actions.
 
   - id: implicit-cold
     utterance: I'm cold

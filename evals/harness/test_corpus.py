@@ -127,14 +127,18 @@ def test_expected_for_scope_falls_back_and_overrides() -> None:
 
 
 def test_local_labels_have_expectations() -> None:
-    """Every ``local`` case carries a checkable expectation (tools or answer)."""
+    """Every ``local`` case carries a checkable expectation: tools, answer, or state."""
     corpus = load_corpus(WAVE0_GOLDEN_SET)
 
     for case in corpus.cases:
-        if case.routing_truth == "local":
-            outcomes = as_alternatives(case.expected)
-            assert outcomes, f"{case.id}: local case needs expected"
-            for outcome in outcomes:
-                assert outcome.tools or outcome.answer, case.id
+        if case.routing_truth != "local":
+            continue
+        if case.state_scored:
+            # A state-scored case is judged by expect_changes, not by tools/answer.
+            continue
+        outcomes = as_alternatives(case.expected)
+        assert outcomes, f"{case.id}: local case needs expected or expect_changes"
+        for outcome in outcomes:
+            assert outcome.tools or outcome.answer, case.id
         # A replace round-trip proves the case is a well-formed frozen dataclass.
         assert replace(case) == case

@@ -14,6 +14,7 @@ from evals.harness.corpus import (
     ExpectedTool,
     StateChange,
     World,
+    load_corpus,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -218,3 +219,29 @@ async def test_state_scored_case_fails_when_world_unchanged(
     }
     assert result.correct is False
     assert result.bucket is Bucket.WRONG_ACTION
+
+
+async def test_corpus_world_matches_state_scored_assumptions(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+) -> None:
+    """The executable fixture's initial states match what migrated cases assume.
+
+    The deltas the state-scored cases declare only hold if the pre-turn world is as
+    expected. Some of those values come from backing.py defaults (a media player's 0.5
+    volume, an open cover's position 100), not the corpus YAML, so guard them here rather
+    than discover a silent mis-score in the keyed baseline.
+    """
+    await build_executable_world(hass, load_corpus().world)
+
+    speaker = hass.states.get("media_player.living_room")
+    assert speaker.state == "playing"
+    assert speaker.attributes["volume_level"] == 0.5
+
+    blinds = hass.states.get("cover.living_room_blinds")
+    assert blinds.state == "open"
+    assert blinds.attributes["current_position"] == 100
+
+    assert hass.states.get("light.living_room").state == "on"
+    assert hass.states.get("cover.garage_door").state == "open"
+    assert hass.states.get("fan.bedroom").state == "off"
