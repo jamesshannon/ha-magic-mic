@@ -48,6 +48,19 @@ class World:
 
 
 @dataclass(frozen=True)
+class StateChange:
+    """A declared entity state and/or attributes, for ``setup`` or ``expect_changes``.
+
+    ``state`` absent (``None``) means "leave the state as it was"; only the named
+    attributes are asserted. Used both to stage a pre-turn starting point and to declare
+    the post-turn outcome a device-control case is scored against.
+    """
+
+    state: str | None = None
+    attributes: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class ExpectedTool:
     """An action the correct outcome invokes. ``args`` are partial hints, not exact."""
 
@@ -86,6 +99,13 @@ class Case:
     single-outcome shorthand). A turn is correct when it matches any of them, so genuine
     ties (close a cover by ``HassTurnOff`` or by ``HassSetPosition: 0``) do not flip-flop
     pass/fail on model non-determinism.
+
+    ``expect_changes`` scores the case by the state it leaves the world in, rather than by
+    the tool the model called (see ``statediff.py``). It is scope-invariant: the world ends
+    the same whether HASSIL or the LLM acted, and whichever equally-valid tool got there, so
+    a case scored this way needs no ``expected_llm`` or ``any_of`` tool gymnastics.
+    ``setup`` stages a known pre-turn state; ``ignore_changes`` suppresses a per-entity state
+    check (list ``state``) where the outcome is genuinely non-deterministic.
     """
 
     id: str
@@ -96,6 +116,9 @@ class Case:
     requires: tuple[str, ...] = ()
     expected: Expected | tuple[Expected, ...] = ()
     expected_llm: Expected | tuple[Expected, ...] | None = None
+    setup: dict[str, StateChange] = field(default_factory=dict)
+    expect_changes: dict[str, StateChange] = field(default_factory=dict)
+    ignore_changes: dict[str, tuple[str, ...]] = field(default_factory=dict)
     template: str | None = None
     note: str | None = None
 
@@ -104,6 +127,11 @@ class Case:
         if llm and self.expected_llm is not None:
             return as_alternatives(self.expected_llm)
         return as_alternatives(self.expected)
+
+    @property
+    def state_scored(self) -> bool:
+        """Whether this case is scored by its resulting state (``expect_changes``)."""
+        return bool(self.expect_changes)
 
 
 @dataclass(frozen=True)
@@ -183,6 +211,32 @@ def _parse_expectation(raw: dict[str, Any] | None) -> tuple[Expected, ...]:
     return (_parse_one(raw),)
 
 
+def _parse_state_change(raw: dict[str, Any]) -> StateChange:
+    """Parse one entity's declared state and/or attributes.
+
+    State is coerced to a string so it compares cleanly against ``hass.states`` values
+    (which are always strings), letting the corpus write ``state: closed`` or ``state: 0``.
+    """
+    state = raw.get("state")
+    return StateChange(
+        state=None if state is None else str(state),
+        attributes=dict(raw.get("attributes") or {}),
+    )
+
+
+def _parse_state_map(raw: dict[str, Any] | None) -> dict[str, StateChange]:
+    """Parse an ``entity_id -> {state, attributes}`` mapping (setup / expect_changes)."""
+    return {
+        entity_id: _parse_state_change(change or {})
+        for entity_id, change in (raw or {}).items()
+    }
+
+
+def _parse_ignore_changes(raw: dict[str, Any] | None) -> dict[str, tuple[str, ...]]:
+    """Parse an ``entity_id -> [attribute, ...]`` mapping of checks to suppress."""
+    return {entity_id: tuple(attrs or ()) for entity_id, attrs in (raw or {}).items()}
+
+
 def _parse_case(raw: dict[str, Any]) -> Case:
     return Case(
         id=raw["id"],
@@ -195,6 +249,9 @@ def _parse_case(raw: dict[str, Any]) -> Case:
         expected_llm=(
             _parse_expectation(raw["expected_llm"]) if "expected_llm" in raw else None
         ),
+        setup=_parse_state_map(raw.get("setup")),
+        expect_changes=_parse_state_map(raw.get("expect_changes")),
+        ignore_changes=_parse_ignore_changes(raw.get("ignore_changes")),
         template=raw.get("template"),
         note=raw.get("note"),
     )
@@ -243,6 +300,18 @@ def validate_corpus(corpus: Corpus) -> None:
         for required in case.requires
         if required not in world_ids
     )
+
+    # Every entity a case stages, expects, or ignores must exist in the fixture world;
+    # a diff against an absent entity would silently never fire.
+    for case in corpus.cases:
+        referenced = (
+            set(case.setup) | set(case.expect_changes) | set(case.ignore_changes)
+        )
+        problems.extend(
+            f"{case.id}: state-scored entity {entity_id!r} absent from the fixture world"
+            for entity_id in sorted(referenced)
+            if entity_id not in world_ids
+        )
 
     if problems:
         raise CorpusError("; ".join(problems))
