@@ -573,20 +573,60 @@ def _fmt_ms(ms: float | None) -> str:
     return f"{ms:.0f} ms" if ms < 1000 else f"{ms / 1000:.2f} s"
 
 
+# Inline a JSON node up to this width; wider nodes expand one key/item per line.
+_INLINE_WIDTH = 80
+
+
+def _flat(value: Any) -> bool:
+    """True when ``value`` has no list holding more than one item, at any depth.
+
+    This is the "collapsible" test: such a subtree is small and regular enough to read on
+    one line (a dict of scalars, a single-item list, and so on).
+    """
+    if isinstance(value, dict):
+        return all(_flat(child) for child in value.values())
+    if isinstance(value, list):
+        return len(value) <= 1 and (not value or _flat(value[0]))
+    return True
+
+
+def _compact_json(value: Any, indent: int = 0) -> str:
+    """Pretty-print JSON, but keep flat, short subtrees on a single line.
+
+    A node collapses to one line when it holds no multi-item list (`_flat`) and its compact
+    form fits `_INLINE_WIDTH`; otherwise it expands with one key or item per line. This trims
+    the whitespace of a full indent while still breaking up the parts that are actually big.
+    """
+    compact = json.dumps(value, sort_keys=True, ensure_ascii=False)
+    if not isinstance(value, (dict, list)) or (
+        _flat(value) and len(compact) <= _INLINE_WIDTH
+    ):
+        return compact
+
+    pad = " " * (indent + 2)
+    close = " " * indent
+    if isinstance(value, dict):
+        rows = [
+            f"{pad}{json.dumps(key, ensure_ascii=False)}: "
+            f"{_compact_json(child, indent + 2)}"
+            for key, child in sorted(value.items())
+        ]
+        return "{\n" + ",\n".join(rows) + f"\n{close}}}"
+    rows = [f"{pad}{_compact_json(item, indent + 2)}" for item in value]
+    return "[\n" + ",\n".join(rows) + f"\n{close}]"
+
+
 def _format_value(value: Any) -> str:
-    """Render a tool input/result in full: pretty JSON, one line when short."""
+    """Render a tool input/result in full, compact where it can be (see `_compact_json`)."""
     if isinstance(value, str):
         try:
             value = json.loads(value)
         except (ValueError, TypeError):
             return value
     try:
-        compact = json.dumps(value, sort_keys=True, ensure_ascii=False)
+        return _compact_json(value)
     except (TypeError, ValueError):
         return str(value)
-    if len(compact) <= 100:
-        return compact
-    return json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False)
 
 
 def _tool_exchanges(
@@ -646,8 +686,7 @@ def render_turn(result: TurnResult, style: _Style, *, verbose: bool) -> str:
         )
 
     out.extend(
-        style.yellow("SERVICE FAILED") + f"  {note}"
-        for note in result.service_failures
+        style.yellow("SERVICE FAILED") + f"  {note}" for note in result.service_failures
     )
 
     if result.handled_locally:
