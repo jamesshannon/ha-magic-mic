@@ -102,6 +102,30 @@ async def test_fuzzy_name_resolves_decisively(hass: HomeAssistant) -> None:
     assert isinstance(row["score"], float)
 
 
+async def test_area_completes_the_name(hass: HomeAssistant) -> None:
+    """The area supplies the discriminating token the name lacks ("kitchen light").
+
+    The entity is named only "Ceiling Light" but lives in the Kitchen; a name-only
+    scorer would rank the Kitchen Counter switch alongside it, so this proves the area
+    is part of the scored document (find-entities.md area matching).
+    """
+    kitchen = ar.async_get(hass).async_create("Kitchen").id
+    target = _register(hass, "light.k_ceiling", "Ceiling Light", area_id=kitchen)
+    _register(hass, "switch.k_counter", "Kitchen Counter", area_id=kitchen)
+    _register(
+        hass,
+        "light.b_ceiling",
+        "Ceiling Light",
+        area_id=ar.async_get(hass).async_create("Bedroom").id,
+    )
+
+    result = await _call(hass, {"name": "kitchen light"})
+
+    assert result["success"] is True
+    assert "ambiguous" not in result
+    assert [row["entity_id"] for row in result["results"]] == [target]
+
+
 async def test_close_names_return_ambiguous_shortlist(hass: HomeAssistant) -> None:
     """Two entities matching the query equally well come back flagged ambiguous."""
     _register(hass, "light.lamp", "Bedroom Lamp")

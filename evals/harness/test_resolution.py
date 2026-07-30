@@ -24,12 +24,13 @@ from evals.harness.resolution import (
     run,
 )
 
-# Current measured floor for the seed set. It legitimately dropped from 0.80 when the
-# location cases were added (harder cases, not a scorer regression); it should climb back
-# past 0.80 once the scorer reads area/floor. Raise it as the scorer improves; a drop
-# with no new cases is a regression. Never lower the false-resolve gate - decisively
-# acting on the wrong entity is the one failure the guard exists to prevent.
-_SEED_MIN_DECISIVE_ACCURACY = 0.66
+# Current measured floor for the seed set. The union-document scorer reads area/floor,
+# so the two location cases now resolve (0.66 -> 0.83). The remaining misses are the
+# shared-category-word cases (reading-light, living-room-blind), the IDF-weighting
+# target. Raise this as the scorer improves; a drop with no new cases is a regression.
+# Never lower the false-resolve gate - decisively acting on the wrong entity is the one
+# failure the guard exists to prevent.
+_SEED_MIN_DECISIVE_ACCURACY = 0.83
 
 
 def _corpus(*cases: ResCase) -> ResCorpus:

@@ -117,12 +117,20 @@ class ResCorpus:
     cases: tuple[ResCase, ...]
 
     def candidates(self, home: str) -> dict[str, list[str]]:
-        """Return the ``{entity_id: names}`` candidate map for a home.
+        """Return the ``{entity_id: phrases}`` candidate map for a home.
 
-        Names only: this is what today's scorer consumes. Location-aware scoring will
-        widen this to a richer candidate (name + area + floor) behind the `Resolver` seam.
+        Each candidate's phrases are its names plus its location terms (area, floor).
+        The scorer joins them into one descriptive document, so the discriminating token
+        can live in the registry (area "Kitchen") rather than the name ("Ceiling Light").
+        This mirrors what the find_entities tool feeds the same scorer.
         """
-        return {entity.entity_id: list(entity.names) for entity in self.homes[home]}
+        return {
+            entity.entity_id: [
+                *entity.names,
+                *(term for term in (entity.area, entity.floor) if term),
+            ]
+            for entity in self.homes[home]
+        }
 
 
 @dataclass(frozen=True)

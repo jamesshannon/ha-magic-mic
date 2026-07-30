@@ -1,8 +1,8 @@
 # Resolver micro-benchmark seed set (docs/find-entities.md, evaluation.md Part G).
 #
-# Pure data: each case is a query against a named home's candidate names, plus the
-# expected guard outcome. No Home Assistant world, no state/area/exposure - those are
-# async_match_targets' job, not the scorer's. Run it with:
+# Pure data: each case is a query against a named home's candidate phrases (names plus
+# area/floor), plus the expected guard outcome. No Home Assistant world, no
+# state/exposure - those are async_match_targets' job, not the scorer's. Run it with:
 #
 #   .venv/bin/python -m evals.harness.resolution
 #
@@ -13,10 +13,12 @@
 #   none: true               nothing should clear the floor
 #
 # Cases tagged "headroom" below are semantically unambiguous to a human but the current
-# token_set_ratio scorer does not resolve them yet (a shared category word like "light"
-# dilutes the discriminating token). They are the tuning target for IDF weighting, and
-# they lower decisive-accuracy without ever becoming false resolves - the guard asks
-# instead of guessing wrong, which is the safe failure.
+# scorer does not resolve them yet: a shared category word (like "light") dilutes the
+# discriminating token, so a wrong candidate stays within the guard's margin. They are
+# the tuning target for IDF weighting, and they lower decisive-accuracy without ever
+# becoming false resolves - the guard asks instead of guessing wrong, the safe failure.
+# (Location cases below, where the discriminator is the area, now resolve: the scorer
+# reads area/floor as part of the document.)
 
 homes:
   demo:
@@ -37,9 +39,9 @@ homes:
     - {entity_id: lock.door, names: [Front Door Lock]}
 
   # Location as the discriminating signal (see find-entities.md area matching). The
-  # discriminator "kitchen" lives in the registry, not in these entities' names, so a
-  # name-only scorer cannot see it. Carried here so the corpus states the truth; the
-  # cases below miss today and are the target for location-aware scoring.
+  # discriminator "kitchen" lives in the registry, not in these entities' names. The
+  # scorer folds area/floor into each candidate's document, so these now resolve while a
+  # bare area token still cannot resolve an entity on its own.
   named_by_room:
     - {entity_id: light.kitchen_ceiling, names: [Ceiling Light], area: Kitchen}
     - {entity_id: switch.kitchen_counter, names: [Kitchen Counter], area: Kitchen}
@@ -58,24 +60,26 @@ cases:
   - {id: tv-alias, home: demo, query: tv, expect: {resolves_to: media_player.living_tv}}
   - {id: desk-lamp-studio, home: studio, query: desk lamp, expect: {resolves_to: light.desk}}
 
-  # --- headroom: should resolve, currently diluted by a shared category word ---
+  # --- headroom: should resolve, still diluted by a shared category word (IDF target) ---
   - {id: reading-light, home: demo, query: reading light, expect: {resolves_to: light.reading},
      note: "headroom - 'light' dilutes 'reading'; Kitchen Light collides"}
-  - {id: kitchen-ceiling-order, home: demo, query: kitchen ceiling, expect: {resolves_to: light.kitchen_ceiling},
-     note: "headroom - collides with Kitchen Light on the shared 'kitchen' token"}
   - {id: living-room-blind, home: demo, query: living room blind, expect: {resolves_to: cover.living_blind},
      note: "headroom - 'living room' shared with the TV dilutes 'blind'"}
+
+  # --- resolves: the discriminating token is present and unshared ---
+  - {id: kitchen-ceiling-order, home: demo, query: kitchen ceiling, expect: {resolves_to: light.kitchen_ceiling},
+     note: "'ceiling' is unique to the ceiling light, so word order aside it wins"}
 
   # --- genuinely ambiguous (the guard should ask) ---
   - {id: bedroom-family, home: demo, query: bedroom,
      expect: {ambiguous: [light.bedroom_lamp, light.bedroom_ceiling, fan.bedroom]},
      note: "three bedroom devices tie; ask which"}
 
-  # --- location headroom: the discriminating token is the area, not the name ---
+  # --- location: the discriminating token is the area, not the name (now resolves) ---
   - {id: room-completes-name, home: named_by_room, query: kitchen light, expect: {resolves_to: light.kitchen_ceiling},
-     note: "headroom - 'Ceiling Light' in the Kitchen; a name-only scorer even ranks the Kitchen Counter switch above it"}
+     note: "'Ceiling Light' in the Kitchen; area completes the name, and the union keeps the Kitchen Counter switch below the margin"}
   - {id: room-disambiguates, home: same_name_two_rooms, query: kitchen light, expect: {resolves_to: light.kitchen},
-     note: "headroom - two entities named 'Light'; only the area picks the kitchen one"}
+     note: "two entities named 'Light'; the area picks the kitchen one"}
   - {id: no-room-stays-ambiguous, home: same_name_two_rooms, query: light,
      expect: {ambiguous: [light.kitchen, light.living]},
      note: "control - with no room in the query the two Lights are genuinely ambiguous, and must stay so"}

@@ -8,7 +8,9 @@ than a capability of its own.
 
 rapidfuzz `token_set_ratio` is the scorer: order- and duplicate-insensitive, and it
 rewards shared tokens ("reading light" ↔ "Reading Lamp") without punishing word order
-("kitchen ceiling" ↔ "Ceiling Light Kitchen"). A stdlib `difflib` token-set
+("kitchen ceiling" ↔ "Ceiling Light Kitchen"). A candidate is scored as one *document*
+(name + aliases + location), so a query can match across fields ("kitchen light" ↔ a
+"Ceiling Light" in the "Kitchen"); see `score_candidates`. A stdlib `difflib` token-set
 approximation stands in behind the same `score()` interface when rapidfuzz is absent,
 so the eventual core PR can treat the dependency as optional (find-entities.md
 "Dependency: rapidfuzz"). Depends on neither `hass` nor the conversation shell.
@@ -62,15 +64,22 @@ def score(query: str, name: str) -> float:
 
 
 def score_candidates(query: str, candidates: dict[str, list[str]]) -> list[Scored]:
-    """Score each candidate by its best-matching name, ranked high to low.
+    """Score each candidate against its descriptive document, ranked high to low.
 
     ``candidates`` maps an opaque key (an ``entity_id`` for the entity consumers) to
-    that candidate's names and aliases. Candidates with no names are dropped.
+    the phrases that describe it: its names and aliases, plus location terms (area,
+    floor) for the entity consumers. The phrases are joined into one *document* and
+    scored once, rather than scored separately and maxed. That union is deliberate: it
+    lets a query span fields ("kitchen light" ↔ name "Ceiling Light" in area "Kitchen")
+    while a bare area token cannot resolve on its own, because `token_set_ratio` only
+    credits a subset match when *all* the query's tokens are present in the document.
+    Scoring the area as a separate phrase instead would let every entity in the kitchen
+    tie at 100 on the shared "kitchen" token. Candidates with no phrases are dropped.
     """
     ranked = [
-        Scored(key, max(score(query, name) for name in names))
-        for key, names in candidates.items()
-        if names
+        Scored(key, score(query, " ".join(phrases)))
+        for key, phrases in candidates.items()
+        if any(phrases)
     ]
     ranked.sort(key=lambda scored: scored.score, reverse=True)
     return ranked

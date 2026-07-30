@@ -16,7 +16,7 @@ from typing import override
 
 import voluptuous as vol
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import (
     area_registry as ar,
     config_validation as cv,
@@ -137,9 +137,7 @@ class FindEntitiesTool(llm.Tool):
             return {"success": True, "results": results}
 
         candidates = {
-            state.entity_id: intent.async_get_entity_aliases(
-                hass, registries.entities.async_get(state.entity_id), state=state
-            )
+            state.entity_id: _candidate_phrases(hass, registries, state)
             for state in match_result.states
         }
         resolution = resolve(score_candidates(name, candidates), limit)
@@ -173,6 +171,26 @@ class _Registries:
         self.devices = dr.async_get(hass)
         self.entities = er.async_get(hass)
         self.floors = fr.async_get(hass)
+
+
+def _candidate_phrases(
+    hass: HomeAssistant, registries: _Registries, state: State
+) -> list[str]:
+    """Build a candidate's descriptive phrases: names/aliases plus location terms.
+
+    The scorer joins these into one document (`fuzzy.score_candidates`), so an entity
+    named "Ceiling Light" in the "Kitchen" resolves for "kitchen light" without a bare
+    area token resolving anything on its own (find-entities.md area matching).
+    """
+    entry = registries.entities.async_get(state.entity_id)
+    phrases = intent.async_get_entity_aliases(hass, entry, state=state)
+    if (area := _resolve_area(registries, state.entity_id)) is not None:
+        phrases = [*phrases, area.name]
+        if area.floor_id and (
+            floor := registries.floors.async_get_floor(area.floor_id)
+        ):
+            phrases.append(floor.name)
+    return phrases
 
 
 def _entity_result(
