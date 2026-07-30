@@ -5,7 +5,14 @@ events give the action-level detail (name + args, for any tool), and the per-rou
 `GenerationRecord`s the provider mirrors in as `AGENT_DETAIL` give generations and token
 cost. The result gives speech and whether it resolved. This is provider-agnostic and
 identical for the mock and the live model; only what the agent returns differs.
+
+A state-scored case (`case.expect_changes`) also observes the world directly: the runner
+stages the case's `setup`, snapshots entity states around the turn, and reduces the change
+to the entities that ended up wrong (`statediff`). This needs an executable fixture world
+(``backing.py``), not the bare-state routing world, since the turn must actually actuate.
 """
+
+from dataclasses import replace
 
 from homeassistant.components import conversation
 from homeassistant.components.conversation.trace import (
@@ -15,8 +22,9 @@ from homeassistant.components.conversation.trace import (
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers import intent
 
-from .corpus import Case
+from .corpus import Case, StateChange
 from .scoring import CaseResult, ObservedTurn, ToolCall, score_case
+from .statediff import snapshot, unexpected_changes
 
 
 def _observe_from_trace(
@@ -71,6 +79,26 @@ async def observe_turn(
     )
 
 
+def _apply_setup(hass: HomeAssistant, setup: dict[str, StateChange]) -> None:
+    """Stage a case's pre-turn state, preserving each entity's other attributes.
+
+    Writes straight to the state machine. On an executable entity this only sets the
+    pre-turn snapshot the diff reads; the actuation under test forces the entity's own
+    values, so a stale internal attribute does not affect the outcome.
+    """
+    for entity_id, change in setup.items():
+        current = hass.states.get(entity_id)
+        base_attributes = dict(current.attributes) if current else {}
+        state = (
+            change.state
+            if change.state is not None
+            else (current.state if current else "unknown")
+        )
+        hass.states.async_set(
+            entity_id, state, {**base_attributes, **change.attributes}
+        )
+
+
 async def run_case(
     hass: HomeAssistant,
     agent_id: str,
@@ -84,8 +112,23 @@ async def run_case(
     ``llm=True`` scores against the LLM-scope expectation (``expected_for``) and treats
     the outcome as LLM-routed; ``llm=False`` scores the local expectation. ``device_id``
     is threaded to the turn so device-scoped tools (timers) are exposed.
+
+    A state-scored case is staged (`setup`) and snapshotted around the turn, and the
+    resulting `unexpected_changes` drives correctness instead of the tool/answer match.
     """
+    if case.setup:
+        _apply_setup(hass, case.setup)
+    before = snapshot(hass) if case.state_scored else None
+
     observed = await observe_turn(
         hass, agent_id, case.utterance, routed_locally=not llm, device_id=device_id
     )
+
+    if before is not None:
+        observed = replace(
+            observed,
+            unexpected_changes=unexpected_changes(
+                before, snapshot(hass), case.expect_changes, case.ignore_changes
+            ),
+        )
     return score_case(case, observed, expected=case.expected_for(llm=llm))

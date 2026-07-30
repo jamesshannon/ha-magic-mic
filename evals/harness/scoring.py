@@ -53,6 +53,9 @@ class ObservedTurn:
     resolved: bool = True
     # Did reaching the outcome cost a clarification turn (multi-turn only).
     clarified: bool = False
+    # For a state-scored case, the entities whose end state did not match (empty = correct).
+    # ``None`` on a tool/answer-scored case, where correctness comes from the tools/speech.
+    unexpected_changes: dict[str, Any] | None = None
     generations: int = 1
     input_tokens: int = 0
     output_tokens: int = 0
@@ -132,7 +135,17 @@ def case_correct(
     outcome or a disjunction of acceptable outcomes; the turn is correct when any of them
     matches. An expectation with no judgeable outcome (all empty, e.g. `nevermind`) is
     ``None``, not a pass.
+
+    A state-scored case (`case.expect_changes`) is judged by the world it left instead: the
+    turn is correct when the runner observed no unexpected state change, whichever tool got
+    there. This ignores ``expected`` entirely, so such a case needs no scope-specific tool
+    expectation.
     """
+    if case.state_scored:
+        if observed.unexpected_changes is None:
+            return None
+        return not observed.unexpected_changes
+
     alternatives = (
         as_alternatives(case.expected)
         if expected is None

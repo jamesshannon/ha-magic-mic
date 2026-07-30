@@ -5,7 +5,16 @@ from unittest.mock import AsyncMock
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from evals.harness import Bucket, run_case
-from evals.harness.corpus import Case, Expected, ExpectedAnswer, ExpectedTool
+from evals.harness.backing import build_executable_world
+from evals.harness.corpus import (
+    Case,
+    Entity,
+    Expected,
+    ExpectedAnswer,
+    ExpectedTool,
+    StateChange,
+    World,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
@@ -124,5 +133,88 @@ async def test_run_device_case_wrong_tool_scores_wrong_action(
     result = await run_case(hass, agent_id, _device_case(), llm=True)
 
     assert [tool.name for tool in result.observed.tools] == ["HassTurnOn"]
+    assert result.correct is False
+    assert result.bucket is Bucket.WRONG_ACTION
+
+
+async def _build_cover(hass: HomeAssistant) -> None:
+    """Stand up a single positionable blind, exposed and executable."""
+    await build_executable_world(
+        hass,
+        World(
+            areas=("living_room",),
+            entities=(
+                Entity(
+                    entity_id="cover.blinds",
+                    name="Blinds",
+                    area="living_room",
+                    device_class="blind",
+                    state="open",
+                ),
+            ),
+        ),
+    )
+
+
+def _close_blinds_state_case() -> Case:
+    """A state-scored case: the blinds must end closed, by whatever tool."""
+    return Case(
+        id="close-blinds",
+        utterance="close the living room blinds",
+        category="device-control",
+        routing_truth="local",
+        resolves_at_wave0=True,
+        expect_changes={"cover.blinds": StateChange(state="closed")},
+    )
+
+
+async def test_state_scored_case_passes_via_equivalent_tool(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_create_stream: AsyncMock,
+) -> None:
+    """Driving position to 0 closes the blind and scores correct, no tool-name match.
+
+    This is the win over tool-name scoring: the model reaches the declared end state
+    (`closed`) through `HassSetPosition`, which a tool-scored `close` case would have to
+    absorb with `any_of`. State-diff passes it because the world is right.
+    """
+    await _build_cover(hass)
+    agent_id = _testbed_agent_id(hass, setup_integration)
+    mock_create_stream.return_value = [
+        create_tool_use_block(
+            0, "toolu_1", "HassSetPosition", ['{"name": "Blinds", "position": 0}']
+        ),
+        create_content_block(0, ["Done."]),
+    ]
+
+    result = await run_case(hass, agent_id, _close_blinds_state_case(), llm=True)
+
+    assert [tool.name for tool in result.observed.tools] == ["HassSetPosition"]
+    assert result.observed.unexpected_changes == {}
+    assert result.correct is True
+    assert result.bucket is Bucket.LLM_CORRECT
+    assert hass.states.get("cover.blinds").state == "closed"
+
+
+async def test_state_scored_case_fails_when_world_unchanged(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_create_stream: AsyncMock,
+) -> None:
+    """A turn that does not reach the declared end state scores WRONG_ACTION.
+
+    The model acknowledges but calls no tool, so the blind stays open; the declared
+    `closed` never happens and the diff flags it.
+    """
+    await _build_cover(hass)
+    agent_id = _testbed_agent_id(hass, setup_integration)
+    mock_create_stream.return_value = [create_content_block(0, ["Sure."])]
+
+    result = await run_case(hass, agent_id, _close_blinds_state_case(), llm=True)
+
+    assert result.observed.unexpected_changes == {
+        "cover.blinds": {"state": {"expected": "closed", "got": "open"}}
+    }
     assert result.correct is False
     assert result.bucket is Bucket.WRONG_ACTION

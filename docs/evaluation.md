@@ -202,6 +202,12 @@ Two independent knobs frame the whole harness — set per run:
 - **Scoring:**
   - *Action correctness* — exact/normalized match on tool + args; entity-resolution
     correctness (did `find_entities` return the intended `entity_id`?). Deterministic.
+    Tool-name matching is brittle when several tools reach the same outcome (the Wave 0
+    baseline scored four cases "wrong" for using `HassLightSet` over the guessed tool while
+    acting correctly). For device-control cases, prefer **state-diff scoring** as a
+    complementary signal: snapshot entity state, run the turn, assert only the declared
+    `expect_changes` differ (borrowed from home-assistant-datasets, Part H). Keep tool-call
+    scoring for query / answer / clarification cases, where no state changes to observe.
   - *Task completion / turns* — did the dialogue reach the goal, and in how many turns.
   - *Helpfulness / answer quality* — **LLM-as-judge** (G-Eval-style rubric) / semantic
     similarity, sampled, pass-rate thresholds. Distinct from correctness: a response can emit
@@ -332,6 +338,46 @@ type-annotated fixtures, `pytest.mark.parametrize` over duplicated bodies (per
 We are not the first to score Assist, and shouldn't rebuild what exists. The landscape as of
 2026, and what we take from each:
 
+- **HA-specific and integrated (the closest prior art).**
+  [home-assistant-datasets](https://github.com/allenporter/home-assistant-datasets) (Allen
+  Porter, a core-adjacent maintainer) runs synthetic homes through any HA conversation
+  integration (openai / google / ollama / anthropic) via pytest and scores the result. Four
+  things it does that we should learn from, and one it does not do that is our whole reason to
+  exist:
+  - **State-diff scoring, not tool-name matching.** It sets up entity state, runs the
+    utterance, then diffs the post-action states against a declared `expect_changes` (with an
+    `ignore_changes` list for derived attributes like a cover's `is_closed`). Pass = no
+    undeclared diff. This scores the *outcome in the world*, so it is immune to the model
+    picking an equally-valid tool. Our tool-call scorer hit exactly that failure in the Wave 0
+    baseline: four cases scored "wrong action" only because the model used `HassLightSet` /
+    `HassSetPosition` / `HassSetVolume` / `HassListAddItem` instead of the guessed tool while
+    doing the right thing. `any_of` is our patch for that brittleness; state-diff removes the
+    need for it on device-control cases. **We should adopt state-diff as a complementary
+    correctness signal** (see Part E), keeping tool-call scoring for query / answer /
+    clarification / generation-count cases where there is no state change to observe.
+  - **`synthetic_home` fixture format + component.** A declarative `_fixtures.yaml` inventory
+    (areas / devices / entities with attributes) loaded by the
+    [synthetic-home](https://github.com/allenporter/synthetic-home) custom component, with
+    homes across locales (`home1-us`, `dom1-pl`, `home2-ru`, `home5-cn`, `home7-dk`). This is
+    the maintained equivalent of our bespoke `evals/harness/backing.py`. Adopting it is a
+    larger, dependency-bearing call (Part H reuse note below); the format is worth converging
+    toward regardless.
+  - **A ready `intents` dataset** derived from HA's own NLP unit tests, plus `assist` (voice
+    corner cases) and `assist-mini` (small models). A source of `local`-routing cases we
+    hand-authored 17 of.
+  - **collect / eval as two pytest phases.** `collect` scrapes model outputs to disk; `eval`
+    scores them separately, so re-scoring after a scorer change costs no model tokens. Our
+    `baseline.py` couples the run and the score. Token stats come from the same conversation
+    trace `AGENT_DETAIL` hook we use, banked in a `TokenStatsBank`; there is also a
+    leaderboard, CSV reports, and cost reporting we have not built.
+  - **What it does not do:** it runs the LLM agent only. It has no concept of the local
+    HASSIL path, so no local-vs-LLM routing split and no hassil-intervention rate. That
+    measurement is the `prefer_local` thesis (§2.9) and the reason our corpus carries
+    `routing_truth` and runs at two scopes. Its token stats compare *models*; our scorecard
+    tracks a *movement across configs of one agent* at fixed task-success. So Wave 0 rebuilt
+    some scaffolding (a fixture home, trace token-capture, a timed-agent wrapper) that already
+    existed here, but the routing scorecard that Wave 0 exists to produce is genuinely absent
+    from it.
 - **HA-specific, but ad-hoc.** A community benchmark
   ([ha-voiceagent-llm-benchmark](https://github.com/Drizzt321/ha-voiceagent-llm-benchmark))
   scores *local* LLMs on intent accuracy (≈74.8% best) and — notably — found **"always use
@@ -357,3 +403,27 @@ convention-pure** (pytest + syrupy, minimal deps): core won't merge a heavy eval
 but it *will* merge the **corpus format**, the **trace enrichment** (Part A), and the
 **scorer**. Same "throwaway shell / portable capabilities" line (§5.5) applied to tooling —
 not a compromise. The boundary is a build-time decision, not a design blocker.
+
+**What we adopt from home-assistant-datasets, and what we defer.** Split by cost and risk,
+because the two borrowings are independent:
+
+- **State-diff scoring: adopt now, low risk.** It is additive (no dependency, no rip-out of
+  tool-call scoring) and fixes a brittleness we already hit. Scope: add `setup` /
+  `expect_changes` / `ignore_changes` to the `Case` model and parser, snapshot entity states
+  around the turn in the runner (the live baseline already backs entities executably, so
+  states move), and add a state-diff correctness path in `scoring.py` used for device-control
+  cases while tool-call and answer scoring stay for the rest. The routing split, generation
+  count, and token totals are untouched; only the *correctness* signal changes, and only where
+  a state change exists to observe. Estimated ~1 focused day plus migrating the ~10
+  device-control cases to carry `expect_changes`. Doing it while the corpus is 25 cases is far
+  cheaper than after Waves 1 through 3 grow it.
+- **`synthetic_home` fixture: defer, evaluate separately.** It swaps `backing.py` (about 250
+  working lines) for a third-party custom-component dependency plus the `synthetic-home`
+  package and the PYTHONPATH wiring its README documents. It does not replace `world.py`'s
+  local-agent setup or the satellite timer-device shim, so the benefit is narrower than it
+  first looks: less bespoke fixture code, multi-locale homes, and reviewer familiarity, against
+  a new external dep and re-verifying feature-flag-to-tool-exposure parity (our backing exposes
+  `HassLightSet` only when a light advertises brightness; state-diff needs the service to
+  actually actuate). That trade is not clearly worth it for a fixture layer that works today,
+  so it stays a scoped follow-up, not a Wave 1 task. The inventory *format* is worth
+  converging our corpus `world` toward even if we never take the component.

@@ -95,6 +95,15 @@ Two runners, one corpus:
 The corpus format is the portable contract both consume. Keep it declarative (data, not
 code) so either runner can read it. See [`docs/evaluation.md`](../docs/evaluation.md) Part H.
 
+**Prior art we are borrowing from.**
+[home-assistant-datasets](https://github.com/allenporter/home-assistant-datasets) is the
+closest existing HA eval framework. Two adoptions are recorded in
+[`docs/evaluation.md`](../docs/evaluation.md) Part H: **state-diff scoring** (adopt now, a
+complementary correctness signal for device-control cases that removes the tool-name
+brittleness `any_of` currently patches) and **`synthetic_home`** as the fixture format
+(deferred, a dependency-bearing swap for `backing.py`). It scores the LLM agent only, so it
+has no local-vs-LLM routing split; that scorecard is the part unique to this harness.
+
 ## What is measured vs. still predicted
 
 The **routing labels are now measured**, keyless. `test_routing.py` runs every utterance

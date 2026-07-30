@@ -21,6 +21,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from homeassistant.components import conversation
+from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.core import HomeAssistant
 
 from .corpus import StateChange
@@ -40,10 +42,17 @@ class ObservedState:
 
 
 def snapshot(hass: HomeAssistant) -> dict[str, ObservedState]:
-    """Capture every current entity state, for a before/after comparison."""
+    """Capture the state of every entity exposed to the conversation agent.
+
+    Scoped to exposed entities on purpose: the assistant can only see and touch those, so
+    they are the only candidates for the intended change and for a wrong-target side effect.
+    Infrastructure entities (the conversation agent itself, whose state is a last-active
+    timestamp) are not exposed and would otherwise trip a phantom diff every turn.
+    """
     return {
         state.entity_id: ObservedState(state.state, dict(state.attributes))
         for state in hass.states.async_all()
+        if async_should_expose(hass, conversation.DOMAIN, state.entity_id)
     }
 
 
