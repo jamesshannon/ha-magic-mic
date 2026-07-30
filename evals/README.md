@@ -100,16 +100,18 @@ stay tool-scored on purpose.
 `corpus/resolution/seed.yaml` + `harness/resolution.py` are a separate, deterministic tier
 from everything above: they measure the fuzzy entity **scorer** in isolation
 ([`docs/find-entities.md`](../docs/find-entities.md), [`docs/evaluation.md`](../docs/evaluation.md)
-Part G), with no LLM and no Home Assistant world. The scorer only ever sees candidate names,
-so a case is plain data: a `query` against a named `home`'s entity names, plus the expected
-guard outcome (`resolves_to` one entity / `ambiguous` shortlist / `none`). Structured filters
-(area, domain, state, exposure) are `async_match_targets`' job and are not scored here; the
-tool-level integration that exercises them lives in `tests/.../test_find_entities.py`.
+Part G), with no LLM and no Home Assistant world. The scorer sees only each candidate's
+descriptive phrases (names, aliases, area, floor), so a case is plain data: a `query` against a
+named `home`, plus the expected guard outcome (`resolves_to` one entity / `ambiguous` shortlist
+/ `none`). Structured filtering, state, and exposure are `async_match_targets`' job and are not
+scored here; the tool-level integration that exercises them lives in
+`tests/.../test_find_entities.py`.
 
 That purity is the point: cases run in microseconds, so the set can scale to thousands and A/B
-two scorers cheaply. A `home` doubles as the candidate universe *and* as the document corpus a
-future IDF-weighted scorer would learn term weights from, so a richer scorer drops in behind
-the `Resolver` seam without touching the corpus.
+two scorers cheaply. A `home` *is* the candidate set the scorer is handed (what
+`async_match_targets` already returned), so it stands in for a regime: a whole small house, or
+the set left after an area filter (the corpus an IDF-weighted scorer learns term weights from).
+A richer scorer drops in behind the `Resolver` seam without touching the corpus.
 
 ```
 .venv/bin/python -m evals.harness.resolution     # print the scorecard
@@ -117,12 +119,14 @@ the `Resolver` seam without touching the corpus.
 
 The scorecard reports **false-resolve rate** (decisively acting on the wrong entity, the one
 unsafe failure), **decisive accuracy**, **resolve recall** (target returned at all, even if
-only shortlisted), and ambiguous / none handling. `harness/test_resolution.py` is the
-CI-blocking gate: false-resolve rate stays at zero and decisive accuracy holds at or above its
-recorded floor. Cases tagged "headroom" in the seed are semantically unambiguous but the
-current `token_set_ratio` scorer only shortlists them (a shared category word like "light"
-dilutes the discriminating token); they are the tuning target for IDF weighting, and they
-lower decisive accuracy *without* ever becoming false resolves.
+only shortlisted), ambiguous / none handling, and a **per-regime breakdown** keyed on each
+case's `tags`. `harness/test_resolution.py` is the CI-blocking gate: false-resolve rate stays
+at zero, decisive accuracy holds at or above its recorded floor, and the guardrail regimes
+(`decisive`, `small-home`, `none`, `ambiguous`) stay perfect. The per-regime split is how a
+scorer change is judged safe: `shared-word` and `area-filtered` cases (a common token like
+"light" dilutes the discriminator) are the tuning target for IDF weighting and are allowed to
+be imperfect; `small-home` cases are the counterweight (too few entities to estimate term
+rarity, so IDF must not turn cautious there). None of the misses is ever a false resolve.
 
 ## Interactive console (manual tracing)
 

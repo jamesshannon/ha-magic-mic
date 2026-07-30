@@ -6,19 +6,24 @@
 #
 #   .venv/bin/python -m evals.harness.resolution
 #
-# Homes are candidate universes (and the document corpus a future IDF-weighted scorer
-# would learn term weights from). `expect` sets exactly one of:
+# A home is the candidate set the scorer sees, i.e. what async_match_targets already
+# returned. That lets a home stand in for a *regime*: a whole small house, or the set
+# left after an area filter (every entity shares the area - the TF-IDF sweet spot, where
+# the ubiquitous area token should carry little weight). `tags` name the regime so the
+# scorecard reports per-regime, which is how a scorer change is judged: a lift in shared-
+# word cases must not regress small-home cases. `expect` sets exactly one of:
 #   resolves_to: <id>        the guard should decisively pick this entity
 #   ambiguous: [<id>, ...]   the guard should return a shortlist containing these
 #   none: true               nothing should clear the floor
 #
-# Cases tagged "headroom" below are semantically unambiguous to a human but the current
-# scorer does not resolve them yet: a shared category word (like "light") dilutes the
-# discriminating token, so a wrong candidate stays within the guard's margin. They are
-# the tuning target for IDF weighting, and they lower decisive-accuracy without ever
-# becoming false resolves - the guard asks instead of guessing wrong, the safe failure.
-# (Location cases below, where the discriminator is the area, now resolve: the scorer
-# reads area/floor as part of the document.)
+# Cases tagged "shared-word" are semantically unambiguous to a human but a distractor
+# shares a common token (like "light" or "living room") and lands inside the guard's
+# margin, so the current scorer asks instead of resolving. They are the IDF-weighting
+# target: down-weight the shared token and the distractor falls away. They lower decisive
+# accuracy without ever becoming false resolves - the guard asks, which is the safe
+# failure. "small-home" cases are the counterweight: too few entities to estimate term
+# rarity, so IDF must not be trusted there; the corpus-free union scorer keeps them
+# decisive, and any IDF change has to leave them that way.
 
 homes:
   demo:
@@ -38,6 +43,15 @@ homes:
     - {entity_id: light.overhead, names: [Overhead Light]}
     - {entity_id: lock.door, names: [Front Door Lock]}
 
+  # Small whole-home: too few entities to estimate term rarity. "light" appears in no
+  # name here, so an IDF scorer computing df over just these three would wrongly treat
+  # "light" as rare and turn cautious. The corpus-free union scorer must keep the obvious
+  # answer decisive; this home is the guardrail that an IDF change cannot regress it.
+  cottage:
+    - {entity_id: light.reading, names: [Reading Lamp]}
+    - {entity_id: switch.fan, names: [Ceiling Fan]}
+    - {entity_id: lock.front, names: [Front Door Lock]}
+
   # Location as the discriminating signal (see find-entities.md area matching). The
   # discriminator "kitchen" lives in the registry, not in these entities' names. The
   # scorer folds area/floor into each candidate's document, so these now resolve while a
@@ -50,41 +64,104 @@ homes:
     - {entity_id: light.kitchen, names: [Light], area: Kitchen}
     - {entity_id: light.living, names: [Light], area: Living Room}
 
+  # Area-filtered candidate set: what async_match_targets returns for area=Kitchen. Every
+  # entity carries the "kitchen" token, so it is worthless for discriminating here - the
+  # premise of TF-IDF. Several also share "light", so a query for one light must beat the
+  # others on the rare token (its own name), not on the shared ones.
+  kitchen_area:
+    - {entity_id: light.kitchen_ceiling, names: [Ceiling Light], area: Kitchen}
+    - {entity_id: light.kitchen_sink, names: [Sink Light], area: Kitchen}
+    - {entity_id: switch.kitchen_lights, names: [Kitchen Lights], area: Kitchen}
+    - {entity_id: switch.kitchen_kettle, names: [Kettle], area: Kitchen}
+    - {entity_id: switch.kitchen_disposal, names: [Garbage Disposal], area: Kitchen}
+    - {entity_id: fan.kitchen_hood, names: [Range Hood], area: Kitchen}
+
+  # Medium whole-home: enough entities that df is a stable estimate of term rarity, with
+  # several "Ceiling Light" / "*Light" names so "light" is genuinely common. The regime
+  # IDF is meant for; also the honesty check that it does not misfire on ordinary queries.
+  house:
+    - {entity_id: light.lr_ceiling, names: [Living Room Ceiling Light], area: Living Room, floor: Downstairs}
+    - {entity_id: light.lr_lamp, names: [Floor Lamp], area: Living Room, floor: Downstairs}
+    - {entity_id: media_player.lr_tv, names: [Television], area: Living Room, floor: Downstairs}
+    - {entity_id: cover.lr_blinds, names: [Living Room Blinds], area: Living Room, floor: Downstairs}
+    - {entity_id: light.kitchen_ceiling, names: [Kitchen Ceiling Light], area: Kitchen, floor: Downstairs}
+    - {entity_id: light.kitchen_island, names: [Island Light], area: Kitchen, floor: Downstairs}
+    - {entity_id: switch.coffee, names: [Coffee Maker], area: Kitchen, floor: Downstairs}
+    - {entity_id: light.hall, names: [Hallway Light], area: Hallway, floor: Downstairs}
+    - {entity_id: climate.main, names: [Thermostat], area: Hallway, floor: Downstairs}
+    - {entity_id: lock.front, names: [Front Door Lock], area: Entryway, floor: Downstairs}
+    - {entity_id: cover.garage, names: [Garage Door], area: Garage, floor: Downstairs}
+    - {entity_id: light.primary_ceiling, names: [Ceiling Light], area: Primary Bedroom, floor: Upstairs}
+    - {entity_id: light.primary_lamp, names: [Nightstand Lamp], area: Primary Bedroom, floor: Upstairs}
+    - {entity_id: fan.primary, names: [Ceiling Fan], area: Primary Bedroom, floor: Upstairs}
+    - {entity_id: light.kids_ceiling, names: [Ceiling Light], area: Kids Room, floor: Upstairs}
+    - {entity_id: light.bath_vanity, names: [Vanity Light], area: Bathroom, floor: Upstairs}
+
 cases:
   # --- decisive hits (a clear single winner) ---
-  - {id: reading-lamp-exact, home: demo, query: reading lamp, expect: {resolves_to: light.reading}}
-  - {id: reading-bare-token, home: demo, query: reading, expect: {resolves_to: light.reading}}
-  - {id: thermostat, home: demo, query: thermostat, expect: {resolves_to: climate.hall}}
-  - {id: christmas-tree, home: demo, query: the christmas tree, expect: {resolves_to: switch.xmas}}
-  - {id: front-door-alias, home: demo, query: front door, expect: {resolves_to: lock.front}}
-  - {id: tv-alias, home: demo, query: tv, expect: {resolves_to: media_player.living_tv}}
-  - {id: desk-lamp-studio, home: studio, query: desk lamp, expect: {resolves_to: light.desk}}
-
-  # --- headroom: should resolve, still diluted by a shared category word (IDF target) ---
-  - {id: reading-light, home: demo, query: reading light, expect: {resolves_to: light.reading},
-     note: "headroom - 'light' dilutes 'reading'; Kitchen Light collides"}
-  - {id: living-room-blind, home: demo, query: living room blind, expect: {resolves_to: cover.living_blind},
-     note: "headroom - 'living room' shared with the TV dilutes 'blind'"}
-
-  # --- resolves: the discriminating token is present and unshared ---
+  - {id: reading-lamp-exact, home: demo, query: reading lamp, expect: {resolves_to: light.reading}, tags: [decisive]}
+  - {id: reading-bare-token, home: demo, query: reading, expect: {resolves_to: light.reading}, tags: [decisive]}
+  - {id: thermostat, home: demo, query: thermostat, expect: {resolves_to: climate.hall}, tags: [decisive]}
+  - {id: christmas-tree, home: demo, query: the christmas tree, expect: {resolves_to: switch.xmas}, tags: [decisive],
+     note: "leading filler 'the' must not sink the match"}
+  - {id: front-door-alias, home: demo, query: front door, expect: {resolves_to: lock.front}, tags: [decisive]}
+  - {id: tv-alias, home: demo, query: tv, expect: {resolves_to: media_player.living_tv}, tags: [decisive]}
   - {id: kitchen-ceiling-order, home: demo, query: kitchen ceiling, expect: {resolves_to: light.kitchen_ceiling},
-     note: "'ceiling' is unique to the ceiling light, so word order aside it wins"}
+     tags: [decisive], note: "'ceiling' is unique to the ceiling light, so word order aside it wins"}
+
+  # --- small-home: too few entities for IDF; union must keep these decisive ---
+  - {id: desk-lamp-studio, home: studio, query: desk lamp, expect: {resolves_to: light.desk}, tags: [small-home, decisive]}
+  - {id: cottage-reading-light, home: cottage, query: reading light, expect: {resolves_to: light.reading},
+     tags: [small-home], note: "'light' absent from this 3-entity home; union resolves via 'reading', IDF would over-penalize"}
+  - {id: cottage-front-door, home: cottage, query: front door, expect: {resolves_to: lock.front}, tags: [small-home]}
+
+  # --- shared-word: a common token dilutes the discriminator (IDF target) ---
+  - {id: reading-light, home: demo, query: reading light, expect: {resolves_to: light.reading},
+     tags: [shared-word], note: "'light' shared with Kitchen Light, which lands in the margin"}
+  - {id: living-room-blind, home: demo, query: living room blind, expect: {resolves_to: cover.living_blind},
+     tags: [shared-word], note: "'living room' shared with the TV (88) sits inside the margin of the target (100)"}
+  - {id: house-living-blinds, home: house, query: living room blinds, expect: {resolves_to: cover.lr_blinds},
+     tags: [shared-word, medium-home], note: "same collision with more entities: does stable df separate blinds from TV"}
+  - {id: kitchen-sink-light, home: kitchen_area, query: kitchen sink light, expect: {resolves_to: light.kitchen_sink},
+     tags: [shared-word, area-filtered], note: "Ceiling Light shares kitchen+light; only 'sink' separates them"}
+  - {id: kitchen-ceiling-light, home: kitchen_area, query: kitchen ceiling light, expect: {resolves_to: light.kitchen_ceiling},
+     tags: [shared-word, area-filtered], note: "Sink Light and Kitchen Lights both share kitchen+light"}
+
+  # --- area-filtered: the ubiquitous area token must not decide; a rare name does ---
+  - {id: kitchen-disposal, home: kitchen_area, query: garbage disposal, expect: {resolves_to: switch.kitchen_disposal},
+     tags: [area-filtered, decisive]}
+  - {id: kitchen-kettle, home: kitchen_area, query: kettle, expect: {resolves_to: switch.kitchen_kettle},
+     tags: [area-filtered, decisive]}
+
+  # --- medium-home: stable df; ordinary queries and location disambiguation ---
+  - {id: house-thermostat, home: house, query: thermostat, expect: {resolves_to: climate.main}, tags: [medium-home, decisive]}
+  - {id: house-coffee, home: house, query: coffee maker, expect: {resolves_to: switch.coffee}, tags: [medium-home, decisive]}
+  - {id: house-garage, home: house, query: garage door, expect: {resolves_to: cover.garage}, tags: [medium-home, decisive]}
+  - {id: house-nightstand, home: house, query: nightstand lamp, expect: {resolves_to: light.primary_lamp}, tags: [medium-home]}
+  - {id: house-island-light, home: house, query: island light, expect: {resolves_to: light.kitchen_island},
+     tags: [medium-home, shared-word], note: "'light' common across the home; 'island' is the discriminator"}
+  - {id: house-primary-ceiling, home: house, query: primary bedroom ceiling light, expect: {resolves_to: light.primary_ceiling},
+     tags: [medium-home, location], note: "three 'Ceiling Light' entities; the area 'Primary Bedroom' picks one"}
+
+  # --- location: the discriminating token is the area, not the name ---
+  - {id: room-completes-name, home: named_by_room, query: kitchen light, expect: {resolves_to: light.kitchen_ceiling},
+     tags: [location], note: "'Ceiling Light' in the Kitchen; area completes the name, union keeps the Kitchen Counter switch below the margin"}
+  - {id: room-disambiguates, home: same_name_two_rooms, query: kitchen light, expect: {resolves_to: light.kitchen},
+     tags: [location], note: "two entities named 'Light'; the area picks the kitchen one"}
 
   # --- genuinely ambiguous (the guard should ask) ---
   - {id: bedroom-family, home: demo, query: bedroom,
      expect: {ambiguous: [light.bedroom_lamp, light.bedroom_ceiling, fan.bedroom]},
-     note: "three bedroom devices tie; ask which"}
-
-  # --- location: the discriminating token is the area, not the name (now resolves) ---
-  - {id: room-completes-name, home: named_by_room, query: kitchen light, expect: {resolves_to: light.kitchen_ceiling},
-     note: "'Ceiling Light' in the Kitchen; area completes the name, and the union keeps the Kitchen Counter switch below the margin"}
-  - {id: room-disambiguates, home: same_name_two_rooms, query: kitchen light, expect: {resolves_to: light.kitchen},
-     note: "two entities named 'Light'; the area picks the kitchen one"}
+     tags: [ambiguous], note: "three bedroom devices tie; ask which"}
   - {id: no-room-stays-ambiguous, home: same_name_two_rooms, query: light,
      expect: {ambiguous: [light.kitchen, light.living]},
-     note: "control - with no room in the query the two Lights are genuinely ambiguous, and must stay so"}
+     tags: [ambiguous, location], note: "no room in the query, so the two Lights are genuinely ambiguous and must stay so"}
+  - {id: kitchen-two-lights, home: kitchen_area, query: light,
+     expect: {ambiguous: [light.kitchen_ceiling, light.kitchen_sink]},
+     tags: [ambiguous, area-filtered],
+     note: "bare 'light' in the kitchen is ambiguous; the Kitchen Lights switch misses on the singular/plural token (a stemming gap, not an IDF one)"}
 
   # --- nothing should match ---
-  - {id: nonsense, home: demo, query: xylophone, expect: {none: true}}
+  - {id: nonsense, home: demo, query: xylophone, expect: {none: true}, tags: [none]}
   - {id: absent-domain, home: studio, query: garage door, expect: {none: true},
-     note: "no garage entity in the studio home"}
+     tags: [none, small-home], note: "no garage entity in the studio home"}

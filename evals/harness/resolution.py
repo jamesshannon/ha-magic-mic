@@ -5,15 +5,17 @@ Distinct from the golden set (Parts D-E, LLM-in-the-loop) and from `test_find_en
 deterministic scorer benchmark evaluation.md Part G names: a large labeled
 ``(query, candidates) -> expected ranking + guard decision`` set run straight through
 the pure scorer (`custom_components.magic_mic.fuzzy`), with no Home Assistant world at
-all. Entity *state / area / exposure* are `async_match_targets`' concern (HA's exact
-code, not what we tune); the scorer only ever sees candidate names, so a case is plain
-data and runs in microseconds. That is what lets this scale to thousands of cases and
-A/B two scorers cheaply.
+all. Entity *state / exposure* and structured filtering are `async_match_targets`'
+concern (HA's exact code, not what we tune); the scorer sees only each candidate's
+descriptive phrases (names, aliases, area, floor), so a case is plain data and runs in
+microseconds. That is what lets this scale to thousands of cases and A/B two scorers
+cheaply.
 
-Cases are grouped under a named ``home`` (a set of entity ids and their names/aliases).
-The home doubles as the candidate universe a name-only lookup scores against, and as the
-document corpus a future IDF-weighted scorer would derive term weights from, so richer
-scorers slot in behind the same `Resolver` seam without touching the corpus.
+Cases are grouped under a named ``home`` - the candidate set the scorer is handed, i.e.
+what `async_match_targets` already returned. A home therefore stands in for a regime: a
+whole small house, or the set left after an area filter (the corpus an IDF-weighted
+scorer derives term weights from). Richer scorers slot in behind the same `Resolver`
+seam without touching the corpus.
 """
 
 from collections.abc import Callable
@@ -30,8 +32,9 @@ from custom_components.magic_mic.fuzzy import Resolution, resolve, score_candida
 CORPUS_DIR = Path(__file__).resolve().parent.parent / "corpus" / "resolution"
 SEED_SET = CORPUS_DIR / "seed.yaml"
 
-# A resolver maps (query, {entity_id: names}, limit) to a guard Resolution. The default
-# is the production scorer; a candidate variant (IDF-weighted, phonetic) is a drop-in.
+# A resolver maps (query, {entity_id: phrases}, limit) to a guard Resolution, where
+# phrases are a candidate's names/aliases plus location terms. The default is the
+# production scorer; a candidate variant (IDF-weighted, phonetic) is a drop-in.
 type Resolver = Callable[[str, dict[str, list[str]], int], Resolution]
 
 
@@ -98,7 +101,12 @@ class ResEntity:
 
 @dataclass(frozen=True)
 class ResCase:
-    """One labeled resolution case: a query against a home, and the expected outcome."""
+    """One labeled resolution case: a query against a home, and the expected outcome.
+
+    ``tags`` group cases into regimes (e.g. "small-home", "area-filtered",
+    "shared-word") so the scorecard can report accuracy per regime, not just blended;
+    that is what shows whether a scorer change helps one regime while regressing another.
+    """
 
     id: str
     home: str
@@ -107,6 +115,7 @@ class ResCase:
     resolves_to: str | None = None
     ambiguous: tuple[str, ...] = ()
     note: str | None = None
+    tags: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -219,6 +228,22 @@ class Scorecard:
         """Return the case evals that did not pass, for reporting."""
         return tuple(result for result in self.results if not result.outcome.passed)
 
+    def tag_breakdown(self) -> dict[str, tuple[int, int, int]]:
+        """Per-regime ``tag -> (passed, total, false_resolves)``, tags sorted.
+
+        A case counts under each of its tags, so tags overlap by design. This is how a
+        scorer change is judged: a lift in one regime must not hide a regression in
+        another (e.g. shared-word accuracy up while small-home accuracy drops).
+        """
+        tags = sorted({tag for result in self.results for tag in result.case.tags})
+        breakdown: dict[str, tuple[int, int, int]] = {}
+        for tag in tags:
+            tagged = [r for r in self.results if tag in r.case.tags]
+            passed = sum(1 for r in tagged if r.outcome.passed)
+            false_resolves = sum(1 for r in tagged if r.outcome.is_false_resolve)
+            breakdown[tag] = (passed, len(tagged), false_resolves)
+        return breakdown
+
 
 def default_resolver(
     query: str, candidates: dict[str, list[str]], limit: int
@@ -296,6 +321,13 @@ def format_scorecard(scorecard: Scorecard) -> str:
         f"ambiguous accuracy: {scorecard.ambiguous_accuracy:.1%}",
         f"none accuracy:      {scorecard.none_accuracy:.1%}",
     ]
+    breakdown = scorecard.tag_breakdown()
+    if breakdown:
+        lines.append("by regime (passed/total, false-resolves):")
+        lines.extend(
+            f"  {tag:<16} {passed}/{total}" + (f"  [{fr} FALSE-RESOLVE]" if fr else "")
+            for tag, (passed, total, fr) in breakdown.items()
+        )
     failures = scorecard.failures()
     if failures:
         lines.append(f"failures ({len(failures)}):")
@@ -336,6 +368,7 @@ def _parse_case(raw: dict[str, Any]) -> ResCase:
         resolves_to=resolves_to,
         ambiguous=tuple(ambiguous or ()),
         note=raw.get("note"),
+        tags=tuple(raw.get("tags") or ()),
     )
 
 

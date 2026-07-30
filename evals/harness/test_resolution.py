@@ -24,13 +24,19 @@ from evals.harness.resolution import (
     run,
 )
 
-# Current measured floor for the seed set. The union-document scorer reads area/floor,
-# so the two location cases now resolve (0.66 -> 0.83). The remaining misses are the
-# shared-category-word cases (reading-light, living-room-blind), the IDF-weighting
-# target. Raise this as the scorer improves; a drop with no new cases is a regression.
-# Never lower the false-resolve gate - decisively acting on the wrong entity is the one
-# failure the guard exists to prevent.
-_SEED_MIN_DECISIVE_ACCURACY = 0.83
+# Current measured floor for the seed set (30 cases across regimes). The union-document
+# scorer reads area/floor, so location resolves; the remaining misses are the shared-word
+# and area-filtered cases, the IDF-weighting target. Raise this as the scorer improves; a
+# drop with no new cases is a regression. Never lower the false-resolve gate - decisively
+# acting on the wrong entity is the one failure the guard exists to prevent.
+_SEED_MIN_DECISIVE_ACCURACY = 0.84
+
+# Regimes that must stay perfect regardless of scorer changes. Small homes are too sparse
+# for IDF to estimate term rarity, so a weighting change must never make them cautious;
+# the decisive/none/ambiguous guardrails pin the behavior the guard exists to guarantee.
+# The shared-word and area-filtered regimes are deliberately absent: those are allowed to
+# be imperfect (they are what a scorer change is trying to lift).
+_GUARDRAIL_REGIMES = ("decisive", "small-home", "none", "ambiguous")
 
 
 def _corpus(*cases: ResCase) -> ResCorpus:
@@ -73,6 +79,22 @@ def test_seed_set_meets_baseline_accuracy(hass_free_seed: Scorecard) -> None:
     assert hass_free_seed.none_accuracy == 1.0
 
 
+def test_seed_set_guardrail_regimes_stay_perfect(hass_free_seed: Scorecard) -> None:
+    """The regimes a scorer change must never regress are all-passing, false-resolve free.
+
+    A weighting change (IDF) may lift the shared-word/area-filtered regimes, but small
+    homes and the decisive/none/ambiguous guardrails must remain intact.
+    """
+    breakdown = hass_free_seed.tag_breakdown()
+    for regime in _GUARDRAIL_REGIMES:
+        passed, total, false_resolves = breakdown[regime]
+        assert total > 0, f"guardrail regime {regime!r} has no cases"
+        assert passed == total, (
+            f"guardrail regime {regime!r} regressed: {passed}/{total}"
+        )
+        assert false_resolves == 0, f"guardrail regime {regime!r} false-resolved"
+
+
 @pytest.fixture
 def hass_free_seed() -> Scorecard:
     """Score the seed corpus with the production scorer (no HA world involved)."""
@@ -89,6 +111,31 @@ def test_seed_carries_entity_location() -> None:
     by_id = {entity.entity_id: entity for entity in corpus.homes["named_by_room"]}
     assert by_id["light.kitchen_ceiling"].area == "Kitchen"
     assert by_id["light.bedroom_ceiling"].area == "Bedroom"
+
+
+def test_tag_breakdown_counts_each_regime() -> None:
+    """A case counts under each of its tags; overlapping tags aggregate independently."""
+    scorecard = run(
+        ResCorpus(
+            homes={"h": (ResEntity("light.a", ("Alpha",)),)},
+            cases=(
+                ResCase(
+                    "r",
+                    "h",
+                    "alpha",
+                    Expectation.RESOLVES_TO,
+                    resolves_to="light.a",
+                    tags=("decisive", "shared"),
+                ),
+                ResCase("n", "h", "zzz", Expectation.NONE, tags=("shared",)),
+            ),
+        ),
+        _fixed(Resolution(Scored("light.a", 95.0))),
+    )
+    breakdown = scorecard.tag_breakdown()
+    assert breakdown["decisive"] == (1, 1, 0)
+    # The none case is WRONG_NONE under this always-resolve stub, so 'shared' is 1 of 2.
+    assert breakdown["shared"] == (1, 2, 0)
 
 
 def test_correct_resolve() -> None:
