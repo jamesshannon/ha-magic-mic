@@ -19,6 +19,7 @@ evals/
     wave0_golden_set.yaml        the seed cases + the fixture "home" they run against
   harness/                       corpus loader, scorer, routing measurement, runner
     baseline.py                  the live-baseline entry point (needs a key)
+    console.py                   interactive CLI to hand-drive turns (needs a key)
     backing.py                   real executable entities for the fixture home
   results/
     wave0_baseline.json          the recorded live baseline Wave 1 measures against
@@ -91,6 +92,42 @@ stay tool-scored on purpose.
   so it routes to the LLM regardless; the split metric is where this shows up.
 - Time/date/state answers depend on the fixture clock and states. Answer predicates stay
   loose (a shape, not a literal) so they survive a changing fixture.
+
+## Interactive console (manual tracing)
+
+`harness/console.py` is the live-tracing sibling of the offline corpus runner: the terminal
+equivalent of Home Assistant's "chat with the assistant" box plus its debug-trace tool, for
+hand-testing during a wave. It stands up the same headless HA and fixture world the corpus
+uses, then lets you type utterances and inspect the whole turn. It needs a live key (read
+from the environment or a project-root `.env`, same as `baseline.py`).
+
+```
+.venv/bin/python -m evals.harness.console                       # interactive REPL
+.venv/bin/python -m evals.harness.console --skip-hassil         # start LLM-only
+.venv/bin/python -m evals.harness.console -u "turn on the kitchen light" -u "now off it"
+```
+
+Each turn shows, per model round, the **durable** system prompt (the `cache_control`-marked
+block, printed once since it is cached and unchanged across rounds) and the **volatile**
+message list as it grows, plus the tools sent, the tool calls made, the token/cache cost, and
+the spoken answer. The composed prompt is not on the conversation trace, so the console
+captures it harness-side by wrapping the provider client's `messages.create` for the turn;
+nothing in `custom_components/` changes.
+
+Two knobs, both live-toggleable, are the Scope and agent selectors from
+[`docs/evaluation.md`](../docs/evaluation.md) Part E:
+
+- **Scope** (`:hassil on|off`, or start with `--skip-hassil`): the full hassil→LLM path
+  probes the local HASSIL agent first and, if it resolves, stops there (the `prefer_local`
+  win, no LLM call); LLM-only skips straight to the model.
+- **Agent** (`:agent baseline|testbed`, or `--agent`): the stock provider agent vs the Magic
+  Mic proxy.
+
+Unlike the corpus runner, the fixture world is **not** reset between turns: state
+accumulates, so "turn it on" then "now turn it off" behave, and a follow-up ("no, I meant the
+bedroom") works because the conversation carries a stable id across turns. `:reset` restores
+the world; `:new` starts a fresh conversation; `:req` dumps the last turn's full requests;
+`:help` lists every command.
 
 ## Reuse plan
 
@@ -170,6 +207,10 @@ Findings the keyless routing measurement surfaced:
   select a subset for a cheap re-run after a targeted fix. A subset never overwrites the
   locked baseline (it prints, or writes to `--out`); `--list` shows the selection without a
   key.
+- Interactive console: done (`harness/console.py`). Hand-drive utterances against the fixture
+  world and inspect the turn (durable/volatile prompt split, tools, tool calls, cost, answer),
+  with live HASSIL/agent toggles and multi-turn conversation continuity. See "Interactive
+  console" above.
 
 ### Wave 0 exit gate (blocks Wave 1): done
 
