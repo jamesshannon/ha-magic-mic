@@ -52,7 +52,12 @@ from homeassistant.components.todo import (
     TodoListEntity,
     TodoListEntityFeature,
 )
-from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
+from homeassistant.const import (
+    ATTR_TEMPERATURE,
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
+    UnitOfTemperature,
+)
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import area_registry as ar, entity_registry as er
 from homeassistant.helpers.entity import Entity
@@ -232,6 +237,24 @@ class _TodoList(_BackedEntity, TodoListEntity):
 EVAL_DEVICE_ID = "magic_mic_eval_satellite"
 
 
+def _assert_world_healthy(hass: HomeAssistant, entity_ids: list[str]) -> None:
+    """Fail loudly if a fixture entity is missing or in a bad state.
+
+    A tripwire adapted from home-assistant-datasets' ``get_state`` (which asserts no
+    snapshotted entity is unavailable/unknown) and its ``validate_entities`` fixture (which
+    asserts every inventory entity was created). Our sequential single-``hass`` runner has
+    neither the per-test fixture that would rebuild a broken world nor a hard failure when a
+    platform silently drops an entity, so a mis-built or mis-reset world would otherwise
+    score as if it were fine. This turns that into an error at build and reset time.
+    """
+    for entity_id in entity_ids:
+        state = hass.states.get(entity_id)
+        assert state is not None, f"Fixture entity was not created: {entity_id}"
+        assert state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN), (
+            f"Fixture entity {entity_id} is {state.state}; the world is not healthy"
+        )
+
+
 def register_timer_device(hass: HomeAssistant) -> str:
     """Register a no-op timer handler so timer intents are exposed and execute.
 
@@ -281,6 +304,10 @@ class ExecutableWorld:
         for entity_id, state in self._bare.items():
             hass.states.async_set(entity_id, state)
         await hass.async_block_till_done()
+        _assert_world_healthy(
+            hass,
+            [entity.entity_id for entity in self._entities] + list(self._bare),
+        )
 
 
 async def build_executable_world(hass: HomeAssistant, world: World) -> ExecutableWorld:
@@ -336,4 +363,5 @@ async def build_executable_world(hass: HomeAssistant, world: World) -> Executabl
         resolved[entity.entity_id] = entity.entity_id
 
     await hass.async_block_till_done()
+    _assert_world_healthy(hass, [entity.entity_id for entity in instances] + list(bare))
     return ExecutableWorld(resolved=resolved, _entities=instances, _bare=bare)
