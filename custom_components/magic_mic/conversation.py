@@ -5,12 +5,11 @@ Both run the same Claude backend. `Claude (baseline)` is the stock provider agen
 as a delta against the baseline (docs/testbed-proxy.md).
 """
 
-from homeassistant.const import CONF_LLM_HASS_API, CONF_PROMPT
+from homeassistant.const import CONF_LLM_HASS_API
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import DEFAULT_PROMPT
 from .internal.claude.agent import ClaudeConversationEntity
 from .internal.claude.const import CONF_CHAT_MODEL, DEFAULT
 from .internal.claude.coordinator import MagicMicConfigEntry
@@ -25,10 +24,12 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the baseline and testbed conversation agents."""
+    # No CONF_PROMPT: leaving it unset lets chat_log fall back to core's
+    # llm.DEFAULT_INSTRUCTIONS_PROMPT ("Answer in plain text. Keep it simple and to
+    # the point."). Re-typing our own base prompt here only invited drift from core.
     options = {
         CONF_CHAT_MODEL: DEFAULT[CONF_CHAT_MODEL],
         CONF_LLM_HASS_API: llm.LLM_API_ASSIST,
-        CONF_PROMPT: DEFAULT_PROMPT,
     }
     entry_id = config_entry.entry_id
     async_add_entities(

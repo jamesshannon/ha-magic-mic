@@ -5,9 +5,9 @@ import logging
 DOMAIN = "magic_mic"
 LOGGER = logging.getLogger(__package__)
 
-# Base instructions for the agent. The Assist LLM API appends the exposed-entity
-# context (the "api_prompt") to this at request time.
-DEFAULT_PROMPT = "You are a voice assistant for Home Assistant."
+# No base-prompt constant: the agents leave CONF_PROMPT unset so chat_log falls back
+# to core's llm.DEFAULT_INSTRUCTIONS_PROMPT, rather than re-typing (and drifting from)
+# it here. The Assist LLM API appends the exposed-entity context at request time.
 
 # Prompt-context (docs/prompt-context.md, PRODUCT_PLAN §5.6). When enabled, the
 # testbed proxy replaces HA's full exposed-entity roster ("Static Context") with the
