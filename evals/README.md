@@ -42,7 +42,10 @@ Each case is a single-turn `(utterance [, context] -> expected action(s) / answe
 | `requires` | Fixture entities/features the case depends on (documents the context assumption; the runner must expose these). |
 | `expected.tools` | Ordered list of `{name, args}` the correct outcome invokes. `args` are partial hints, not an exact-match contract. Omit for answer-only cases. |
 | `expected.answer` | Optional predicate over the spoken response: `{contains: [...]}` or `{regex: ...}`. |
-| `any_of` | Either `expected` or `expected_llm` may be `{any_of: [<outcome>, ...]}` instead of a single `{tools, answer}` block. The case is correct when the turn matches **any** listed outcome. This is for genuine ties the model picks between run to run (close a cover by `HassTurnOff` or by `HassSetPosition: 0`), so non-determinism does not flip-flop pass/fail. Only for equally-valid outcomes, never accepted failures. |
+| `expect_changes` | `entity_id -> {state, attributes}` the turn must leave the world in. When present, the case is **state-scored**: correctness is the resulting state, not the tool called (`harness/statediff.py`), so it needs no `expected_llm` or `any_of`. Declared entities are checked on state plus each named attribute; every other exposed entity on state alone (catches a wrong-target side effect). Requires the executable world (`backing.py`). |
+| `setup` | `entity_id -> {state, attributes}` to stage **before** the turn, so a change is real (turn on a light that starts on, open a garage that starts open). Same shape as `expect_changes`. |
+| `ignore_changes` | `entity_id -> [attribute, ...]` checks to suppress; the literal `state` drops that entity's state check, for a genuinely non-deterministic outcome. |
+| `any_of` | Either `expected` or `expected_llm` may be `{any_of: [<outcome>, ...]}` instead of a single `{tools, answer}` block. The case is correct when the turn matches **any** listed outcome. This is for genuine ties the model picks between run to run (close a cover by `HassTurnOff` or by `HassSetPosition: 0`), so non-determinism does not flip-flop pass/fail. Only for equally-valid outcomes, never accepted failures. **For device-control ties, prefer `expect_changes`**: judging the state absorbs the tie without enumerating tools. |
 | `expected_llm` | Optional per-scope override of `expected` for the **LLM path**, used where core's Assist API drops the intent (`GetCurrentTime`, `GetState`, `GetWeather`, …) in favor of a general tool (`GetDateTime`, `GetLiveContext`), or where the LLM grounds a target by name where the local template uses an area slot. Same shape as `expected` (single outcome or `any_of`). When absent, both scopes score against `expected`. `expected_for(llm=...)` picks the right one. An empty `tools: []` is a deliberate "no tool, unjudgeable" (e.g. nevermind), distinct from omitting the field. |
 | `template` | For `local` cases, the HASSIL source template the utterance exercises (provenance). |
 | `note` | Why the case earns its place. |
@@ -69,6 +72,15 @@ often through an extra tool round-trip that HASSIL answers in zero, which is exa
 generations/tokens/latency delta the scorecard tracks and the case *for* `prefer_local` ON.
 `expected_llm` encodes those diverging expectations; everything else scores against
 `expected` in both scopes.
+
+**State-scored cases sidestep the scope split.** A case with `expect_changes` is judged by
+the world it leaves, which is identical whether HASSIL or the LLM acted and whichever
+equally-valid tool got there. So it carries no `expected_llm` and no `any_of`; the nine
+device-control cases migrated to `expect_changes` dropped exactly that machinery (see
+[`docs/evaluation.md`](../docs/evaluation.md) Part H). Cases where the tool matters for
+precision (`set-bedroom-brightness`, where the percentage-to-0-255 value is the point) or
+where the end state is loose (`implicit-cold` raising a setpoint by an unspecified amount)
+stay tool-scored on purpose.
 
 ## Scope notes worth remembering
 
@@ -166,6 +178,14 @@ Ran the live baseline keyed from a project-root `.env`: stock full-roster prompt
 4 wrong-action, 0 unresolved; routing agreement 8/25 (every case routes to the LLM with
 `prefer_local` OFF, so only the 8 `llm`-labelled cases agree); 44 generations. Wave 1 reports
 Δtokens / Δturns / Δhassil-rate against this artifact.
+
+> **Refresh needed before Wave 1 measures against it.** This artifact was scored under
+> tool-name matching, before nine device-control cases moved to `expect_changes`
+> (state scoring). The recorded observations (tools, tokens, generations) are unchanged, but
+> the correctness basis for those cases is not, so the buckets are no longer produced the
+> same way. Re-run the keyed baseline to regenerate `wave0_baseline.json` under state
+> scoring, then compare Wave 1 against the refreshed reference. This is a human-gated, keyed
+> step (it spends tokens); it has not been done yet.
 
 This is the **pre-magic roster**: the shipped agent now enables `web_search`/`web_fetch`
 (the banked free magic), but `build-sequence.md` captures the baseline *before* that bank,

@@ -407,23 +407,32 @@ not a compromise. The boundary is a build-time decision, not a design blocker.
 **What we adopt from home-assistant-datasets, and what we defer.** Split by cost and risk,
 because the two borrowings are independent:
 
-- **State-diff scoring: adopt now, low risk.** It is additive (no dependency, no rip-out of
-  tool-call scoring) and fixes a brittleness we already hit. Scope: add `setup` /
-  `expect_changes` / `ignore_changes` to the `Case` model and parser, snapshot entity states
-  around the turn in the runner (the live baseline already backs entities executably, so
-  states move), and add a state-diff correctness path in `scoring.py` used for device-control
-  cases while tool-call and answer scoring stay for the rest. The routing split, generation
-  count, and token totals are untouched; only the *correctness* signal changes, and only where
-  a state change exists to observe. Estimated ~1 focused day plus migrating the ~10
-  device-control cases to carry `expect_changes`. Doing it while the corpus is 25 cases is far
-  cheaper than after Waves 1 through 3 grow it.
-- **`synthetic_home` fixture: defer, evaluate separately.** It swaps `backing.py` (about 250
-  working lines) for a third-party custom-component dependency plus the `synthetic-home`
-  package and the PYTHONPATH wiring its README documents. It does not replace `world.py`'s
-  local-agent setup or the satellite timer-device shim, so the benefit is narrower than it
-  first looks: less bespoke fixture code, multi-locale homes, and reviewer familiarity, against
-  a new external dep and re-verifying feature-flag-to-tool-exposure parity (our backing exposes
-  `HassLightSet` only when a light advertises brightness; state-diff needs the service to
-  actually actuate). That trade is not clearly worth it for a fixture layer that works today,
-  so it stays a scoped follow-up, not a Wave 1 task. The inventory *format* is worth
-  converging our corpus `world` toward even if we never take the component.
+- **State-diff scoring: adopted.** Landed as `harness/statediff.py`: a case may carry `setup`
+  (pre-turn state to stage), `expect_changes` (the post-turn state to assert), and
+  `ignore_changes`, and when it does, correctness is the resulting world state, not the tool
+  called. Declared entities are checked on state plus named attributes; every other exposed
+  entity on state alone, so a wrong-target side effect is caught without tripping on a derived
+  attribute (a light's `color_mode` following its state off). The snapshot is scoped to
+  entities exposed to the agent, so the conversation entity's own timestamp does not trip a
+  phantom diff. Nine device-control cases migrated: `close-blinds` dropped its `any_of`,
+  `set-volume` dropped its name-vs-area `expected_llm`, and the four previously-falsified tool
+  predictions became moot. The routing split, generation count, and token totals are
+  untouched; only the correctness signal changed, and only where a state change exists to
+  observe. Cases that need tool precision (`set-bedroom-brightness`) or have a loose end state
+  (`implicit-cold`) stay tool-scored. The locked baseline artifact predates this and needs a
+  keyed re-run to refresh its scoring basis (see `evals/README.md`).
+- **`synthetic_home`: adopted at the format level only, not the component.** The three levels
+  of coupling: (1) the inventory *format*, our own parser, no dependency; (2) the PyPI library
+  `synthetic-home` (Apache-2.0, `requires_python >=3.13`) as a pinned test-only dep behind an
+  adapter, our own instantiation; (3) the `home-assistant-synthetic-home` custom component
+  (MIT), loaded into the test HA. We take Level 1 and refuse Level 3. Level 3 is the costly,
+  risky path: it is not a pip package (PYTHONPATH or a `custom_components` symlink), it does
+  not replace `world.py`'s local-agent setup or the satellite timer-device shim, and it hands
+  entity instantiation to a third party, which is exactly where we need control (our backing
+  exposes `HassLightSet` only when a light advertises brightness; state-diff needs the service
+  to actually actuate). `backing.py` keeps building the world; the `expect_changes` / `setup`
+  case format is the piece we converged toward. Level 2 stays available if we later want to
+  track allenporter's evolving datasets directly; if taken, the dep goes in a test-only
+  requirements file (never `manifest.json`, never `custom_components/`), pinned exactly and
+  treated as a baseline input, isolated behind one adapter module, with any vendored dataset
+  files frozen and attributed.
