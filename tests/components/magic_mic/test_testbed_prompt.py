@@ -1,11 +1,14 @@
-"""Tests for the skeleton prompt interposition (prompt-context Tier 1 wiring)."""
+"""Tests for the prompt interposition (prompt-context Tier 1 and Tier 2 wiring)."""
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.magic_mic.capabilities.prompt_context import SKELETON_HEADER
+from custom_components.magic_mic.capabilities.prompt_context import (
+    NAME_INJECTION_HEADER,
+    SKELETON_HEADER,
+)
 from custom_components.magic_mic.testbed.prompt import (
     SkeletonAssistAPI,
     async_skeleton_llm_api,
@@ -14,7 +17,12 @@ from homeassistant.components import conversation
 from homeassistant.components.homeassistant.exposed_entities import async_expose_entity
 from homeassistant.const import ATTR_FRIENDLY_NAME
 from homeassistant.core import Context, HomeAssistant
-from homeassistant.helpers import area_registry as ar, entity_registry as er, llm
+from homeassistant.helpers import (
+    area_registry as ar,
+    device_registry as dr,
+    entity_registry as er,
+    llm,
+)
 from homeassistant.setup import async_setup_component
 
 from .streaming import create_content_block
@@ -148,3 +156,141 @@ async def test_driven_testbed_turn_sends_skeleton_baseline_sends_roster(
     assert "Static Context" in baseline_system
     assert "Reading Lamp" in baseline_system
     assert SKELETON_HEADER not in baseline_system
+
+
+def _expose_named_light(
+    hass: HomeAssistant, area: ar.AreaEntry, object_id: str, name: str
+) -> str:
+    """Create, place in ``area``, state, and expose one named light; return its id."""
+    ent_reg = er.async_get(hass)
+    entry = ent_reg.async_get_or_create(
+        "light",
+        "test",
+        object_id,
+        suggested_object_id=object_id,
+        original_name=name,
+    )
+    ent_reg.async_update_entity(entry.entity_id, area_id=area.id)
+    hass.states.async_set(entry.entity_id, "on", {ATTR_FRIENDLY_NAME: name})
+    async_expose_entity(hass, ASSISTANT, entry.entity_id, True)
+    return entry.entity_id
+
+
+def _register_satellite(hass: HomeAssistant, area: ar.AreaEntry) -> str:
+    """Stand up a voice-satellite device in ``area`` and return its device_id.
+
+    Backed by its own throwaway config entry, as a real satellite integration is; the
+    device holds the area so the proxy resolves "here" from the turn's device_id.
+    """
+    entry = MockConfigEntry(domain="satellite")
+    entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={("satellite", "voice_sat")},
+        name="Voice Satellite",
+    )
+    dr.async_get(hass).async_update_device(device.id, area_id=area.id)
+    return device.id
+
+
+def _testbed_id(hass: HomeAssistant, entry: MockConfigEntry) -> str:
+    """Return the testbed proxy agent's entity id."""
+    return next(
+        e.entity_id
+        for e in er.async_get(hass).entities.values()
+        if e.platform == "magic_mic" and e.unique_id == f"{entry.entry_id}_testbed"
+    )
+
+
+async def _two_room_home(hass: HomeAssistant) -> str:
+    """Expose a light in each of two rooms; return the living-room satellite device_id."""
+    area_reg = ar.async_get(hass)
+    living = area_reg.async_create("Living Room")
+    kitchen = area_reg.async_create("Kitchen")
+    _expose_named_light(hass, living, "lr", "Reading Lamp")
+    _expose_named_light(hass, kitchen, "kc", "Kitchen Ceiling")
+    return _register_satellite(hass, living)
+
+
+async def test_driven_turn_injects_relevant_in_room_name(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_create_stream: AsyncMock,
+) -> None:
+    """A named in-room device is injected as a fast-path name; other rooms are not.
+
+    Drives a real turn from a living-room satellite whose utterance names the reading
+    lamp. The Tier-2 block appears with that entity's ``name (entity_id)``; the kitchen
+    light, neither named nor in the room, stays out.
+    """
+    device_id = await _two_room_home(hass)
+    testbed_id = _testbed_id(hass, setup_integration)
+
+    mock_create_stream.return_value = [create_content_block(0, ["Done."])]
+    await conversation.async_converse(
+        hass,
+        "turn on the reading lamp",
+        None,
+        Context(),
+        device_id=device_id,
+        agent_id=testbed_id,
+    )
+    system = _system_text(mock_create_stream)
+
+    assert NAME_INJECTION_HEADER in system
+    assert "Reading Lamp (light.lr)" in system
+    assert "light.kc" not in system
+
+
+async def test_driven_turn_omits_names_when_nothing_relevant(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_create_stream: AsyncMock,
+) -> None:
+    """An utterance that names no device injects no Tier-2 block (a lookup would follow)."""
+    device_id = await _two_room_home(hass)
+    testbed_id = _testbed_id(hass, setup_integration)
+
+    mock_create_stream.return_value = [create_content_block(0, ["You're welcome."])]
+    await conversation.async_converse(
+        hass,
+        "thank you very much",
+        None,
+        Context(),
+        device_id=device_id,
+        agent_id=testbed_id,
+    )
+    system = _system_text(mock_create_stream)
+
+    assert NAME_INJECTION_HEADER not in system
+    # The skeleton (Tier 1) is unaffected by the empty Tier-2 result.
+    assert SKELETON_HEADER in system
+
+
+async def test_driven_turn_gate_off_omits_names(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_create_stream: AsyncMock,
+) -> None:
+    """With name injection disabled, even a matching utterance injects no names."""
+    device_id = await _two_room_home(hass)
+    testbed_id = _testbed_id(hass, setup_integration)
+
+    mock_create_stream.return_value = [create_content_block(0, ["Done."])]
+    with patch(
+        "custom_components.magic_mic.testbed.entity.DEFAULT_NAME_INJECTION", False
+    ):
+        await conversation.async_converse(
+            hass,
+            "turn on the reading lamp",
+            None,
+            Context(),
+            device_id=device_id,
+            agent_id=testbed_id,
+        )
+    system = _system_text(mock_create_stream)
+
+    assert NAME_INJECTION_HEADER not in system
+    assert "Reading Lamp (light.lr)" not in system
+    # The skeleton (Tier 1) still applies; only the Tier-2 block is gated off.
+    assert SKELETON_HEADER in system
