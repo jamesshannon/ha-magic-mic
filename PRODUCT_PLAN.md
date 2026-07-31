@@ -646,17 +646,16 @@ with AI, streaming TTS).
   synthetic personal user. A recognized or authenticated person may use household scope plus
   their own personal scope. Therefore an unknown caller can ask for a household fact but is
   denied "my calendar," personal memory, personal todo, and other person-scoped operations.
-- **`get_resolved_user(...)` is the uniform accessor.** Capability tools call it and never care
-  whether the turn came from a live mic or a deferred trigger. It is **cheap, deterministic,
-  and idempotent**, and it **never runs speaker-ID**. Its result must preserve both the resolved
-  person (if any) and the household-only fallback instead of representing `"default"` as an
-  ordinary `user_id`. It reads the explicit request source and a resolution already
-  established for this request (see the
-  populators below), falling back to cheap signals in order: (a) that established person; (b)
-  `context.user_id` if it maps to a real, active, non-system HA user; (c) a configured
-  device→owner mapping; (d) the unidentified `"default"` principal. **Priority is
-  source-dependent:** for voice, (b) is the pipeline owner, so device→owner outranks it; for
-  text, (b) is authoritative.
+- **`get_resolved_user(...)` is the uniform accessor.** Capability tools, intents, and policy
+  code call it and never care whether the turn came from a live mic or a deferred trigger. It
+  is synchronous, cheap, deterministic, and idempotent; it only reads the result already
+  established for the request and falls back to the unidentified principal if none exists.
+  Source belongs to the upstream `async_resolve_user(...)` operation, not this accessor.
+  Resolution preserves both the resolved person (if any) and the household-only fallback
+  instead of representing `"default"` as an ordinary `user_id`. It considers cheap signals in
+  order: (a) an established speaker or deferred owner; (b) `context.user_id` if the source is
+  explicitly text and it maps to a real, active, non-system HA user; (c) a configured
+  device→owner mapping for voice; (d) the unidentified `"default"` principal.
 - **Populating the resolved user is trigger-specific and happens once, upstream** (never inside
   the accessor):
   - **immediate voice:** a speaker-ID stage (Phase 4) at/after STT, where the audio is, matches an
@@ -667,7 +666,8 @@ with AI, streaming TTS).
     gone). See [`docs/scheduling-model.md`](docs/scheduling-model.md) and
     [`docs/ephemeral-automations.md`](docs/ephemeral-automations.md).
 
-  Both populators share one **"establish `user_id` in session state → run → clear"** lifecycle.
+  Both populators share one **"resolve and establish principal → run → clear"** lifecycle.
+  The accessor performs only the middle read.
 - **The handoff is a side channel keyed by request identity, not a `Context` attribute.**
   `Context` is slotted (`__slots__`; no arbitrary fields) and its `user_id` is HA's **auth**
   identity, which must not be overwritten with a speaker (**personalization-not-auth**,

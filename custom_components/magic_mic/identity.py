@@ -1,8 +1,10 @@
-"""Resolve request identity into explicit data-access scope.
+"""Resolve and expose request identity as explicit data-access scope.
 
 Identity resolution is cheap, deterministic, and provider-neutral. It does not run
 speaker identification. An upstream request adapter supplies the request source and,
-later, any speaker identity established from audio.
+later, any speaker identity established from audio. Resolution happens once at the
+request boundary; tools and intents use ``get_resolved_user()`` as a source-agnostic
+accessor for the established result.
 
 Home Assistant's ``Context.user_id`` is authoritative only for authenticated text
 requests. The same field can identify a voice pipeline owner rather than the speaker,
@@ -11,9 +13,11 @@ so unknown and voice requests fail closed to the unidentified household principa
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import cast
 
 from homeassistant.core import Context, HomeAssistant
 
+DATA_RESOLVED_PRINCIPALS = "magic_mic.resolved_principals"
 HOUSEHOLD_STORAGE_KEY = "default"
 
 
@@ -72,33 +76,51 @@ UNIDENTIFIED_PRINCIPAL = ResolvedPrincipal(user_id=None)
 
 
 async def async_resolve_user(
-    hass: HomeAssistant, user_id: str | None
-) -> ResolvedPrincipal:
-    """Resolve a candidate HA user, falling back to the unidentified principal."""
-    if user_id is None:
-        return UNIDENTIFIED_PRINCIPAL
-
-    user = await hass.auth.async_get_user(user_id)
-    if user is None or not user.is_active or user.system_generated:
-        return UNIDENTIFIED_PRINCIPAL
-    return ResolvedPrincipal(user_id=user.id)
-
-
-async def get_resolved_user(
     hass: HomeAssistant,
     context: Context,
     *,
     request_source: RequestSource,
 ) -> ResolvedPrincipal:
-    """Return the principal and scope available to an immediate request.
+    """Resolve and establish the principal for one immediate request.
 
     Only an explicitly identified text source may derive a person from
     ``context.user_id``. Voice and unknown sources must receive a separately
     established speaker identity in a later phase.
     """
-    if request_source is not RequestSource.TEXT:
+    principal = UNIDENTIFIED_PRINCIPAL
+    if request_source is RequestSource.TEXT and context.user_id is not None:
+        user = await hass.auth.async_get_user(context.user_id)
+        if user is not None and user.is_active and not user.system_generated:
+            principal = ResolvedPrincipal(user_id=user.id)
+
+    _resolved_principals(hass)[context.id] = principal
+    return principal
+
+
+def get_resolved_user(hass: HomeAssistant, context: Context) -> ResolvedPrincipal:
+    """Return the principal already established for this request.
+
+    This is the uniform accessor for tools, intents, and capabilities. It does no
+    resolution and requires no knowledge of the request source. A missing or cleared
+    resolution fails closed to the unidentified household principal.
+    """
+    principals = hass.data.get(DATA_RESOLVED_PRINCIPALS)
+    if principals is None:
         return UNIDENTIFIED_PRINCIPAL
-    return await async_resolve_user(hass, context.user_id)
+    return cast(dict[str, ResolvedPrincipal], principals).get(
+        context.id, UNIDENTIFIED_PRINCIPAL
+    )
+
+
+def clear_resolved_user(hass: HomeAssistant, context: Context) -> None:
+    """Clear the established principal at the end of a request."""
+    if principals := hass.data.get(DATA_RESOLVED_PRINCIPALS):
+        cast(dict[str, ResolvedPrincipal], principals).pop(context.id, None)
+
+
+def _resolved_principals(hass: HomeAssistant) -> dict[str, ResolvedPrincipal]:
+    """Return the turn-scoped principal registry."""
+    return hass.data.setdefault(DATA_RESOLVED_PRINCIPALS, {})
 
 
 __all__ = [
@@ -108,5 +130,6 @@ __all__ = [
     "RequestSource",
     "ResolvedPrincipal",
     "async_resolve_user",
+    "clear_resolved_user",
     "get_resolved_user",
 ]

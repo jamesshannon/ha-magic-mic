@@ -24,7 +24,12 @@ from ..const import (
     LOGGER,
     NAME_INJECTION_LIMIT,
 )
-from ..identity import RequestSource, get_resolved_user
+from ..identity import (
+    RequestSource,
+    async_resolve_user,
+    clear_resolved_user,
+    get_resolved_user,
+)
 from ..internal.claude.agent import ClaudeConversationEntity
 from .api import TestbedAPI
 from .prompt import async_skeleton_llm_api
@@ -38,15 +43,27 @@ class TestbedConversationEntity(ClaudeConversationEntity):
         user_input: conversation.ConversationInput,
         chat_log: conversation.ChatLog,
     ) -> conversation.ConversationResult:
-        """Get the resolved user, set up the LLM data, wrap the seam, run the loop."""
+        """Establish request identity while the proxied turn runs."""
         # ConversationInput does not expose whether its text came directly from an
         # authenticated text client or from STT. Fail closed until the request adapter
         # supplies that source explicitly; context.user_id may be a pipeline owner.
-        principal = await get_resolved_user(
+        await async_resolve_user(
             self.hass,
             user_input.context,
             request_source=RequestSource.UNKNOWN,
         )
+        try:
+            return await self._async_handle_resolved_message(user_input, chat_log)
+        finally:
+            clear_resolved_user(self.hass, user_input.context)
+
+    async def _async_handle_resolved_message(
+        self,
+        user_input: conversation.ConversationInput,
+        chat_log: conversation.ChatLog,
+    ) -> conversation.ConversationResult:
+        """Set up the LLM data, wrap the seam, and run the provider loop."""
+        principal = get_resolved_user(self.hass, user_input.context)
         LOGGER.debug(
             "[testbed] resolved principal user_id=%s (unused in Wave 0)",
             principal.user_id,

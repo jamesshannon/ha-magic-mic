@@ -162,11 +162,12 @@ two attack surfaces onto one bound.
   per-request session state; the accessor reads it. (This is *why* it must run at STT, where
   the audio is: the conversation stage only has text, so the result has to ride a side
   channel keyed by request identity, not the fixed `ConversationInput`.)
-- **The signals `get_resolved_user()` reads, in priority order:** (1) the voice-ID result
-  (precomputed upstream, read from session state) → that user; (2) `context.user_id` if it
-  maps to a real user and the request source is explicitly text; (3) configured
-  device→owner for voice; (4) the unidentified `"default"` principal, household-only.
-  A missing source is not guessed from device metadata; it takes the same safe fallback.
+- **The signals the upstream resolver considers, in priority order:** (1) the voice-ID result
+  (precomputed upstream) → that user; (2) `context.user_id` if it maps to a real user and the
+  request source is explicitly text; (3) configured device→owner for voice; (4) the
+  unidentified `"default"` principal, household-only. A missing source is not guessed from
+  device metadata; it takes the same safe fallback. The resolver establishes that result for
+  the request, then tools and intents read it through source-agnostic `get_resolved_user()`.
   Low-confidence voice-ID falls through rather than guessing (same ambiguity-guard discipline
   as `find_entities`).
 - **Why it's more tractable for us than for core:** we're *building* the

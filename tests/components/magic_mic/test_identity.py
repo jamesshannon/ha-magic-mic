@@ -9,6 +9,8 @@ from custom_components.magic_mic.identity import (
     DataScope,
     RequestSource,
     ResolvedPrincipal,
+    async_resolve_user,
+    clear_resolved_user,
     get_resolved_user,
 )
 from homeassistant.core import Context, HomeAssistant
@@ -16,9 +18,9 @@ from homeassistant.core import Context, HomeAssistant
 
 async def test_unidentified_request_has_household_scope(hass: HomeAssistant) -> None:
     """An unidentified request has household access and no personal owner."""
-    principal = await get_resolved_user(
-        hass, Context(user_id=None), request_source=RequestSource.VOICE
-    )
+    context = Context(user_id=None)
+    await async_resolve_user(hass, context, request_source=RequestSource.VOICE)
+    principal = get_resolved_user(hass, context)
 
     assert principal is UNIDENTIFIED_PRINCIPAL
     assert principal.personal_owner_id is None
@@ -33,11 +35,13 @@ async def test_authenticated_text_user_has_personal_scope(
     hass: HomeAssistant, hass_admin_user: MockUser
 ) -> None:
     """An authenticated text user receives household and personal access."""
-    principal = await get_resolved_user(
+    context = Context(user_id=hass_admin_user.id)
+    await async_resolve_user(
         hass,
-        Context(user_id=hass_admin_user.id),
+        context,
         request_source=RequestSource.TEXT,
     )
+    principal = get_resolved_user(hass, context)
 
     assert principal == ResolvedPrincipal(user_id=hass_admin_user.id)
     assert principal.personal_owner_id == hass_admin_user.id
@@ -51,11 +55,13 @@ async def test_voice_does_not_trust_pipeline_owner(
     hass: HomeAssistant, hass_admin_user: MockUser
 ) -> None:
     """A voice request never treats context.user_id as the current speaker."""
-    principal = await get_resolved_user(
+    context = Context(user_id=hass_admin_user.id)
+    await async_resolve_user(
         hass,
-        Context(user_id=hass_admin_user.id),
+        context,
         request_source=RequestSource.VOICE,
     )
+    principal = get_resolved_user(hass, context)
 
     assert principal is UNIDENTIFIED_PRINCIPAL
 
@@ -64,11 +70,13 @@ async def test_unknown_source_does_not_trust_context_user(
     hass: HomeAssistant, hass_admin_user: MockUser
 ) -> None:
     """A request with no explicit source fails closed."""
-    principal = await get_resolved_user(
+    context = Context(user_id=hass_admin_user.id)
+    await async_resolve_user(
         hass,
-        Context(user_id=hass_admin_user.id),
+        context,
         request_source=RequestSource.UNKNOWN,
     )
+    principal = get_resolved_user(hass, context)
 
     assert principal is UNIDENTIFIED_PRINCIPAL
 
@@ -84,20 +92,22 @@ async def test_ineligible_text_user_is_unidentified(
     user = MockUser(is_active=is_active, system_generated=system_generated)
     user.add_to_hass(hass)
 
-    principal = await get_resolved_user(
-        hass, Context(user_id=user.id), request_source=RequestSource.TEXT
-    )
+    context = Context(user_id=user.id)
+    await async_resolve_user(hass, context, request_source=RequestSource.TEXT)
+    principal = get_resolved_user(hass, context)
 
     assert principal is UNIDENTIFIED_PRINCIPAL
 
 
 async def test_nonexistent_text_user_is_unidentified(hass: HomeAssistant) -> None:
     """A nonexistent context user has no personal scope."""
-    principal = await get_resolved_user(
+    context = Context(user_id="does-not-exist")
+    await async_resolve_user(
         hass,
-        Context(user_id="does-not-exist"),
+        context,
         request_source=RequestSource.TEXT,
     )
+    principal = get_resolved_user(hass, context)
 
     assert principal is UNIDENTIFIED_PRINCIPAL
 
@@ -108,7 +118,32 @@ async def test_resolution_is_idempotent(
     """Resolving the same inputs repeatedly returns the same value."""
     context = Context(user_id=hass_admin_user.id)
 
-    first = await get_resolved_user(hass, context, request_source=RequestSource.TEXT)
-    second = await get_resolved_user(hass, context, request_source=RequestSource.TEXT)
+    first = await async_resolve_user(hass, context, request_source=RequestSource.TEXT)
+    second = await async_resolve_user(hass, context, request_source=RequestSource.TEXT)
 
     assert first == second
+    assert get_resolved_user(hass, context) == second
+
+
+async def test_accessor_requires_no_request_source(
+    hass: HomeAssistant, hass_admin_user: MockUser
+) -> None:
+    """A downstream caller reads established identity using only the context."""
+    context = Context(user_id=hass_admin_user.id)
+    await async_resolve_user(hass, context, request_source=RequestSource.TEXT)
+
+    assert get_resolved_user(hass, context).user_id == hass_admin_user.id
+
+
+async def test_accessor_fails_closed_before_resolution_and_after_clear(
+    hass: HomeAssistant, hass_admin_user: MockUser
+) -> None:
+    """A missing or cleared turn resolution returns the unidentified principal."""
+    context = Context(user_id=hass_admin_user.id)
+
+    assert get_resolved_user(hass, context) is UNIDENTIFIED_PRINCIPAL
+
+    await async_resolve_user(hass, context, request_source=RequestSource.TEXT)
+    clear_resolved_user(hass, context)
+
+    assert get_resolved_user(hass, context) is UNIDENTIFIED_PRINCIPAL
