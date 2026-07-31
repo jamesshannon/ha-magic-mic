@@ -14,10 +14,14 @@ from custom_components.magic_mic.chat_log import (
 )
 from custom_components.magic_mic.internal.claude import entity as claude_entity
 from custom_components.magic_mic.internal.claude.entity import AnthropicDeltaStream
+from custom_components.magic_mic.session_state import (
+    DATA_SESSION_STATES,
+    UNDO_JOURNAL_LIMIT,
+)
 from homeassistant.components import conversation
 from homeassistant.components.conversation import ChatLog
 from homeassistant.core import Context, HomeAssistant
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import chat_session, entity_registry as er
 
 from .streaming import create_content_block
 
@@ -89,6 +93,94 @@ async def test_replace_preserves_subclass_and_resets_records(
     assert isinstance(next_turn, MagicMicChatLog)
     assert next_turn.generation_count == 0
     assert chat_log.generation_count == 1
+
+
+async def test_replace_preserves_session_state(hass: HomeAssistant) -> None:
+    """A cloned next-turn chat log reaches the same conversation sidecar."""
+    chat_log = upgrade_chat_log(ChatLog(hass, "conv-1"))
+    state = chat_log.session_state
+    pending = object()
+    undo = object()
+    state.pending_operation = pending
+    state.async_append_undo(undo)
+
+    next_turn = replace(chat_log, content=chat_log.content.copy())
+
+    assert next_turn.session_state is state
+    assert next_turn.session_state.pending_operation is pending
+    assert next_turn.session_state.undo_journal == (undo,)
+
+
+async def test_session_state_isolates_conversations(hass: HomeAssistant) -> None:
+    """Different conversation IDs never share pending or journal state."""
+    first = upgrade_chat_log(ChatLog(hass, "conv-1")).session_state
+    second = upgrade_chat_log(ChatLog(hass, "conv-2")).session_state
+    first.pending_operation = object()
+    first.async_append_undo(object())
+
+    assert second is not first
+    assert second.pending_operation is None
+    assert second.undo_journal == ()
+
+
+async def test_undo_journal_is_bounded(hass: HomeAssistant) -> None:
+    """Appending beyond the fixed limit evicts the oldest journal entries."""
+    state = upgrade_chat_log(ChatLog(hass, "conv-1")).session_state
+
+    for entry in range(UNDO_JOURNAL_LIMIT + 2):
+        state.async_append_undo(entry)
+
+    assert state.undo_journal == tuple(range(2, UNDO_JOURNAL_LIMIT + 2))
+
+
+async def test_begin_turn_replaces_only_turn_metadata(hass: HomeAssistant) -> None:
+    """A new turn resets metadata while preserving conversation-level state."""
+    state = upgrade_chat_log(ChatLog(hass, "conv-1")).session_state
+    state.pending_operation = pending = object()
+    state.async_append_undo(undo := object())
+    first = state.async_begin_turn("turn-1")
+    first.provenance.add("wake_word")
+
+    same = state.async_begin_turn("turn-1")
+    second = state.async_begin_turn("turn-2")
+
+    assert same is first
+    assert second is not first
+    assert second.provenance == set()
+    assert state.pending_operation is pending
+    assert state.undo_journal == (undo,)
+
+
+async def test_session_state_expires_with_chat_session(hass: HomeAssistant) -> None:
+    """HA chat-session cleanup removes the matching Magic Mic sidecar."""
+    with (
+        chat_session.async_get_chat_session(hass) as session,
+        conversation.async_get_chat_log(hass, session) as base_chat_log,
+    ):
+        conversation_id = session.conversation_id
+        chat_log = upgrade_chat_log(base_chat_log)
+        state = chat_log.session_state
+        state.pending_operation = pending = object()
+        state.async_append_undo(undo := object())
+        chat_log.async_trace_generation(GenerationRecord(input_tokens=5))
+        chat_log.async_add_assistant_content_without_tools(
+            conversation.AssistantContent(agent_id="test-agent", content="Done")
+        )
+
+    with (
+        chat_session.async_get_chat_session(hass, conversation_id) as next_session,
+        conversation.async_get_chat_log(hass, next_session) as next_base_chat_log,
+    ):
+        next_chat_log = upgrade_chat_log(next_base_chat_log)
+        assert next_chat_log.session_state is state
+        assert next_chat_log.session_state.pending_operation is pending
+        assert next_chat_log.session_state.undo_journal == (undo,)
+        assert next_chat_log.generation_count == 0
+
+    assert conversation_id in hass.data[DATA_SESSION_STATES]
+    next_session.async_cleanup()
+
+    assert conversation_id not in hass.data[DATA_SESSION_STATES]
 
 
 async def test_provider_adapter_maps_usage(hass: HomeAssistant) -> None:

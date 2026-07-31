@@ -1,11 +1,13 @@
-"""A `ChatLog` enriched with neutral per-generation instrumentation.
+"""A `ChatLog` enriched with instrumentation and deterministic session state.
 
 This is the shape we propose for core: the base `ChatLog` gains a structured record of
 each model round (tokens, cache), populated by the provider and read by the proxy, the
 eval harness, and live/prod debug tracing alike. Building it here, provider-agnostic,
 means swapping `internal.claude` for another dev LLM leaves every reader untouched (only
-the provider-side adapter that fills a `GenerationRecord` changes). See
-`docs/evaluation.md` Part A (trace enrichment) and Part F.
+the provider-side adapter that fills a `GenerationRecord` changes). Deterministic values
+that must survive a turn are exposed through this object but stored in a conversation-ID
+sidecar; transcript content is never copied there. See `docs/evaluation.md` Part A (trace
+enrichment) and Part F.
 
 `MagicMicChatLog` deliberately adds **no dataclass fields** so an existing `ChatLog`
 can be upgraded in place by reassigning `__class__` (`upgrade_chat_log`). That works
@@ -19,6 +21,8 @@ from typing import cast
 
 from homeassistant.components.conversation import ChatLog
 from homeassistant.core import callback
+
+from .session_state import MagicMicSessionState, async_get_session_state
 
 
 @dataclass(frozen=True)
@@ -46,14 +50,19 @@ class GenerationRecord:
 
 
 class MagicMicChatLog(ChatLog):
-    """A `ChatLog` that also records a `GenerationRecord` per model round.
+    """Expose session state and record a `GenerationRecord` per model round.
 
-    Adds behavior, not state: the record list lives in the instance `__dict__` under a
-    private key, created lazily, so the class carries no extra dataclass field and stays
+    Adds behavior, not dataclass fields. The turn-local record list lives in the instance
+    `__dict__`; conversation-lifetime state lives in the sidecar. The class therefore stays
     layout-compatible with `ChatLog` for in-place upgrade.
     """
 
     _GENERATIONS_KEY = "_magic_mic_generations"
+
+    @property
+    def session_state(self) -> MagicMicSessionState:
+        """Return deterministic state for this conversation's HA chat session."""
+        return async_get_session_state(self.hass, self.conversation_id)
 
     @property
     def generations(self) -> tuple[GenerationRecord, ...]:
@@ -90,4 +99,9 @@ def upgrade_chat_log(chat_log: ChatLog) -> MagicMicChatLog:
 
 
 # Re-exported for the provider adapter and readers.
-__all__ = ["GenerationRecord", "MagicMicChatLog", "upgrade_chat_log"]
+__all__ = [
+    "GenerationRecord",
+    "MagicMicChatLog",
+    "MagicMicSessionState",
+    "upgrade_chat_log",
+]

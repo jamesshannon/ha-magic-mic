@@ -15,6 +15,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.llm import LLMContext
 
 from ..capabilities.prompt_context import async_domain_keyword_map, select_request_names
+from ..chat_log import MagicMicChatLog, upgrade_chat_log
 from ..const import (
     CONF_NAME_INJECTION,
     CONF_TAXONOMY_SKELETON,
@@ -64,6 +65,13 @@ class TestbedConversationEntity(ClaudeConversationEntity):
     ) -> conversation.ConversationResult:
         """Set up the LLM data, wrap the seam, and run the provider loop."""
         principal = get_resolved_user(self.hass, user_input.context)
+        magic_chat_log = upgrade_chat_log(chat_log)
+        magic_chat_log.session_state.async_begin_turn(
+            user_input.context.id,
+            device_id=user_input.device_id,
+            principal=principal,
+            satellite_id=user_input.satellite_id,
+        )
         LOGGER.debug(
             "[testbed] resolved principal user_id=%s (unused in Wave 0)",
             principal.user_id,
@@ -83,7 +91,7 @@ class TestbedConversationEntity(ClaudeConversationEntity):
             llm_hass_api = async_skeleton_llm_api(self.hass, llm_hass_api)
 
         try:
-            await chat_log.async_provide_llm_data(
+            await magic_chat_log.async_provide_llm_data(
                 llm_context,
                 llm_hass_api,
                 self._options.get(CONF_PROMPT),
@@ -99,21 +107,23 @@ class TestbedConversationEntity(ClaudeConversationEntity):
         if skeleton_on and self._options.get(
             CONF_NAME_INJECTION, DEFAULT_NAME_INJECTION
         ):
-            await self._async_inject_request_names(chat_log, user_input, llm_context)
+            await self._async_inject_request_names(
+                magic_chat_log, user_input, llm_context
+            )
 
         # The interposition seam. Reach for the proxy first; drop into
         # internal.claude only when the HA<->LLM contract itself is what needs
         # changing (docs/testbed-proxy.md).
-        if chat_log.llm_api is not None:
-            chat_log.llm_api = TestbedAPI.wrap(chat_log.llm_api)
+        if magic_chat_log.llm_api is not None:
+            magic_chat_log.llm_api = TestbedAPI.wrap(magic_chat_log.llm_api)
 
-        await self._async_handle_chat_log(chat_log)
+        await self._async_handle_chat_log(magic_chat_log)
 
-        return conversation.async_get_result_from_chat_log(user_input, chat_log)
+        return conversation.async_get_result_from_chat_log(user_input, magic_chat_log)
 
     async def _async_inject_request_names(
         self,
-        chat_log: conversation.ChatLog,
+        chat_log: MagicMicChatLog,
         user_input: conversation.ConversationInput,
         llm_context: LLMContext,
     ) -> None:
