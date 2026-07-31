@@ -203,8 +203,10 @@ def _render_delta(off: Scorecard, on: Scorecard) -> str:
         f"  {key:>22}: {off.totals[key]:>8} -> {on.totals[key]:>8} ({delta[key]:+})"
         for key in on.totals
     )
-    off_correct = sum(result.correct for result in off.results)
-    on_correct = sum(result.correct for result in on.results)
+    # correct is tri-state (True/False/None where a case is not correctness-scored), so
+    # count truthy rather than sum, which would choke on None.
+    off_correct = sum(1 for result in off.results if result.correct)
+    on_correct = sum(1 for result in on.results if result.correct)
     lines += [
         "",
         f"  correct (task-success): {off_correct} -> {on_correct} (of {on.total})",

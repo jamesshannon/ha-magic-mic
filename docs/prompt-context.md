@@ -575,6 +575,29 @@ as a work-item, so it migrates; over-instrument the throwaway shell freely, and
 **disclose** what's captured (token/timing = benign; utterance/entity content or
 anything leaving the box needs explicit opt-in).
 
+#### Measured (Wave 1, first name-injection run)
+
+`evals/harness/variant.py` ran the 25-case golden set through the testbed agent twice,
+satellite in the living room, names off then on, model `claude-haiku-4-5`. Task-success
+was equal (21 LLM-correct, 4 wrong, both arms). Generations moved by −2 (47 → 45), but
+`find_entities` was called zero times in either arm, and the two cases that shifted
+(`implicit-cold`, `conditional-reminder`) sit outside the requesting room and carry no
+injected name, so that −2 is run-to-run model variance, not injection (a first run showed
+0). The stock intent tools (`HassTurnOn`/`HassTurnOff` and the rest) take a spoken `name`
+and resolve it themselves, so the model never reaches for the entity_id lookup injection
+exists to skip. The corpus has no command that forces one.
+
+Option 1's cache cost showed up as designed: names-on created 42,707 cache tokens against
+names-off's 5,273 (per-turn names bust the system-block cache) and read 46,034 fewer.
+Output tokens fell 549.
+
+So on this corpus the injection buys nothing in turns while adding cache churn, because
+Tier 2's fast path is never taken. Two follow-ups, in order: add corpus cases that need
+an entity_id the intent tools cannot resolve by name (where injection can shave the
+`find_entities` round-trip), then re-measure; only if that shows a real turn saving does
+Option 2 (the cache-isolated second system block) earn its complexity. Artifact:
+`evals/results/wave1_name_injection.json`.
+
 ### Two tiers of observability (local vs fleet)
 
 The above is **local, per-install** observability — the trace/`usage` counters on
