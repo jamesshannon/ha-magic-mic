@@ -8,6 +8,7 @@ from homeassistant.helpers.chat_session import current_session
 from homeassistant.util.hass_dict import HassKey
 
 from .identity import UNIDENTIFIED_PRINCIPAL, ResolvedPrincipal
+from .pending_operation import PendingOperation
 
 UNDO_JOURNAL_LIMIT = 10
 
@@ -29,12 +30,11 @@ class TurnMetadata:
 class MagicMicSessionState:
     """Small deterministic state that must survive between conversation turns.
 
-    The pending-operation and journal element types stay opaque until their contracts
-    land in foundation sections 3 and 5. Keeping them here establishes storage and
-    lifetime without prematurely defining either engine.
+    The pending-operation contract is immutable and provider-neutral. Journal entries
+    remain opaque until the undo contract lands in foundation section 5.
     """
 
-    pending_operation: object | None = None
+    pending_operation: PendingOperation | None = None
     turn_metadata: TurnMetadata | None = None
     _cleanup_registered: bool = field(default=False, init=False, repr=False)
     _undo_journal: deque[object] = field(

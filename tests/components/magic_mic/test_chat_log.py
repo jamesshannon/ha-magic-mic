@@ -1,6 +1,7 @@
 """Tests for MagicMicChatLog and the provider's generation-record adapter."""
 
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 from anthropic.types import Message, MessageDeltaUsage, Usage
@@ -12,8 +13,13 @@ from custom_components.magic_mic.chat_log import (
     MagicMicChatLog,
     upgrade_chat_log,
 )
+from custom_components.magic_mic.identity import UNIDENTIFIED_PRINCIPAL
 from custom_components.magic_mic.internal.claude import entity as claude_entity
 from custom_components.magic_mic.internal.claude.entity import AnthropicDeltaStream
+from custom_components.magic_mic.pending_operation import (
+    ConsequenceClass,
+    PendingOperation,
+)
 from custom_components.magic_mic.session_state import (
     DATA_SESSION_STATES,
     UNDO_JOURNAL_LIMIT,
@@ -29,6 +35,18 @@ from .streaming import create_content_block
 async def _converse(hass: HomeAssistant, agent_id: str) -> None:
     """Drive a single conversation turn through the given agent."""
     await conversation.async_converse(hass, "hello", None, Context(), agent_id=agent_id)
+
+
+def _pending_operation() -> PendingOperation:
+    """Return a typed pending record for session-lifetime tests."""
+    return PendingOperation.create(
+        "fixture.action",
+        {"target": "fixture"},
+        UNIDENTIFIED_PRINCIPAL,
+        ConsequenceClass.ALWAYS_CONFIRM,
+        lifetime=timedelta(seconds=30),
+        now=datetime(2026, 7, 31, tzinfo=UTC),
+    )
 
 
 def test_generation_record_as_dict() -> None:
@@ -99,7 +117,7 @@ async def test_replace_preserves_session_state(hass: HomeAssistant) -> None:
     """A cloned next-turn chat log reaches the same conversation sidecar."""
     chat_log = upgrade_chat_log(ChatLog(hass, "conv-1"))
     state = chat_log.session_state
-    pending = object()
+    pending = _pending_operation()
     undo = object()
     state.pending_operation = pending
     state.async_append_undo(undo)
@@ -115,7 +133,7 @@ async def test_session_state_isolates_conversations(hass: HomeAssistant) -> None
     """Different conversation IDs never share pending or journal state."""
     first = upgrade_chat_log(ChatLog(hass, "conv-1")).session_state
     second = upgrade_chat_log(ChatLog(hass, "conv-2")).session_state
-    first.pending_operation = object()
+    first.pending_operation = _pending_operation()
     first.async_append_undo(object())
 
     assert second is not first
@@ -136,7 +154,7 @@ async def test_undo_journal_is_bounded(hass: HomeAssistant) -> None:
 async def test_begin_turn_replaces_only_turn_metadata(hass: HomeAssistant) -> None:
     """A new turn resets metadata while preserving conversation-level state."""
     state = upgrade_chat_log(ChatLog(hass, "conv-1")).session_state
-    state.pending_operation = pending = object()
+    state.pending_operation = pending = _pending_operation()
     state.async_append_undo(undo := object())
     first = state.async_begin_turn("turn-1")
     first.provenance.add("wake_word")
@@ -160,7 +178,7 @@ async def test_session_state_expires_with_chat_session(hass: HomeAssistant) -> N
         conversation_id = session.conversation_id
         chat_log = upgrade_chat_log(base_chat_log)
         state = chat_log.session_state
-        state.pending_operation = pending = object()
+        state.pending_operation = pending = _pending_operation()
         state.async_append_undo(undo := object())
         chat_log.async_trace_generation(GenerationRecord(input_tokens=5))
         chat_log.async_add_assistant_content_without_tools(
