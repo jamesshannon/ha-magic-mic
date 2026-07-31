@@ -136,6 +136,15 @@ Concrete rules (the HA specifics that override or sharpen Google's):
 
 - **Read the relevant design doc before coding.** The architecture is meant to be argued
   with, not guessed at. If a doc and the code disagree, surface it.
+- **Treat named architectural seams and their docstrings as invariants.** Before changing
+  one, identify its callers, producers, consumers, and documented contract. Do not redesign a
+  downstream accessor around information that belongs at an upstream boundary.
+- **Stop when a proposed implementation conflicts with an existing contract.** Explain the
+  conflict and resolve it with the human. Never remove or rewrite the conflicting contract
+  merely to make the implementation appear consistent.
+- **Review foundational changes against every source of intent.** Before considering the
+  change complete, compare the resulting API and behavior with the task wording, the relevant
+  design document, the previous code and docstring contract, and the human's stated model.
 - **Match the surrounding code** and HA core: naming, docstring style, and structure should
   read like the module you're editing.
 - **Verify before claiming done.** At a minimum, `ruff check` and `ruff format --check` come
