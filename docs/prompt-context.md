@@ -460,6 +460,13 @@ Refinement A below was weighed during that build and deferred; it is recorded so
 re-derived from scratch. Revisit it when the eval says the fast path is leaving turns on
 the table.
 
+> **The first live measurement says the fast path is not being used at all** (see "Measured
+> (Wave 1, first name-injection run)" under Measurement below). On the golden set, injected
+> names were read once and changed nothing, because the stock intent tools resolve a spoken
+> name themselves. This whole tier is flagged for a revisit against a realistic corpus
+> before it is built on further; read that section before tuning Tier 2 or adopting
+> Refinement A or Option 2.
+
 #### Refinement A — domain-name decoration instead of keyword widening
 
 An alternative to the separate keyword filter: append each entity's localized domain and
@@ -592,10 +599,41 @@ names-off's 5,273 (per-turn names bust the system-block cache) and read 46,034 f
 Output tokens fell 549.
 
 So on this corpus the injection buys nothing in turns while adding cache churn, because
-Tier 2's fast path is never taken. Two follow-ups, in order: add corpus cases that need
-an entity_id the intent tools cannot resolve by name (where injection can shave the
-`find_entities` round-trip), then re-measure; only if that shows a real turn saving does
-Option 2 (the cache-isolated second system block) earn its complexity. Artifact:
+Tier 2's fast path is never taken. The one case that read an injected name (`set-volume`,
+names-on passed `name="Living Room Speaker"`) resolved identically to names-off, which
+passed `area=living room, domain=media_player`: the name was a second route to a target
+the skeleton and satellite room already reached, not a new capability.
+
+**What was and was not tested.** Three layers can carry entity data into the prompt: the
+full roster (stock Static Context, in neither arm), the taxonomy skeleton (Tier 1, in both
+arms), and the Tier-2 names (the only thing toggled). This run measured Tier 2 and found it
+near-valueless here; it did not test removing the skeleton, and the roster was absent from
+both arms. The separate Wave 0 baseline ran the full roster and also scored 21/4, hinting
+the roster's names went unused too, but under an area-less run with a different cache
+regime, so that is a lead, not a match. A stock HA Assist with the roster removed would
+resolve this same class of command, for the reason in the run summary above: the intent
+tools and `GetLiveContext` do the resolution, not the prompt.
+
+**Why this may generalize, and the revisit it earns.** The corpus caveat cuts less than it
+looks. Its commands are the realistic ones: name the device, address a room, or ask about
+state. The utterances where a pre-loaded name pays are the oblique ones ("the thing by the
+couch", "it's stuffy in here"), and those are rarer in real speech than this design
+assumed. If that holds, request-conditioned name injection (and perhaps pre-loaded entity
+context in general) is dead weight in the common case, and the response is not Option 2 but
+stepping back from prompt-loaded names toward lookup-only. This is one model (haiku), 25
+curated cases, one home, so the effect is likely model-dependent: a weaker model may
+fabricate names without a roster, a stronger one need it even less. It is enough to flag,
+not to decide.
+
+**Revisit the whole prompt-budget approach around 2026-09**, sooner if field or fleet data
+lands. Before building further on name injection, re-measure against a larger, realistic
+corpus that includes oblique references and any entity_id-only tools, across more than one
+model. The immediate follow-up that would settle it: add corpus cases that force an
+entity_id lookup (where injection can shave the `find_entities` round-trip). If those also
+resolve without names, the roster is dead weight for capable models and Tier 2 should come
+out; only if they do not does Option 2 (the cache-isolated second system block) become a
+real question. Until then Tier 2 stays on by default (task-neutral, and its cost is cache
+tokens, not turns), but it is a candidate for removal, not just tuning. Artifact:
 `evals/results/wave1_name_injection.json`.
 
 ### Two tiers of observability (local vs fleet)
