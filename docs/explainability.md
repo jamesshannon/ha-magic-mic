@@ -142,5 +142,31 @@ that a user acted.
 
 The retrieval-and-resolution half is a clean helper over logbook and recorder that doesn't
 depend on voice or a particular model. That makes it plausible to contribute upstream, where
-it would help core's own Assist, in the same merge-first category as the eval and trace
-harness (§7). The narration stays in the component.
+it could help core's own Assist. Treat that as a candidate for maintainer discussion and
+adaptation, not a promise that the proving-ground helper lands unchanged (§7). The narration
+stays model-facing.
+
+## Build-time scoping gate
+
+Before shipping `explain_state`, settle and test:
+
+- **Question anchoring:** resolve the entity and time window from “just,” “this morning,” or
+  “why is it 67?” and return ambiguity rather than choosing an arbitrary nearby change.
+- **Context traversal:** bound parent-chain depth, detect missing parents/cycles, and
+  distinguish the initiating automation from intermediate scripts/services.
+- **Multiple contributors:** represent a chain or several plausible causes instead of
+  flattening them into one confident actor.
+- **Recorder realities:** handle recorder disabled, excluded entities, purged history,
+  delayed writes, and integration-generated state changes with no HA context.
+- **Confidence language:** the structured result, not the narrator, determines
+  `attributed | partially_attributed | unattributable`; narration must preserve that
+  distinction and never upgrade “probably.”
+- **Privacy:** scope entity history and actor identity to the caller; decide when to say a
+  person's name versus “a user,” and redact sensitive service data.
+- **Acceptance corpus:** include direct user changes, automation→script chains, physical
+  controls, cloud-device schedules, simultaneous changes, and no-history cases. The primary
+  failure metric is fabricated causality.
+
+These are feature-level build gates. They do not expand explainability into reversal.
+Attribution/abstention rates and repeated-question proxies in deployed homes are specified
+separately in [`telemetry.md`](telemetry.md).

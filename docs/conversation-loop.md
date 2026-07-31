@@ -159,6 +159,35 @@ conversation, return 'spurious'."* Refinements:
 - **Accept the failure mode:** occasional over-rejection of an oddly-phrased real
   follow-up → user re-asks (same friction as a timeout). Net strongly positive.
 
+**The main model performs this judgment in v1.** It receives the complete STT transcript
+plus prior turns, which is the richest text context available for distinguishing a real
+follow-up from a quoted command in a television scene. A smaller continuation classifier is
+not assumed to be better, and same-speaker audio is supporting evidence rather than proof of
+intent.
+
+**Fallback to measure if false accepts are too high:** a no-tools classification generation.
+Call the same capable model with the transcript and history but no actionable tools, require
+`intentional | spurious | uncertain`, and only expose tools after `intentional`. This makes
+the gate explicit, measurable, and able to fail closed on `uncertain`; it does not inherently
+make the model's judgment more accurate and costs another generation on every continuation.
+Do not adopt it without the adversarial eval showing that the latency buys a meaningful
+false-action reduction.
+
+Pending interaction state narrows **referents**, not the user's permitted intent. After
+"which lamp?" the user may answer "the den one," but may also say "I didn't say lamp, turn up
+the heat." After a confirmation they may say "actually no, turn off my lights." The model
+may reject/supersede the pending operation and issue a new command in the same turn. The
+special reminder case stays precise because "read it" resolves through the pending-reminder
+operation; it must not become a generic request to read calendar or memory data.
+
+**Consequence-aware confirmation is the bounded response to a false accept.** Tools/intents
+may carry a small ordinal consequence policy (`low | confirm-on-continuation | always-confirm
+| step-up`), and continuation origin can promote the required confirmation tier. The gateway
+then stages the exact operation and asks "did I hear you right?" before execution. Model
+metadata or sensitive-data provenance may only raise the deterministic base tier, never
+lower it. A calibrated numeric Intent × Domain risk matrix is not a v1 requirement; prove
+the hook on a few representative operations first.
+
 ### The synthesis
 #3 makes #1 safe. Default-continue is only tolerable if the resulting false
 captures are filtered — the spurious-gate is that filter. They're a **pair**:
@@ -252,13 +281,29 @@ persists across turns — history and any injected context carry into the
 follow-up, which is what makes clarify/agentic flows (reminder confirmation, the
 rare music disambiguation) work. The chat loop also emits streaming deltas
 (see [`voice-streaming.md`](voice-streaming.md)); a follow-up turn must preserve
-that delta/streaming behavior. *(Deeper `ChatLog` / tool-loop internals to be
-expanded here when we extend the loop in Phase 0.)*
+that delta/streaming behavior.
+
+**Build on `ChatLog`; do not mirror it.** Most short interactions need only its transcript
+and tool results. The model can interpret "the den one" from a candidate-bearing tool result
+or an ordinary "yes" from the preceding question without another conversation object.
+Deterministic state is added only when reconstructing from prose would be unsafe:
+
+- an immutable pending operation for a consequence-gated confirmation;
+- a bounded undo journal;
+- per-turn principal, provenance, and effect metadata.
+
+`MagicMicChatLog` exposes that state, but conversation-lifetime values live in a
+`conversation_id`-keyed sidecar. HA clones the `ChatLog` dataclass between turns with
+`dataclasses.replace()`, so values stored only in the subclass instance dictionary would be
+lost. Durable reminder, memory, rule, and delivery state stays in each capability's store,
+not in the chat session.
 
 ---
 
 ## Key references
 
+- [`telemetry.md`](telemetry.md) — content-free deployed-use measures for actual follow-up
+  rate, session length, correction proxies, and optional classifier cost.
 - `conversation/models.py:80` — `ConversationResult.continue_conversation`
 - `conversation/chat_log.py:356` — the "?" heuristic
 - `conversation/util.py:45` — result derives the flag from the chat log

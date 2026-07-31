@@ -5,14 +5,16 @@
 > across a corpus). They share instrumentation but differ in purpose. Covers what
 > core provides, the gaps, and how to prove a change (e.g. prefill/caching) keeps
 > quality while improving TTFT/TTLT. See [`voice-streaming.md`](voice-streaming.md)
-> for the latency model and [`../PRODUCT_PLAN.md`](../PRODUCT_PLAN.md) §5.2.
+> for the latency model, [`telemetry.md`](telemetry.md) for deployed product-outcome
+> measurement, and [`../PRODUCT_PLAN.md`](../PRODUCT_PLAN.md) §5.2.
 
 Core has **no** LLM eval / benchmark / training tooling **integrated with Assist** — only
 building blocks (tracing + a timestamped event stream + pytest/snapshot). Ad-hoc community
 benchmarks and academic corpora exist but stand *outside* the pipeline (**Part H**). The
 harness described below — corpus + runner + scorer + trace enrichment — would be a genuine
-contribution, and (being **feature-decoupled**) one core could merge **first**, independent
-of any Magic Mic capability (§7).
+contribution candidate because it is feature-decoupled. Treat its upstream shape and timing
+as a maintainer discussion, not an assumption that the proving-ground harness lands first or
+unchanged (§7).
 
 **Testing splits into two tiers** — keep them distinct: **(A) deterministic subsystem
 tests** for the non-LLM machinery (scheduling, delivery, undo, scorer, memory store) —
@@ -31,6 +33,11 @@ prod. **Evaluation** = offline, systematic. "Across a corpus, is quality
 maintained and latency improved." Proactive / CI. They overlap on *quality* and
 share the same instrumentation, but eval is built by *aggregating and scoring*
 what tracing already emits per run.
+
+**Deployed-use telemetry is a third concern.** It asks whether people in real homes attempt,
+complete, recover from, and reuse the VISION interactions over time. A fixed corpus cannot
+measure adoption, ignore/cancel behavior, repeat use, or population distributions. Those
+scenario outcome signals live in [`telemetry.md`](telemetry.md), not in the corpus scorecard.
 
 ### The two trace systems (don't conflate them)
 
@@ -168,10 +175,9 @@ timing enrichment is load-bearing: without it you can't see the added generation
 **Cache metrics come for free** from the provider `usage` object — Anthropic
 returns `cache_creation_input_tokens` / `cache_read_input_tokens` per request
 (HA's `anthropic/entity.py` already captures `message.usage`), so cache hit rate
-is directly observable per run, no extra instrumentation. *(Population-level
-questions — "how often is a conversation warm across the fleet?" — are **fleet
-telemetry**, out of scope for this harness and for core; see
-[`prompt-context.md`](prompt-context.md) §"Two tiers of observability.")*
+is directly observable per run, no extra instrumentation. Population-level questions such
+as “how often is a conversation warm across the fleet?” belong to
+[`telemetry.md`](telemetry.md), not this harness.
 
 ---
 
@@ -280,6 +286,8 @@ sections are already a test spec** — turn each stated property into a case:
 
 | Property (from scheduling-model.md) | Test |
 |---|---|
+| **One canonical store** | create reminder/alarm/scheduled command/rule → reload → assert each restores through the same versioned `ScheduledItem` schema and lifecycle API |
+| **Projection, not dual truth** | edit/cancel native projection and externally linked calendar event → assert deterministic reconciliation with the canonical/companion record |
 | **No double-fire** across re-ticks/edits/restart | fire once, replay ticks / reload store → assert single delivery per occurrence (watermark dedup) |
 | **No silent miss** (at-least-once) | crash between deliver and watermark-persist → assert **redundant** re-fire, never a drop |
 | **Catch-up grace** (drop stale) | simulate a multi-day outage → occurrences older than *N* skip-but-advance |
@@ -307,6 +315,29 @@ which is precisely the machinery our durable trigger reuses:
   ([`find-entities.md`](find-entities.md)).
 - **Undo journal** — action → recorded inverse → replay → assert state restored
   exactly (scene snapshot round-trip); world-moved-on → confirm/decline ([`undo.md`](undo.md)).
+- **ChatLog session state** — state survives HA's between-turn `dataclasses.replace()`,
+  expires with the chat session, never duplicates transcript content, and isolates concurrent
+  conversation IDs.
+- **Identity/scope policy** — unidentified `"default"` callers can use household scope but
+  cannot create or read personal records; recognized/authenticated users see household plus
+  only their own personal records.
+- **Tool policy + confirmation** — unavailable personal tools are absent from `.tools` and
+  rejected again at execution; "yes" executes the immutable stored operation, while expiry,
+  principal change, altered arguments, and "no" cannot execute it.
+- **Capability selection** — deterministic availability filtering, dependency closure,
+  tool/token budget enforcement, and affinity expiry; then shadow/e2e
+  capability-and-tool recall@budget, task-success delta, unauthorized exposure (zero),
+  discovery recovery, follow-up continuity, multi-intent coverage, and miss rate by language
+  and provider ([`capability-selection.md`](capability-selection.md)).
+- **Continuation false-action suite** — television/podcast dialogue containing quoted
+  commands, cross-talk, valid but unrelated speech, explicit corrections ("actually no,
+  turn up the heat"), and real follow-up commands. Run across the intended strong cloud
+  model and weaker/local candidates. Measure false accepts and false rejects for the default
+  one-pass spurious judgment; compare the optional no-tools classification pass only if the
+  one-pass false-action rate is unacceptable, including its added generation and latency.
+- **Continuation consequence policy** — continuation origin promotes only the declared demo
+  operations, model sensitivity may raise but never lower the base tier, and an unrelated
+  new command can reject/supersede a pending operation rather than being trapped by it.
 - **Delivery state machine** — mock the `assist_satellite` entity; assert
   announce/escalate/queue transitions, `SatelliteBusyError` → defer, ack paths ([`scheduling-model.md`](scheduling-model.md)).
 - **Memory store** — slot overwrite / fuzzy-collapse / cross-entity alias collision / TTL
@@ -422,11 +453,11 @@ We are not the first to score Assist, and shouldn't rebuild what exists. The lan
 
 **The reuse-vs-build split (an explicit open decision).** Use a **DeepEval-shaped framework
 for *our* dev / iteration harness** — velocity, LLM-as-judge and trace views for free, VISTA
-user-sim for conversation cases. Keep the **core-contributed** piece **thin and
-convention-pure** (pytest + syrupy, minimal deps): core won't merge a heavy eval dependency,
-but it *will* merge the **corpus format**, the **trace enrichment** (Part A), and the
-**scorer**. Same "throwaway shell / portable capabilities" line (§5.5) applied to tooling —
-not a compromise. The boundary is a build-time decision, not a design blocker.
+user-sim for conversation cases. Keep corpus, trace, and scorer concepts separable enough to
+discuss with core maintainers, but do not pre-build a pretend "core version." If core wants
+some of this work, adapt a thin pytest-native slice to its conventions at that point. The
+boundary is an upstream design decision, not a reason to constrain the proving-ground
+harness now.
 
 **What we adopt from home-assistant-datasets, and what we defer.** Split by cost and risk,
 because the two borrowings are independent:

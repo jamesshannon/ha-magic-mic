@@ -270,12 +270,20 @@ ha-ai-memory ships a **private (per-agent) vs common (shared household)** split.
 Mapped onto our seam (§5.1): memories are keyed by resolved `user_id`, with an
 explicit **shared/household** scope as a first-class option (wifi password, garage
 code, cat's name are household facts, not personal ones). "Private" here means
-per-**user**, not per-agent. This is the `get_resolved_user()` + user-keyed `Store`
+per-**user**, not per-agent. This is the `get_resolved_user()` + explicitly scoped `Store`
 primitive (§5.6) doing double duty.
 
-**Settled:** LLM **infers** scope from content (pronoun / shared-resource cues),
-**default personal** on ambiguity; recall = caller's *personal ∪ household*. See
-data-model notes below.
+**Settled:** identity and memory audience are separate. An identified caller may write and
+recall *personal ∪ household*. An unidentified voice caller (`"default"`) may write and
+recall **household only**; there is no `"default"` personal namespace. The LLM may propose
+personal vs household for an identified caller from explicit language ("my dentist" vs "our
+wifi"), with personal as the ambiguity-safe default. It may not turn an unidentified caller
+into a personal owner. Requests that require a person are declined until one is resolved.
+
+The initial two-scope model does not attempt a general ACL. A future
+recognized-household/protected audience may be justified for shared secrets, but voice-ID is
+medium assurance and should not silently become authentication for financial credentials or
+other high-consequence data.
 
 ---
 
@@ -300,11 +308,12 @@ data-model notes below.
   parked" vs "car location") collapse to one overwrite, not a duplicate. Distinct
   subjects coexist as distinct slots. True append/list notes are **not v1** (and are
   profile-prefs anyway, deferred).
-- **Scope: inferred from content, default personal on ambiguity** (settled). Pronoun /
-  shared-resource cues decide ("my dentist" → personal; "the wifi" → household);
-  default **personal** when unclear (cross-user leak > non-share). Recall = caller's
-  *personal ∪ household*, keyed via `get_resolved_user()` (§5.1); pre-voice-ID collapses to
-  the default/household user, but keyed day one. (Aliases stay forced-household.)
+- **Scope:** for an identified caller, explicit pronoun/shared-resource cues decide ("my
+  dentist" → personal; "our wifi" → household), defaulting personal when unclear because a
+  missed share is safer than a cross-user leak. Recall = that caller's *personal ∪
+  household*. An unidentified voice caller is household-only and cannot create or read
+  personal slots. There is no pseudo-personal `"default"` bucket to migrate when Voice-ID
+  arrives. Aliases stay forced-household.
 - **TTL: LLM sets per slot-kind, default none** (settled). Volatile subjects (parking)
   → short default; durable (wifi/codes/names) → none; default no-expiry when unsure.
   Cleanup = lazy-on-read + optional periodic sweep.
@@ -314,6 +323,34 @@ data-model notes below.
 - Fields (draft): `content`, `slot` (subject key, fuzzy-resolved), `scope`
   (personal→`user_id` | household), `ttl?`, `created_at`. Retrieval = FTS over
   `content` + fuzzy over `slot`.
+
+---
+
+## Build-time scoping gate
+
+Before shipping notebook memory, settle and test:
+
+- **CRUD completeness:** remember, recall, overwrite/correct, forget, list/inspect, and expiry
+  must operate on stable records; “remember” without a legible correction/deletion path is
+  insufficient.
+- **Slot collision behavior:** evaluate overwrite-versus-new thresholds with near-duplicate
+  and genuinely distinct facts. When uncertain, clarify rather than silently replacing a
+  different fact.
+- **Retrieval abstention:** define score/ambiguity behavior for no match and multiple close
+  matches. The model must not blend separate stored facts into a confident answer.
+- **Sensitive speech:** capability policy determines whether a record is accessible, but
+  output policy must still consider that a shared speaker can be overheard. Explicitly scope
+  which memory classes may be read aloud and when a private response/step-up is required.
+- **Prompt-injection boundary:** stored memory is data, not instruction. Delimit it, preserve
+  provenance, and prevent remembered text from expanding tools or lowering consequence
+  policy.
+- **Storage hygiene:** schema versioning, bounded content/slot sizes, TTL cleanup,
+  export/deletion, and redaction in traces/backups must be specified before real household
+  secrets are used.
+
+The household/personal identity model is already settled in §Multi-user; this checklist does
+not reopen it. Real-world repeat recall, correction, deletion, and abstention signals are
+specified in [`telemetry.md`](telemetry.md).
 
 ---
 

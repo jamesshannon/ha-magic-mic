@@ -19,9 +19,11 @@
   exactly the §5.4 determinism-in-tools anti-pattern (unreliable, and it can't see prior
   state). This is §5.4 applied to reversal.
 - **Command pattern / compensating action.** Every *mutating* capability, at execute
-  time, records **its own inverse** into an **undo journal** keyed to the turn. "Undo" =
-  pop the last entry and run the inverse. The tool that did the action declares how to
-  reverse it — never a generic reasoner.
+  time, may return **its own `UndoAction`** for an **undo journal** keyed to the turn.
+  "Undo" = pop the last supported entry and run the inverse. The function that did the
+  action builds the compensation because it knows what changed; the gateway only records
+  it. Unsupported actions are explicitly un-undoable, never reconstructed by a generic
+  reasoner.
 - **HA already has the hard part for device control:** `scene.create` with
   `snapshot_entities` + `scene.apply` captures and restores full entity state (incl.
   attributes) deterministically (`homeassistant/scene.py:81,120`); intents expose exactly
@@ -54,8 +56,10 @@ The division of labor is the same as everywhere else in the design:
   guessing is dangerous (an action already happened).
 
 So undo is **not** "ask the model to emit the opposite command." It's a **command-pattern
-journal**: each mutating tool, when it runs, returns an *inverse action* + the data needed
-to run it; the shell stores it; "undo" executes it.
+journal**: an undo-capable intent or tool returns an inspectable, provider-neutral
+`UndoAction` descriptor plus the data needed to run it; the execution gateway stores it;
+"undo" executes it. A lambda describes the ownership intuition, but it is not the contract:
+a closure cannot be serialized, traced, or moved cleanly into core.
 
 ---
 
@@ -80,6 +84,14 @@ The snapshot for device control is the load-bearing case, and HA hands it to us:
 entities into a re-applyable scene; the intent's `success_results` tells us the set. So
 "undo" of "dim the kitchen to 30%" restores the *exact* prior brightness/color/on-state —
 no model reasoning, no lossy inverse.
+
+**Storage location:** the bounded live journal is conversation-session state exposed through
+`MagicMicChatLog`, not content appended to the transcript and not another interaction
+object. Its backing store is keyed by `conversation_id` because HA clones the `ChatLog`
+dataclass between turns; a value placed only in the subclass instance dictionary would be
+lost. Later, if undo must survive the five-minute chat-session lifetime or a fresh wake-word
+session, promote the bounded journal to a short-TTL integration store without changing the
+capability inverse contract.
 
 ---
 
@@ -166,8 +178,10 @@ Stated once here so those docs can lean on "undoable" without each re-deriving i
 
 ## Scope & phasing
 
-- **v1 = single-level undo** of the **last mutating action/turn** (what assistants
-  actually offer). One journal slot, replayed. Covers "undo that."
+- **v1 = selective, single-level undo** of the last **supported** mutating action/turn.
+  Instrument a few representative Magic Mic/demo intents and capability tools to prove the
+  contract. All other intents report that the action cannot be undone until their core
+  handlers adopt `UndoAction`; do not fork the whole intent catalog for the POC.
 - **Later = a bounded stack** ("undo the last three"), if demand shows — same journal, a
   few entries deep.
 - **Build order:** the **device-control** inverse (snapshot/restore) is the highest-value

@@ -27,16 +27,19 @@ These are non-negotiable and shape almost every change. Full rationale in
    date math, arithmetic, exhaustive filtering, and fuzzy matching into tools and the HA
    layer, never into the model's head (§5.4). A tool that only works with a strong cloud
    model is a design smell.
-2. **Capabilities are provider-agnostic and core-shaped.** Each capability is a
-   self-contained module that depends only on `hass`, `llm.LLMContext`, `ToolInput`, and HA
-   helpers, never upward on the conversation shell or the Anthropic client (§5.5). Structure
-   it as if it were already a core `llm.py` platform (`async_get_tools(hass, llm_context,
-   api_id) -> LLMTools`) so migration to core is close to copy/paste. The conversation shell
-   is deliberately throwaway; the capabilities are the point.
-3. **Multi-user from day one.** All capability data is namespaced by a resolved `user_id`
-   from the first commit, behind a single `get_resolved_user(...)` seam (§5.1). Never key data on
-   device or satellite directly; voice-ID drops into that one function later with no
-   migration.
+2. **The integration is a proving ground, with clean dependency direction.** Keep
+   deterministic capability logic independent of the Anthropic client and avoid
+   provider-specific types below the conversation adapter (§5.5). Do not imitate speculative
+   core file layouts or force every feature into a standalone `llm.py` platform. Core
+   adoption will require architecture work across existing Assist seams; the portable
+   outputs are evidence, tested behavior, data contracts, and well-separated logic—not an
+   expectation that source files will be copied unchanged.
+3. **Multi-user from day one.** All capability data is scoped through
+   `get_resolved_user(...)` from the first commit (§5.1). An unidentified voice caller is
+   the `"default"` principal and has household scope only; it is not a synthetic personal
+   user. Personal reads and writes require a resolved person. Never key personal data on a
+   device or satellite directly; voice-ID drops into the resolver later without changing
+   capability call sites.
 4. **Never degrade the no-AI path.** Where a capability can also land as a local HA intent,
    it should: that helps non-AI Assist users and moves the command off the cloud path
    (§2.9, §7). AI stays opt-in.
@@ -148,8 +151,8 @@ Concrete rules (the HA specifics that override or sharpen Google's):
   - Don't push to a remote or open a PR unless the human asks.
 - **Upstream contributions are human-submitted.** Per the OHF AI policy there are no
   autonomous contributions to HA core: a human reviews, understands, and submits every
-  upstream change (`PRODUCT_PLAN.md` §7). Your job is to prepare core-shaped, reviewable
-  changes, not to file them.
+  upstream change (`PRODUCT_PLAN.md` §7). Your job is to produce reviewable evidence,
+  contracts, tests, and implementation slices that can inform that work—not to file it.
 - **Keep docs and code in sync.** If a change alters a decision recorded in
   `PRODUCT_PLAN.md` or a `docs/` file, update that doc in the same change.
 
@@ -170,6 +173,7 @@ custom_components/magic_mic/   the integration (placeholder shell today)
   const.py                     DOMAIN and constants
   manifest.json                domain, requirements, iot_class, version
   strings.json + translations/ user-facing strings (localized)
+TODO.md                         blocking foundation work before Wave 1 continues
 PRODUCT_PLAN.md                architecture and source of truth (§0 indexes docs/)
 VISION.md                      the pitch: what it does, the standout moments
 docs/                          one file per feature or topic (see PRODUCT_PLAN §0)

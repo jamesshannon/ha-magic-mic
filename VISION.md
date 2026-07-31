@@ -40,12 +40,12 @@ because the check reads the door's actual state.
 >
 > **Magic Mic:** "Water the plants."
 
-Set a reminder by voice and it doesn't matter where you wander. When it's due, every
+Set a reminder by voice and it doesn't matter where you wander. When it's due, a nearby
 speaker gives a short, content-free nudge, *"you have a reminder,"* and reads it out only
-when you ask. Asking to hear it counts as the acknowledgement. Nothing private gets spoken
-into a room until you ask for it, a reminder you ignore escalates instead of nagging one
-speaker forever, and anything that came due while the system was offline waits for you the
-next time you speak rather than arriving three hours late.
+when you ask. If it is ignored, the nudge can expand to other rooms instead of nagging one
+speaker forever. Asking to hear it counts as the acknowledgement. Nothing private gets
+spoken into a room until policy allows it, and anything that came due while the system was
+offline waits for the next interaction rather than arriving three hours late.
 
 ### Learns how you talk
 
@@ -147,19 +147,19 @@ machinery that runs every other automation in your home. This holds across the d
 LLM handles intent and orchestration, and every fuzzy, stateful, or safety-critical step
 goes into a deterministic tool.
 
-Undo works because the system records what each action actually did. "Undo that" doesn't
-reconstruct history from the model's memory and hope. Every action that changes something
+Undo works because an undo-capable action records what it actually did. "Undo that" doesn't
+reconstruct history from the model's memory and hope. Every action that promises undo
 writes its own inverse the moment it runs: a snapshot of the lights before they changed,
 the previous value of a note, the ID of a thing that was created. Undo replays those
 inverses in reverse. It's a journal rather than a reconstruction, which is why it's safe to
 offer out loud, and it's what lets the assistant act right away, since anything it does can
 be cleanly reversed.
 
-Determinism is also how this runs locally. The more work that lives in deterministic tools
+Determinism is also how more of this can run locally. The more work that lives in deterministic tools
 instead of the model's head, the less the cloud has to do, and the more can run with no
-cloud at all. Every capability is built as a provider-agnostic Home Assistant primitive, so
-a local model gets the same tools a cloud one does, and the gap comes down to raw model
-quality. The common commands are also shaped so Home Assistant's on-device intent matching
+cloud at all. Provider-specific transport stays out of the deterministic capability logic,
+so local and cloud models can use the same underlying behavior and differ mainly in model
+quality. The common commands also use Home Assistant's on-device intent matching
 can handle them without calling the model, which makes those interactions faster, cheaper,
 private, and usable with no internet. Contributing these capabilities improves the no-AI
 path too, not just the cloud one.
@@ -174,9 +174,9 @@ path too, not just the cloud one.
 - **Fun to use, dull to trust.** Deterministic tools, a real undo journal, plain defaults,
   and no silent inference. It won't quietly change how it behaves on a guess it didn't tell
   you about.
-- **Multi-user from the first line of code.** Data is keyed per person from the start, so
-  "my dentist appointment" and "the wifi password" land in the right scope before the
-  system can even tell voices apart.
+- **Multi-user from the first line of code.** Data records household or personal scope from
+  the start, so "my dentist appointment" and "the wifi password" have different audiences
+  before the system can even tell voices apart.
 - **Local-first by construction.** The design assumes people care about privacy and about
   the thing still working when the cloud doesn't, and it's built so that caring costs you
   nothing.
@@ -185,11 +185,11 @@ path too, not just the cloud one.
 
 ## Where this is going
 
-The design phase is done: two dozen deep-dive docs, a full architecture, and a build plan.
-Next it gets built, as a Home Assistant custom component running on cloud Claude to start,
-with each capability shaped so it can move into Home Assistant core and reach everyone. The
-order is fuzzy entity resolution first, then calendar writes, then persistent reminders,
-then long-term memory. The shell is disposable on purpose; the capabilities are the point.
+The design is developed enough to build and test as one Home Assistant custom-component
+proving ground, running on cloud Claude to start. The goal is evidence: demonstrate the
+experience, measure it, expose the missing Assist seams, and carry successful behavior,
+contracts, schemas, and tests into architecture discussions with Home Assistant maintainers.
+That will require adapting the work to core, not copying a folder of pre-shaped integrations.
 
 To dig in, start with [`PRODUCT_PLAN.md`](PRODUCT_PLAN.md) for the architecture and the
 [`docs/`](docs/) folder for the feature-by-feature reasoning.

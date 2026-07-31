@@ -27,9 +27,10 @@
     → disambiguate).
   - UPDATE = out of scope (local-only; delete+recreate loses attendees/identity).
 - **Shared create path with reminders.** Per [`scheduling-model.md`](scheduling-model.md)
-  the native reminder store is itself a `CalendarEntity` declaring `CREATE_EVENT`, so
-  the *same* create flow writes native-or-real; the `ScheduledItem.store` field picks
-  which. Calendar-write and the reminder store are **not separate builds.**
+  native `ScheduledItem`s are projected through a `CalendarEntity` declaring
+  `CREATE_EVENT`. The same create flow chooses native placement or creates a real event plus
+  a UID-linked companion `ScheduledItem` for assistant delivery state. Calendar-write and
+  the reminder store are **not separate builds.**
 
 ---
 
@@ -63,6 +64,10 @@
 
 ### CREATE (v1)
 A custom Tool over `calendar.create_event` (not a raw `ActionTool`) so it can:
+- **Require a resolved person for personal calendars.** The unidentified `"default"`
+  principal has household scope only, so personal calendar tools are absent from its tool
+  list and rejected again at execution. A future explicitly household calendar may opt into
+  household access; no calendar silently becomes one.
 - **Normalize datetime deterministically** — "next Tuesday 3pm," "tomorrow morning" →
   absolute ISO/duration in the tool, not the model (determinism-in-tools §5.4; HA owns
   tz/`now()`). **Localization boundary (§5.7):** *understanding the phrase* is
@@ -90,8 +95,9 @@ fuzzy-over-fetched-events, not the entity scorer. Delete by UID.
 > **Security note:** event summaries/descriptions are **untrusted** (anyone who can send
 > an invite writes them), and delete feeds them to the model *and* performs a destructive
 > action — a prime injection vector. DELETE is a high-consequence, injection-independent-
-> gate case ([`security.md`](security.md) L2): confirm-by-naming-back the resolved event
-> before deleting; treat the summaries as data, not instructions (L4).
+> gate case ([`security.md`](security.md) L2): normalize and store the exact delete as an
+> immutable pending operation, name the resolved event in the confirmation, and execute only
+> that stored operation after approval. Treat the summaries as data, not instructions (L4).
 
 ### UPDATE (out of scope)
 Only `local_calendar` supports it; Google/CalDAV can't update through HA. Modeling it as

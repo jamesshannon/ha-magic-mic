@@ -134,12 +134,19 @@ The LLM normalizes fuzzy surface language into a canonical spec and routes by th
 
 ```
 ScheduledItem {
-  trigger:  relative | absolute | recurring(RRULE)
-  when:     ISO datetime / duration / RRULE
-  payload:  content (to speak) | command (to run) | none (ding)
+  id, revision, created_at, updated_at
+  scope: household | personal(<user_id>)
+  trigger: relative | absolute | recurring(RRULE) | state/event
+  when: normalized datetime / duration / RRULE / trigger config
+  condition: optional bounded HA condition config
+  body: deliver(content) | run(bounded Assist tool calls) | ding
   delivery: satellite-announce | notify(user) | run-command
-  store:    native | calendar(<id>) | todo(<list>)
-  lifecycle: pending | delivered(k) | snoozed | acked | queued | cancelled
+  placement: native | calendar(<id>, <event_uid>) | todo(<list>, <item_uid>)
+  status: active | paused | completed | cancelled | expired
+  occurrences: {
+    scheduled_for, state: pending | delivering | delivered | snoozed | acked | queued,
+    attempts, last_transition_at
+  }
 }
 ```
 
@@ -170,7 +177,56 @@ calendar/todo are opt-in targets.
 
 ---
 
-## The unifying design: delivery engine over `CalendarEntity` sources
+## The `ScheduledItemStore` is the durable spine
+
+There is one versioned HA `Store` of canonical `ScheduledItem` records for assistant-owned
+scheduled behavior. It is not a transcript concern, an in-memory timer table, or data encoded
+into a calendar event description. Reminders, alarms, scheduled commands, and the
+time/state-triggered rules in [`ephemeral-automations.md`](ephemeral-automations.md) all
+compile into this record. Their front-door nouns and delivery presets differ; persistence
+does not.
+
+The store owns:
+
+- the stable item ID and schema revision;
+- the normalized trigger, optional condition, and bounded action/delivery body;
+- the creator's captured household/personal scope;
+- the target and delivery/escalation state;
+- cancellation, snooze, acknowledgement, catch-up, and last-occurrence bookkeeping;
+- any external calendar/todo reference needed for visibility or synchronization.
+
+The store is loaded before triggers are attached. On startup the scheduler reconciles all
+non-terminal items, computes missed/next occurrences using the persisted watermark, then
+registers runtime callbacks. Writes use one store service (`create`, `update`, `cancel`,
+`claim occurrence`, `complete/defer/queue`) so tools, local intents, calendar adapters, and
+delivery code cannot invent competing lifecycle transitions.
+
+**One persisted occurrence, not gateway-wide idempotency.** A recurring item gives each
+nominal firing a stable key such as `(item_id, scheduled_for)`. Claiming/completing that
+occurrence protects the actual restart/catch-up retry boundary. This does not deduplicate
+live user commands, and it does not promise exactly-once delivery across a crash during an
+external side effect; recovery follows the item's explicit delivery policy.
+
+Placement does not create a second behavioral store:
+
+- For **native** placement, the `ScheduledItem` is authoritative. Its scheduler reads the
+  store directly, so a private reminder does not need an enabled—and therefore UI-visible—
+  calendar entity in order to fire. An optional `CalendarEntity` is only a user-facing
+  projection/edit adapter. `ical` is used for RRULE parsing/expansion, not as a second
+  source of truth.
+- For an **external calendar**, the calendar event remains authoritative for its visible
+  time and recurrence. The local record is a companion keyed by calendar/entity + event UID
+  that owns assistant-only delivery and lifecycle metadata and reconciles event edits or
+  deletion.
+- A **todo** remains passive. Its companion record exists only when the user also requested
+  firing behavior; otherwise it is an ordinary todo and never enters the scheduling engine.
+
+This seam lands with the scheduling substrate in Wave 3, before reminders and ephemeral
+automations are layered on it. It is not a pre-Wave-1 blocker.
+
+---
+
+## The unifying design: delivery engine over scheduled occurrences
 
 Reuse the **library, not the entity**. "Reuse the calendar" concretely means
 reuse `ical` (RRULE + ICS persistence) — *not* puppeting a hidden calendar
@@ -187,18 +243,19 @@ entity, because:
    `assist_satellite`'s service API** (`announce` / `start_conversation`), *not* the
    lower-level timer `register_handler` pattern — see
    [Satellite output primitive](#the-satellite-output-primitive-assist_satellite-not-register_handler).
-2. **Trigger**: reuse the existing **Calendar Trigger** machinery (fire on event
-   start ± offset) by making every store a `CalendarEntity`.
-3. **Native store** = `Store` (JSON) for one-shot + `ical` for recurrence,
-   **exposed as a `CalendarEntity`**. That one object is simultaneously:
-   - the private source of truth (owns payload/delivery/snooze/fired-state),
-   - the **optional visible view** (flip a visibility flag → renders in Calendar),
-   - a **calendar-trigger source** (fires through the same path as real calendars).
+2. **Time-trigger adapters:** the native scheduler uses the same interval-cursor +
+   point-in-time-alarm pattern as Calendar Trigger, but reads `ScheduledItemStore` directly.
+   External placements use their `CalendarEntity` source. State/event items use HA's trigger
+   helpers as described in [`ephemeral-automations.md`](ephemeral-automations.md).
+3. **Native store** = `ScheduledItemStore`, using `ical` to expand recurrence and
+   optionally **projected as a `CalendarEntity`**. The projection is a visible
+   view/edit surface, not the firing dependency or source of truth.
 4. **Real calendars** are already `CalendarEntity`s → `create_event` for the
-   explicit "on my calendar" case; the same engine fires on them.
+   explicit "on my calendar" case. A UID-linked companion `ScheduledItem` owns delivery
+   state while the external event owns its visible schedule; the same engine fires on it.
 
-So native reminders and "on-my-calendar" reminders fire through **one** trigger +
-delivery path.
+So native reminders and "on-my-calendar" reminders converge into **one occurrence +
+delivery path**, while keeping the correct source authoritative on each side.
 
 ### Scoping (reminders ≠ every calendar event)
 The engine must fire only on **reminder-tagged events / opted-in calendars**, not
@@ -207,10 +264,11 @@ meeting. This is why Google keeps *Reminders* distinct from *Calendar events* ev
 though both live in the calendar: reminders fire proactively; events notify per
 their own settings. Preserve that distinction.
 
-**Ownership is captured at creation.** "Remind **me**…" resolves the owner `user_id` via
-`get_resolved_user()` at capture and stores it on the reminder (§5.1). Firing scopes by that
-stored value (whose calendar, whose personal note) and **never re-resolves identity at fire**
-(there's no speaker then). *Whose* reminder (scoping) and *where* to deliver it
+**Ownership is captured at creation.** An identified caller may create a personal reminder;
+`get_resolved_user()` captures that person on the item (§5.1). The unidentified `"default"`
+principal may create a household reminder but cannot schedule a later personal read such as
+"read my calendar." Firing scopes by the stored principal and **never re-resolves identity at
+fire** (there's no speaker then). *Whose* reminder (scoping) and *where* to deliver it
 (targeting/escalation below) are independent outputs of that one capture.
 
 ### Todo's role
@@ -237,16 +295,13 @@ satellite**, never silently turned into a phone text; text/notify delivery is th
 never-interrogate rule as targeting: accept a volunteered channel, never demand one, never
 branch on an invisible preference.
 
-**Why this is also the safe first use of `get_resolved_user()`.** Off-satellite text
-delivery needs identity, but only for **destination routing** (which person's notify
-target), *not* for reading personal data — a much lower-stakes personalization than
-calendar/PII access ([`docs/security.md`](docs/security.md)'s personalization-not-auth
-line). So "text me my summary" is a clean early identity consumer: a wrong resolution
-sends a benign summary to the wrong phone, it doesn't leak a protected read. The
-**proactive/solicited daily summary** (the `assist_daily_summary.markdown` blueprint
-pattern — conversation agent summarizes weather + calendar, ships via `notify`) is the
-canonical case: valuable, but its text-push half stays **gated on user-resolution** and is
-a Phase-4 proactive candidate, not a shipped default automation.
+**Off-satellite delivery requires a resolved person.** Choosing a phone is itself a personal
+routing decision, and the payload may contain calendar, reminder, or other private data. The
+unidentified `"default"` principal therefore cannot use "text me" delivery. The
+**proactive/solicited daily summary** (the `assist_daily_summary.markdown` blueprint pattern,
+where the conversation agent summarizes weather + calendar and ships via `notify`) is the
+canonical case: valuable, but its text-push half stays **gated on user resolution** and is a
+Phase-4 proactive candidate, not a shipped default automation.
 
 **What the "summary" payload actually is (payload ⊥ invocation).** The summary itself is
 not a bespoke feature — it's a **rich-prompt command alias** (a routine:
@@ -530,11 +585,12 @@ latency, not correctness.
 
 ## What this means to build
 
-- **New:** the delivery engine (announce/notify/command + snooze/ack) — with a
+- **New:** the versioned `ScheduledItemStore`; the delivery engine
+  (announce/notify/command + snooze/ack) — with a
   **silent degrade-to-floor targeting resolver**, **content-free announce + pull-to-read
   acks**, **bounded content-free escalation → queue-at-interaction-start**, and no
-  inferred stakes/privacy (see Delivery section); the native
-  reminder/alarm store implemented as a `CalendarEntity` (Store + `ical`); and the
+  inferred stakes/privacy (see Delivery section); the native `CalendarEntity` projection
+  plus external-event companion reconciliation; and the
   **durable trigger layer** (persisted watermark + two-knob catch-up) over the
   calendar-trigger machinery.
 - **Reuse:** Calendar Trigger (fire on event start ± offset), `create_event`

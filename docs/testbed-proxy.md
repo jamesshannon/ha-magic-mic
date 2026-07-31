@@ -88,11 +88,23 @@ holds an inner-agent instance and calls its loop method.
 | Redirect a tool call (`find_entities` to the fuzzy resolver) | intercept in `.async_call_tool`, fall through for the rest |
 | Replace the entity roster with a taxonomy skeleton (§5.2) | rewrite `.api_prompt` |
 | Trace every tool call and result | log inside `.async_call_tool` |
+| Enforce identity/consequence policy | omit unavailable tools in `.tools`, recheck in `.async_call_tool` |
+| Shadow/enforce capability selection | compute a `SelectionPlan`; compare with or replace `.tools`, prompt instructions, and context |
 
 Token, generation, and turn counts for the value dashboard come from inspecting the ChatLog
 at the neutral layer. For raw model I/O (exact request and response bytes, token usage) the
 testbed injects an instrumented Anthropic client into the inner agent, so the loop code stays
 unmodified.
+
+Capability selection first runs in shadow mode at this seam: compute and trace the proposed
+per-turn tool/instruction/context set while leaving the wrapped API unchanged. Once the
+recall and task-success gates pass, the same plan becomes authoritative. See
+[`capability-selection.md`](capability-selection.md).
+
+`MagicMicChatLog` remains the live-interaction interface. Deterministic values that must
+survive between turns, such as a pending confirmed operation or the bounded undo journal,
+are exposed through it but backed by a `conversation_id`-keyed sidecar. HA clones the
+dataclass between turns, so arbitrary subclass instance values are turn-local.
 
 ## The escape hatch: modifying `internal.claude`
 

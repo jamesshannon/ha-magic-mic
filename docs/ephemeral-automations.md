@@ -92,11 +92,12 @@ Plain reminders/alarms live in `scheduling-model.md`; this doc owns the
   via `find_entities`. Same NL→spec normalization as a reminder, plus a condition.
 - **At fire**, evaluate **deterministically** with HA's own helpers (below). No
   LLM inference at fire time.
-- **The resolving `user_id` is captured at creation too** (§5.1), alongside the entities. A
-  personal-scoped action ("read **my** calendar in an hour") binds to *who asked*, snapshotted on
-  the spec, and scopes by that stored value at fire. Identity is **never** re-resolved at fire
-  (there's no speaker then). Only actions that read user-scoped data need it; a plain payload
-  string doesn't.
+- **The resolved principal and data scope are captured at creation too** (§5.1), alongside
+  the entities. A personal-scoped action ("read **my** calendar in an hour") requires an
+  identified person, binds to that person, and scopes by the stored value at fire. An
+  unidentified `"default"` caller can author household-scoped rules but cannot defer a
+  personal read. Identity is **never** re-resolved at fire (there's no speaker then). Only
+  actions that read user-scoped data need it; a plain household payload string doesn't.
 
 ### On the cost/determinism argument (an honest concession)
 Running the LLM *at fire* to do the if/then is tempting and **not as bad as it
@@ -210,8 +211,9 @@ event-driven callbacks — nothing to "catch up" in that sense.
 
 ## Lifecycle
 
-- **Durable store** of `{trigger, condition, action}` specs (survives restart —
-  same requirement as reminders).
+- **Use the shared `ScheduledItemStore`** for `{trigger, condition, bounded body}` specs.
+  These are not a second automation-specific persistence format: reminders are the
+  time-trigger + deliver-body subset of the same canonical record.
 - **Re-arm on startup**: time via the scheduling layer (watermark); state via
   `async_initialize_triggers` from the stored config.
 - **One-shot self-remove** after firing.
@@ -304,6 +306,33 @@ alternative.
 **Rule of thumb:** compile to a structured condition whenever possible (the door
 case is trivial); LLM-at-fire only when the condition genuinely can't be expressed
 structurally.
+
+---
+
+## Build-time scoping gate
+
+Before implementing the authoring surface, settle and test these feature-level contracts:
+
+- **Trigger semantics:** distinguish a state transition (“when it closes”) from a level
+  predicate (“if it is still open at 8”), including `for:` duration and startup behavior.
+- **Bounded body:** publish the exact Assist primitives, argument schemas, nesting limit, and
+  single-level `choose` shape the compiler may persist. Reject templates, arbitrary services,
+  loops, and unknown future tool names.
+- **Entity binding:** resolve and store canonical entity IDs at authoring time; name the
+  resolved trigger, condition, and targets back to the user before the rule becomes active.
+- **Lifecycle:** define list/inspect/cancel/expiry behavior, one-shot cleanup, trigger
+  unsubscribe, and what happens when an entity or integration disappears.
+- **Restart cases:** test time catch-up separately from the one-time state-rule boot
+  reconciliation; never imply that lost state transitions can be reconstructed.
+- **Fire-time failures:** specify retry/queue/terminal behavior for a missing target,
+  unavailable service, failed condition evaluation, or partially completed bounded body.
+- **Observability:** expose the stored rule, next time when one exists, last evaluation, and
+  last outcome so “what did you set?” and “why didn't it run?” are answerable.
+
+These are Wave-3 feature scoping decisions, not pre-Wave-1 foundations. The shared
+`ScheduledItemStore`, execution policy, and confirmation contracts are inherited rather
+than reopened here. Post-deployment completion/cancellation/fire outcomes are defined in
+[`telemetry.md`](telemetry.md), not the eval corpus.
 
 ---
 

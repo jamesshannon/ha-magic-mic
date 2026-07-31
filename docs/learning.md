@@ -66,6 +66,12 @@ friction detected
                                    the basin so the same friction stops recurring)
 ```
 
+For a confirm-first fix, `proposer` also normalizes the proposed write into an immutable
+pending operation in the ChatLog's conversation-scoped sidecar. Confirmation approves or
+rejects that record; the model does not reconstruct the alias, threshold, or setting after
+the user says "yes." The sink still performs its normal collision and policy checks at
+execution.
+
 Two properties carried over from `memory.md` that make it cheap enough to be always-on:
 
 - **It rides an already-expensive request.** Friction only *exists* after a tool has fired,
@@ -245,8 +251,9 @@ hatch, not a black box.
 
 ## Path to core & localization
 
-- The registry is HA's own `async_get_tools` gate with a different predicate → **portable /
-  core-shaped**, not shell-special (§5.5).
+- The experiment can reuse HA's `async_get_tools` gate with a different predicate. Keep the
+  resolver contract provider-neutral, but let the proving ground determine whether core
+  ultimately wants a registry, a service, or another existing seam (§5.5).
 - Each resolver's **SKILL text is user-facing**, so anything core-bound goes through
   `strings.json` → translations, never baked English (§5.7). Same gate as any contributed
   intent.
@@ -254,6 +261,32 @@ hatch, not a black box.
   command aliases are more novel (core's current answer is "write a conversation trigger"),
   so the likely first contribution is the **offer-to-learn** behavior over HA's *existing*
   fix surfaces, with the pure rewrite table proposed separately.
+
+---
+
+## Build-time scoping gate
+
+Before enabling automatic offers, settle and test:
+
+- **Signal attribution:** record the concrete friction signal and the failed/repairing turn
+  that justified the offer. Do not learn merely because the model happened to use a tool.
+- **Offer fatigue:** persist decline/suppression state, cap offers across turns as well as
+  within one turn, and define when materially new evidence may reopen an offer.
+- **Alias safety:** prevent rewrite loops, recursive expansion, chains, collisions with
+  existing aliases/sentence triggers, and over-broad fuzzy capture.
+- **Late-bound outcome:** trace the rewritten text and the route it ultimately took so a
+  learned phrase remains inspectable when installed capabilities later change.
+- **Shared impact:** entity and command aliases affect the household. Name the exact learned
+  phrase and expansion before applying it, and provide a manual list/edit/delete surface.
+- **Success criterion:** evaluate whether the accepted fix removes the original friction on
+  later turns without increasing unrelated misroutes. Offer acceptance alone is not proof.
+- **Localization:** detection examples, offer text, and stored matching behavior must be
+  tested outside English before fuzzy matching is broadened.
+
+These are implementation-time gates for the learning slice. They use the already-settled
+pending-operation and execution-policy foundations. Accepted-fix reuse and later
+friction-reduction are deployed outcomes defined in [`telemetry.md`](telemetry.md), not
+corpus acceptance criteria.
 
 ---
 

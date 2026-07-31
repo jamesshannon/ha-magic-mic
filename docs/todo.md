@@ -41,10 +41,9 @@
 **Firing vs. list is the reminder×todo boundary** ([`scheduling-model.md`](scheduling-model.md)):
 - "Add milk to my list," "add a task" → **todo** (passive list; the base case above).
 - "Remind me to call mom at 5" → **reminder** (fires; native store owns trigger+delivery).
-- A task the user wants **both listed and nudged** → a **reminder whose `store` is a
-  todo list** (`ScheduledItem.store = todo(<list>)`). The native store owns the
-  firing (watermark/catch-up); the todo item is the **visible/synced copy** — exactly
-  the calendar pattern (native store = source of truth, external list = view). Todos
+- A task the user wants **both listed and nudged** → a `ScheduledItem` with todo
+  placement and a linked external item UID. The `ScheduledItemStore` owns firing and
+  delivery state (watermark/catch-up); the todo item is the **visible/synced copy**. Todos
   themselves never fire, so the nudge can't come from HA's todo trigger.
 
 Route by the user's **intent to fire**, not the word — same normalization discipline
@@ -86,8 +85,9 @@ in-store check-off, household-shared).
   to the native reminder store being a `CalendarEntity` we own — rather than provisioning
   `local_todo` config entries (config-flow, awkward to auto-create); but *prefer an
   existing user list* on a fuzzy hit.
-- **Keying:** shopping ≈ household, tasks ≈ per-user; collapses to the default user
-  pre-Voice-ID, but design the `get_resolved_user()` seam anyway (§5.1).
+- **Keying:** shopping ≈ household, tasks ≈ per-user. An unidentified `"default"` caller can
+  use the household shopping list but cannot acquire a pseudo-personal task list; personal
+  tasks require a resolved person (§5.1).
 - `SET_DUE_DATE` is the one edit that interacts with reminders — but per above, a
   due-date the user expects to *fire* should route to a reminder-on-a-list, not a bare
   todo due-date (which is inert).

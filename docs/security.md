@@ -124,6 +124,28 @@ socially-engineered ("say yes to continue"), so for the highest tier (unlock, pu
 prefer a **step-up the model can't produce** — a voice-PIN / app-confirm
 ([`speaker-identification.md`](speaker-identification.md) Tier-3), not just a spoken "yes."
 
+**Confirmation is a programmatic transition, not a prompt convention.** When an operation
+needs confirmation, normalize it first and store an immutable pending record
+(`tool + arguments + principal + consequence + expiry`) in the ChatLog's
+conversation-scoped sidecar. A later yes/no approves or discards that record. The model may
+recognize the reply, but it does not reconstruct the operation after approval or get to
+change its arguments between question and execution.
+
+Identity policy uses the same two-stage enforcement. Personal tools such as a user's
+calendar or private memory are omitted from the tool list for the unidentified `"default"`
+principal, then checked again inside `async_call_tool`. Tool exposure is the cheap UX bound;
+the execution check is the security bound and also covers stale or malformed calls.
+Availability filtering and safe non-actionable denial hints are specified in
+[`capability-selection.md`](capability-selection.md); relevance retrieval never restores a
+filtered tool.
+
+The first consequence policy is intentionally small and ordinal, not a pretend-calibrated
+probability. An action may be low-risk, require confirmation on a wake-word-free continuation,
+always require confirmation, or require a step-up. Continuation origin, protected-data
+provenance, and a model-emitted sensitivity flag may **raise** the tier but never lower the
+tool/intent's deterministic base. The POC only needs representative policies, not a complete
+Intent × Domain classification before it can demonstrate the mechanism.
+
 ### L3 — Taint model (the principled form of the `allow untrusted` toggle)
 Track **provenance** through a turn: mark content as *trusted* (the user's spoken
 utterance) vs *untrusted* (tool-results, web, calendar text, device state). Then apply a

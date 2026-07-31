@@ -144,14 +144,12 @@ reach for in-band framing only when you have a single text channel:
 | **JSONL** (one JSON object per line) | single channel, want interleaving | per-line buffering (mostly *overlaps* TTS clause-chunking, so cheap **if lines ≈ sentences**); needs valid-JSONL discipline |
 | **JSONL + grammar (GBNF)** | **local text-only model** | the fragility fix: structure *and* enforced validity |
 
-**Shell freedom vs core portability.** The conversation shell is deliberately
-throwaway (§5.5) — we fork the `anthropic` component anyway — so we're free to make
-*our* shell a structured-envelope shell if it's cleaner for us. Two constraints:
-(1) portable **capabilities stay tool-shaped** (`find_entities` et al. depend on
-`hass`/`llm`, never on our envelope); (2) core's conversation contract is
-free-text + `tool_use` + the `continue_conversation` heuristic, so a struct
-*loop* won't copy/paste into core — but that loop was always throwaway; the
-capabilities port regardless.
+**Proving-ground freedom vs core relevance.** We fork the `anthropic` component, so the
+experiment may use a structured envelope if that is cleaner. Keep deterministic capability
+logic independent of the Anthropic wire format, but do not pretend the shell or capability
+files will copy into core unchanged. The useful outputs are measured behavior and explicit
+contracts; core's current free-text + `tool_use` + `continue_conversation` seams determine
+where an upstream implementation would ultimately belong.
 
 ---
 
@@ -199,6 +197,12 @@ that: it announces the question, captures one STT utterance, and matches it **lo
 against a fixed answer set (`[yes, no]`) with no LLM** (pipeline truncated at STT,
 `:481-484`) → a deterministic confirmation at **zero extra generations**, and its hassil
 answer-match inherits HA's language coverage (unlike our English keyword maps).
+
+Regardless of how yes/no is recognized, the **operation being confirmed is not reconstructed
+from chat prose**. The shell first stores a normalized, immutable pending operation in the
+ChatLog's conversation-scoped sidecar. The next answer only approves or rejects that record.
+`ask_question` is one possible recognition front-end; an LLM-interpreted reply is another.
+Both execute the same stored operation through the same policy check.
 
 **Why it's only a candidate, not adopted:** it inverts control — **HA drives** the
 question mid-turn, so weaving an `ask_question` call into the middle of the LLM tool-loop
@@ -369,11 +373,12 @@ weather, undo, `web_search`/`web_fetch`, any SKILL surfaced as a tool) + every t
 from a **merged** third-party provider (§6.2 `MergedAPI` multiplies the count). A
 home that already runs near the cap on scripts alone can be pushed over by us.
 
-**Consequence:** the per-request dynamic `async_get_tools` gate (§2.5) and the §6.2
-relevance filter are not only prompt-budget hygiene — they are the mechanism that
-keeps a multi-provider, many-script home **under 128**. That reframes the filter as
-correctness (avoid a hard failure), not just cost, and is another reason to prove it
-in the throwaway proving ground before the core seam freezes.
+**Consequence:** request-time capability selection is correctness machinery, not only
+prompt-budget hygiene: it must keep a multi-provider, many-script home under 128 without
+making valid capabilities unreachable. The filtering → Tool RAG → budget assembly →
+discovery-fallback design lives in
+[`capability-selection.md`](capability-selection.md). Selection is not the security or
+intentionality boundary.
 
 **Also hard-capped: description lengths.** The same API-inherited limits bound tool
 authoring — roughly **1024 characters** per tool/script description and **128
@@ -577,8 +582,8 @@ you'll "save tokens" while adding latency:
   confirm "cross-conversation caching is wasted" rather than assume it.
 
 Enduring instrumentation (per-generation tokens/TTFT, resolution correctness)
-should ride the core conversation-trace enrichment path evaluation.md already lists
-as a work-item, so it migrates; over-instrument the throwaway shell freely, and
+should inform the core conversation-trace enrichment path evaluation.md already lists
+as a work-item; over-instrument the experimental shell freely, and
 **disclose** what's captured (token/timing = benign; utterance/entity content or
 anything leaving the box needs explicit opt-in).
 
@@ -638,32 +643,10 @@ tokens, not turns), but it is a candidate for removal, not just tuning. Artifact
 
 ### Two tiers of observability (local vs fleet)
 
-The above is **local, per-install** observability — the trace/`usage` counters on
-one box. Distinct from that is **fleet / phone-home aggregate telemetry**: the
-population-level statistic you *cannot* get from one install — e.g. *"only 3% of
-conversations start within 5 min of a prior conversation, across 10k users and 3M
-conversations."* That specific number would **empirically settle the cache model
-above** (is cross-conversation caching actually wasted?) instead of us assuming it.
-
-Fleet telemetry is uniquely how you validate the **empirical priors this whole
-design rests on** — none provable from a single install:
-
-| Design assumption | Fleet metric that validates it |
-|---|---|
-| "Cross-conversation cache is wasted" (cache model) | inter-conversation gap distribution vs the 5-min TTL |
-| "Most commands target the room you're in" (Tier-2 room scope) | % of resolutions where target ∈ requesting area |
-| Token-budget estimates (~8–20k for 500–1000 entities) | exposed-entity count distribution; entities/area |
-| Fast-path vs lookup economics | `find_entities` miss rate, disambiguation rate, generation-count distribution |
-
-**But it cuts against HA's grain and does not ship in core.** Core is local-first
-and doesn't phone home; the only precedent is the **opt-in `analytics` integration**
-(anonymous, coarse — integrations/entity-count buckets), and it's deliberately
-minimal. So fleet telemetry lives in the **proving-ground component and/or Nabu
-Casa Cloud** (which already processes cloud conversations and is the natural
-aggregation point) — never in the migratable capabilities, and always **opt-in +
-disclosed + content-free** (timing/token/cache-hit/home-size-bucket/same-room-bool;
-**never** utterances, entity names, or memories). Treat it as a design-validation
-instrument for *us*, not a feature of the shipped capability.
+The above is **local, per-install** observability. Population questions—conversation-gap,
+home-size, same-room targeting, lookup/disambiguation, and generation distributions—are
+deployed-use telemetry, not corpus evaluation. The opt-in, content-free, locally aggregated
+fleet design and its privacy constraints live in [`telemetry.md`](telemetry.md).
 
 Until we have fleet data, the priors in this doc (room-scope, bursty traffic,
 budget sizes) are **stated assumptions** — validate against whatever's available
@@ -675,7 +658,7 @@ of evaluation.md) and revisit the aggressiveness of pruning when real numbers la
 ## Open questions
 
 - **Do we adopt a struct-envelope shell, or stay free-text + typed blocks?** Lean
-  typed blocks (core-shaped, streams natively); revisit the envelope only if
+  typed blocks (HA-native and streams naturally); revisit the envelope only if
   meta-signal volume grows.
 - **Terminal-intent fast path** — worth the shell complexity (dual output shape +
   optimism/verify handshake) for the 1-generation win on simple commands? Measure

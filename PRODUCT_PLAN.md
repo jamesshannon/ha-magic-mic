@@ -50,8 +50,9 @@ gets its own file there. Current docs:
   plus corpora (SMH-Bench/HomeBench/HomeFlow/VISTA) and OSS frameworks (DeepEval pytest-native
   is the dev-harness reuse candidate) → **reuse-vs-build** split (heavy framework for our dev
   harness, thin pytest+corpus+scorer for core). The harness is **feature-decoupled → a
-  merge-first core contribution** (§7). Work-items: eval harness, deterministic+timing harness,
-  trace enrichment, prior-art/reuse decision, frontend UI fixes.
+  plausible early upstream discussion/contribution** (§7), adapted to core if maintainers
+  find it useful. Work-items: eval harness, deterministic+timing harness, trace enrichment,
+  prior-art/reuse decision, frontend UI fixes.
 - [`docs/build-sequence.md`](docs/build-sequence.md) — **order and proof, not design.** The
   build **prioritization** (three axes: necessary scaffolding/observability · features that
   *objectively prove* value via the harness · low-hanging magic) braided into **waves**, with
@@ -82,7 +83,9 @@ gets its own file there. Current docs:
   is crude; VAD timeouts (~0.7 s silence / ~15 s cap) auto-close; our design =
   default-continue for Q&A + **deterministic stop after commands**, shorter
   follow-up timeout, and a **spurious-gate** on reopened turns (the piece that
-  makes liberal reopening safe). Also the multi-turn `ChatLog` home. **Barge-in**
+  makes liberal reopening safe). Also the multi-turn `ChatLog` home: no parallel
+  transcript; deterministic pending-operation/undo state is exposed through
+  `MagicMicChatLog` and backed by a `conversation_id` sidecar. **Barge-in**
   (interrupt mid-response — "stop", or a new question over the top) lives **below the
   agent** (satellite + pipeline; the LLM never sees a "stop") → **inherited**; our job is
   keep-streaming (so long replies are cancelable) + stop-words stay **local**
@@ -105,10 +108,14 @@ gets its own file there. Current docs:
   `start_conversation` for solicited/proactive), not the low-level timer
   `register_handler` (§2.8); `SatelliteBusyError` is a *defer* state in the ack/escalation/
   queue machine. Store choice = user's visibility/sync intent (native-private
-  default; real calendar only on explicit cue). Unifying move: native store
-  implemented **as a `CalendarEntity`** = private store + optional view +
-  trigger-source at once. Includes a **Triggering implementation** section:
-  reuse HA's Calendar Trigger (interval-cursor + point-in-time alarm), which
+  default; real calendar only on explicit cue). Unifying move: one versioned
+  **`ScheduledItemStore`** owns assistant scheduling/lifecycle state for reminders,
+  alarms, scheduled commands, and ephemeral automations. The native scheduler reads this
+  store directly; an optional `CalendarEntity` is a view/edit projection, not a firing
+  dependency. Externally visible events get a UID-linked companion record rather than
+  hiding assistant metadata in their descriptions. Includes a **Triggering
+  implementation** section: reuse Calendar Trigger's interval-cursor + point-in-time
+  alarm pattern, which
   punts on missed-while-down → add a **persisted watermark** + **two-knob
   catch-up** (grace = time filter, collapse = recurrence filter) + watermark-last
   ordering + catch-up-is-informational. `timers.md`/`reminders.md` are thin docs
@@ -146,7 +153,7 @@ gets its own file there. Current docs:
   authoring `{trigger,condition,action}` for *later*, browsing). Shared primitive =
   **scorer + top-1/top-2 guard** (rapidfuzz `token_set_ratio`), **two consumers**.
   Disambiguation policy **inverts** music's optimistic-play. rapidfuzz = **new dep**
-  (difflib fallback). Phase 0, **first core PR**.
+  (difflib fallback). Phase 0; likely the first focused core-seam discussion once measured.
 
 - [`docs/prompt-context.md`](docs/prompt-context.md) — the **LLM I/O contract**
   (output half of the §5.6 prompt-context primitive; input/taxonomy half still to
@@ -162,8 +169,9 @@ gets its own file there. Current docs:
   round-trip) with **optimistic-execute + fallback-to-gen2-on-failure**; async
   tools (background task + stub result) save tool latency, not the generation.
   **Never** a `set_metadata` tool (wasted 3rd gen). Filler policy: no preamble for
-  fast actions, **earcon** for ack, spoken filler only for slow tools. Shell is
-  throwaway (§5.5) so a struct shell is fine **if** capabilities stay tool-shaped.
+  fast actions, **earcon** for ack, spoken filler only for slow tools. The shell is
+  experimental (§5.5), so a struct shell is fine if provider-specific framing stays
+  out of deterministic capability logic.
   **Input/prompt-budget half:** today's full-entity-roster dump (~8–20k tok for a
   500–1000-entity home, re-prefilled **per generation**) is a **crutch for
   exact-match** — redundant once resolution is fuzzy. Replace with **tier-1
@@ -177,9 +185,25 @@ gets its own file there. Current docs:
   utterance** is the uncached TTFT villain that pruning fixes. **Measure end-to-end**
   (tokens ×generations + TTFT/TTLT at fixed task-success; quality guard = task-
   success equality, *not* token equality); cache hit rate is free from Anthropic
-  `usage` (`cache_read`/`cache_creation`). **Fleet/phone-home telemetry** (validates
-  priors: room-locality, burstiness, home-size) is opt-in + content-free, lives in
-  proving-ground/Nabu Casa, **not core**.
+  `usage` (`cache_read`/`cache_creation`). Population validation is owned by the
+  opt-in, content-free deployed-use design in
+  [`docs/telemetry.md`](docs/telemetry.md), not the eval corpus.
+
+- [`docs/capability-selection.md`](docs/capability-selection.md) — the dedicated
+  **prompt-time capability selection / Tool RAG design**. Compile a per-turn API:
+  deterministic availability/identity filtering → high-recall relevance retrieval →
+  dependency expansion + tool/instruction/context budgeting → model selection → execution
+  recheck. Defines provider-neutral descriptors and `SelectionPlan`, two-level
+  bundle/tool retrieval, bounded session affinity, unavailable-capability hints, discovery
+  fallback, shadow-mode rollout, and recall@budget/task-success gates. Selection is not the
+  security or spurious-speech boundary.
+
+- [`docs/telemetry.md`](docs/telemetry.md) — **deployed product-outcome telemetry**, kept
+  distinct from deterministic tests, per-run traces, and corpus evaluation. Owns
+  content-free VISION-moment signals (attempt → complete/recover/reuse), population
+  assumptions, local-first aggregation, explicit fleet opt-in, forbidden-data rules,
+  denominators, rollout, retention, and deletion. These measures validate real-home use;
+  they are not corpus acceptance criteria and never replace correctness gates.
 
 - [`docs/memory.md`](docs/memory.md) — the Phase-2 differentiator, **shrunk** to
   what real users ask for. Two products wear the name: *confidant* (scales with
@@ -202,7 +226,8 @@ gets its own file there. Current docs:
   same un-HA failure). **Annotations** ("100 ppm is normal here") = deferred corner
   case (not explicit-recall → needs entity-join injection; write-trigger hard;
   route-to-structured → threshold edit). Multi-user = personal/household scope on
-  `get_resolved_user()` (§5.1). Phase 2 = **notebook only**.
+  `get_resolved_user()` (§5.1); unidentified `"default"` callers are household-only and
+  never acquire a pseudo-personal bucket. Phase 2 = **notebook only**.
 
 - [`docs/learning.md`](docs/learning.md) — **the friction-resolution primitive, split out
   of memory.** The offer machinery ("recognize confusion → offer a durable fix → confirm →
@@ -247,17 +272,17 @@ gets its own file there. Current docs:
   calendar-selection + name-it-back), **DELETE fast-follow** (needs a new
   `calendar.delete_event` service + event-resolution via read→fuzzy-over-summaries→
   disambiguate), **UPDATE punt**. Meets [`scheduling-model.md`](docs/scheduling-model.md)
-  at `create_event`: the native reminder store is itself a `CalendarEntity` w/
-  `CREATE_EVENT`, so one create flow writes native-or-real (`ScheduledItem.store` routes)
-  — calendar-write and the reminder store are **not separate builds**.
+  at `create_event`: one create flow writes a native `ScheduledItem` or an external event
+  plus UID-linked companion record. The native store has a `CalendarEntity` projection,
+  so calendar-write and the reminder store are **not separate builds**.
 
 - [`docs/todo.md`](docs/todo.md) — **thin.** Base todo is **already done** (add/
   complete/remove intents + `todo_get_items` read tool exposed today). Verified: the
   entity supports rich edits (UPDATE/MOVE/SET_DUE/DESCRIPTION) but only add/complete/
   remove are wired to intents; **todos never fire on due** (trigger is list-mutation).
   The one design point is settled upstream — **firing = reminder, passive list = todo**;
-  a task the user wants listed *and* nudged is a **reminder with `store = todo(<list>)`**
-  (native store owns firing; todo item is the visible copy, calendar pattern). Residual
+  a task the user wants listed *and* nudged is a `ScheduledItem` with todo placement and
+  a linked item UID (the canonical store owns firing; todo is the visible copy). Residual
   (low-priority): rich-edit intents, list-selection default.
 
 - [`docs/weather.md`](docs/weather.md) — **current-conditions vs. forecast split is
@@ -291,9 +316,10 @@ gets its own file there. Current docs:
   strategy = **person-vs-target geometry**: **timer** you're at it → none; **alarm** at it
   but asleep → escalate *intensity* (loud/persistent; broadcast can't wake a sleeper);
   **reminder** location unknown → escalate *reach* (content-free broadcast). Both **require
-  persistence** (trust). Build = one **`create_reminder`** tool (normalize time → pick
-  store via visibility-intent, `ScheduledItem.store` routes native-vs-real-calendar so this
-  and calendar-write are **one build** → name it back; behavioral write → confirm).
+  persistence** (trust). Build = one **`create_reminder`** tool (normalize time → choose
+  placement via visibility-intent; `ScheduledItemStore` owns native state or a companion
+  record for a real-calendar event, so this and calendar-write are **one build** → name it
+  back; behavioral write → confirm).
   Recurrence stays **simple** (one-shot/daily/weekly/interval; punt complex RRULE +
   sharing to the real calendar). **Broadcast/intercom** = thin immediate-announce consumer,
   not a subsystem.
@@ -337,7 +363,9 @@ gets its own file there. Current docs:
   so injection reaches only what we exposed, mostly reversible. **Stance = blast-radius
   control, not detection** (unsolved): L1 least-privilege exposure (don't expose
   locks/alarm by default), L2 high-consequence behind an **injection-independent gate**
-  (confirm/PIN), L3 **taint model** (untrusted-in → restrict dangerous sinks; the
+  (confirm/PIN, backed by an immutable pending operation rather than model-reconstructed
+  arguments), plus identity-gated tool exposure and execution, L3 **taint model**
+  (untrusted-in → restrict dangerous sinks; the
   principled form of the **`allow untrusted` toggle** — web retrieval off by default,
   split `web_search` vs `web_fetch`), L4 provenance-labeling, L5 optional **local guardrail
   classifier** (Prompt Guard / Llama Guard / NeMo *do* exist, local-runnable; Claude has no
@@ -397,8 +425,9 @@ privacy-respecting in the HA tradition. Beyond device control, it should offer
 write access, and richer information retrieval (weather forecasts, web search).
 
 **End-goal:** land the capabilities in HA **core**.
-**Short-term:** iterate fast as a **custom component**, structured so migration
-to core is as close to copy/paste as possible.
+**Short-term:** iterate fast as a cohesive **custom-component proving ground**. Keep
+provider dependencies isolated and contracts explicit so the findings translate cleanly,
+without pretending that core adoption will be a source-file copy.
 
 ---
 
@@ -606,14 +635,22 @@ with AI, streaming TTS).
   `device_id`, `satellite_id` (`components/conversation/models.py:22`). `context.user_id` is
   trustworthy for **text** (the logged-in user), but for **voice** it's the **pipeline owner,
   not the speaker** (identical no matter who talks).
-- **`get_resolved_user(...) -> user_id` is a uniform accessor.** Capability tools call it to get
-  the scope key and never care whether the turn came from a live mic or a deferred trigger. It
-  is **cheap, deterministic, idempotent, and never `None`**, and it **never runs speaker-ID**. It
-  reads a resolution already established for this request (see the populators below), falling
-  back to cheap signals in order: (a) that established `user_id`; (b) `context.user_id` if it
-  maps to a real, active, non-system HA user; (c) a configured device→owner mapping; (d)
-  `"default"`. **Priority is source-dependent:** for voice, (b) is the pipeline owner, so
-  device→owner outranks it; for text, (b) is authoritative.
+- **Identity and data scope are separate facts.** The resolver reports whether this request
+  has a real person and which scope keys it may use. An unidentified voice caller resolves to
+  the `"default"` principal: **unknown person, household scope only.** `"default"` is not a
+  synthetic personal user. A recognized or authenticated person may use household scope plus
+  their own personal scope. Therefore an unknown caller can ask for a household fact but is
+  denied "my calendar," personal memory, personal todo, and other person-scoped operations.
+- **`get_resolved_user(...)` is the uniform accessor.** Capability tools call it and never care
+  whether the turn came from a live mic or a deferred trigger. It is **cheap, deterministic,
+  and idempotent**, and it **never runs speaker-ID**. Its result must preserve both the resolved
+  person (if any) and the household-only fallback instead of representing `"default"` as an
+  ordinary `user_id`. It reads a resolution already established for this request (see the
+  populators below), falling back to cheap signals in order: (a) that established person; (b)
+  `context.user_id` if it maps to a real, active, non-system HA user; (c) a configured
+  device→owner mapping; (d) the unidentified `"default"` principal. **Priority is
+  source-dependent:** for voice, (b) is the pipeline owner, so device→owner outranks it; for
+  text, (b) is authoritative.
 - **Populating the resolved user is trigger-specific and happens once, upstream** (never inside
   the accessor):
   - **immediate voice:** a speaker-ID stage (Phase 4) at/after STT, where the audio is, matches an
@@ -631,13 +668,80 @@ with AI, streaming TTS).
   [`docs/security.md`](docs/security.md)). So the populator writes `{request → user_id}` into
   per-request session state (`hass.data`), and the accessor (reached by tools via `llm_context`)
   reads it.
-- **Capture-time, not execution-time.** A deferred action that touches user-scoped data
-  snapshots the resolving `user_id` onto its artifact at creation and scopes by the stored value
-  at fire. The personalization boundary is the **action**: only actions that read personal data
-  (calendar, personal memory) need the `user_id`; a reminder body ("call mom") is just a string.
-- All capability data is namespaced by that `user_id` **from the first commit**. Phase 4 voice-ID
-  is the **upstream populator**, not logic inside the accessor, so it drops in with no data
-  migration.
+- **Capture-time, not execution-time.** A deferred action that touches person-scoped data
+  snapshots the resolved person onto its artifact at creation and scopes by the stored value at
+  fire. An unidentified caller cannot author an action that later reads personal data. A
+  household-scoped reminder may still capture the `"default"` principal because its body is
+  household data, not a personal lookup.
+- All capability data records an explicit **household or personal** scope from the first
+  commit. Phase 4 voice-ID is the **upstream populator**, not logic inside each capability, so
+  it drops in without changing capability call sites. There is no pre-Voice-ID
+  `"default"`-personal bucket to migrate or strand.
+
+#### 5.1.1 ChatLog-centered live interaction state
+
+`ChatLog` remains the source of truth for the live transcript, tool calls, tool results, and
+model-visible history. Do **not** build a parallel interaction transcript. Most one- and
+two-turn flows, including open-ended entity disambiguation, need nothing beyond the
+`ChatLog`: Claude sees the candidates and prior question in history and interprets the next
+reply.
+
+Some state must be deterministic rather than reconstructed from prose. Store only that state,
+and choose its home by lifetime:
+
+- **Turn:** resolved principal, origin device, trust/provenance markers, and effects produced
+  during the turn.
+- **Conversation session:** an immutable pending operation awaiting confirmation,
+  disambiguation focus only when a capability needs a deterministic constraint, and the
+  bounded undo journal.
+- **Durable capability store:** reminders, memories, scheduled rules, and delivery/ack state.
+
+Magic Mic already extends HA's `ChatLog` as `MagicMicChatLog`. Build on that interface, with
+one implementation constraint: HA uses `dataclasses.replace()` to clone a `ChatLog` between
+turns, so arbitrary subclass `__dict__` state does not survive. Session-scoped state therefore
+lives in a sidecar keyed by `conversation_id`, exposed through `MagicMicChatLog` properties,
+and cleaned up with the HA chat session. This is storage behind the existing object, not a
+second interaction model.
+
+Policy is enforced in code at two points:
+
+1. **Exposure gate:** omit personal or sensitive tools when the resolved principal lacks the
+   required assurance. The model should not see unusable tools.
+2. **Execution gate:** recheck the same policy in `async_call_tool` before performing the
+   action. Exposure is an optimization and UX boundary; execution is the security boundary.
+
+For a confirmation-sensitive action, persist the normalized tool name and immutable arguments
+as a pending operation with principal, consequence class, and expiry. A later "yes" approves
+that stored operation; the model does not reconstruct or alter the operation after approval.
+Pending state constrains the referent, not the whole next turn: "actually no, turn off the
+lights" may reject the pending action and issue a new command. Open-ended clarifications
+remain model-in-loop through `ChatLog`.
+
+#### 5.1.2 Execution gateway (extend the intent chokepoint)
+
+HA already has the right center: local hassil execution and LLM `IntentTool` execution both
+reach `intent.async_handle()`. Do not build another intent engine. Extend that path with a
+small execution contract, and make custom capability tools use the same contract:
+
+- principal + origin (`hassil | llm | deferred`) + normalized invocation in;
+- normal response + effects + optional `UndoAction` out;
+- policy, effect capture, and optional compensation around execution.
+
+Do **not** make gateway-wide idempotency a foundation requirement. In the ordinary
+synchronous Assist path there is no general retry protocol to deduplicate, and repeated
+identical commands are routinely intentional: two toggles, two broadcasts, or two timers.
+A hassil/LLM double-route is a pipeline bug to prevent structurally. Exactly-once behavior
+after an ambiguous downstream timeout is impossible unless that downstream operation
+supports an idempotency key. Add narrow replay guards only where a real replay boundary
+exists—for example, consuming a pending confirmation once, consuming an undo entry once, or
+claiming one persisted scheduled occurrence once.
+
+The acting intent or capability owns compensation because only it knows what changed. It
+returns a provider-neutral, inspectable `UndoAction` descriptor, not a closure. The proving
+ground does **not** need to retrofit every HA intent: instrument a small representative set
+of Magic Mic/demo intents, mark every other action explicitly un-undoable, and use the result
+to propose the core intent contract. Broad coverage comes only after that contract lands in
+core.
 
 ### 5.2 Entity resolution strategy (context-window + exact-match fix)
 Three tiers instead of dumping the full roster:
@@ -698,19 +802,32 @@ Three tiers instead of dumping the full roster:
   gap), cloud gets more reliable, and the tool degrades gracefully — which is a
   precondition for core acceptance (a Claude-only tool is a design smell).
 
-### 5.5 Portability discipline (component → core = copy/paste)
-- The real boundary is **dependency direction**, not file layout. Each capability
-  module depends only on `hass`, `llm.LLMContext`, `ToolInput`, and HA helpers —
-  **never** upward on the conversation shell or the Anthropic client.
-- **Mirror core's contract now:** structure each capability as if it were already
-  a core `llm.py` platform — a module exposing `async_get_tools(hass, llm_context,
-  api_id) -> LLMTools` — even though the shell calls it directly for now.
-- Package unit: **one capability = a `Tool` + its backing service** (a
-  `Store`-backed class, a scheduler), pre-shaped as a core PR. Migration = drop
-  the file at `components/<capability>/llm.py`, register the platform, delete the
-  direct call.
-- The conversation shell (Anthropic client, streaming, prompt assembly) is
-  deliberately **throwaway**.
+### 5.5 Proving-ground portability (preserve findings, not file shapes)
+
+Magic Mic is one cohesive experiment in how the Assist stack could work, not a bag of
+already-finished integrations waiting to be copied into core. Several of its important
+results cross current boundaries—ChatLog session state, intent execution/effects,
+prompt-time capability selection, identity scope, and durable scheduling—so upstreaming
+them will require design with core maintainers and changes in the appropriate existing
+subsystems.
+
+Portability therefore means:
+
+- isolate the Anthropic transport/client at the conversation adapter;
+- keep deterministic domain logic and persisted schemas provider-neutral;
+- give shared state and execution contracts explicit types and tests;
+- use normal HA helpers, lifecycle, localization, and storage conventions;
+- record the measurements and failure cases that justify each proposed core seam.
+
+It does **not** mean inventing a standalone integration or `llm.py` platform for every
+feature, registering internal modules as fake providers, or mirroring a speculative future
+core layout. Use ordinary internal modules where they make the proving ground understandable.
+Extract an extension boundary only when the experiment demonstrates that independent
+providers are genuinely needed or core maintainers select that architecture.
+
+The expected upstream artifact is a design argument plus focused tests and implementation
+slices adapted to core—not unchanged Magic Mic source files. Clean dependency direction
+still reduces that adaptation cost; faux copy/paste readiness does not.
 
 ---
 
@@ -730,14 +847,17 @@ Primitives identified so far, with their dependents:
 | **`find_entities`** (fuzzy → canonical `entity_id`) | device control (exact-match fix), music search/disambiguation, ephemeral-automation condition/target resolution, reminder targeting |
 | **`{trigger, condition, action}` + HA condition/trigger helpers** | ephemeral automations, conditional reminders |
 | **Scheduling/trigger substrate** (time watermark/catch-up + state `async_initialize_triggers`) | reminders, alarms, sleep-timers, ephemeral automations |
-| **`get_resolved_user()` identity seam + user-keyed `Store`** | memory, reminders (per-user), calendar/todo scoping, personalization, speaker-ID (Phase 4) |
+| **Versioned `ScheduledItemStore`** (canonical trigger/condition/body + scope + lifecycle; native projection or external UID companion) | reminders, alarms, scheduled commands, ephemeral automations, restart/catch-up reconciliation |
+| **`get_resolved_user()` identity seam + explicitly scoped Store** (`"default"` = unidentified, household-only; a real person unlocks personal scope) | memory, reminders, calendar/todo scoping, personalization, speaker-ID (Phase 4) |
+| **ChatLog-centered session state** (conversation-ID sidecar for pending operations + undo; no parallel transcript) | deterministic confirmations, undo, constrained disambiguation, per-turn identity/provenance/effect trace |
+| **Execution gateway over `intent.async_handle()` + capability-tool adapter** (policy, effects, optional `UndoAction`) | hassil intents, LLM `IntentTool`s, custom tools, deferred bodies; selective demo coverage before core adoption |
 | **Prompt-context — I/O contract + taxonomy skeleton + retrieval** | entity context (TTFT, §5.2), memory injection, mic-open/meta-signals (conversation-loop), generation-count-aware output shaping. *Two halves:* output/I/O contract ([`docs/prompt-context.md`](docs/prompt-context.md), done) + input taxonomy/retrieval (§5.2, pending). |
 | **Undo journal** (each mutating tool declares its inverse; deterministic replay) | device control (snapshot/restore), memory/alias writes, reminder/calendar/todo creates, calendar delete, ephemeral automations — and it underwrites every *optimistic* execution path + [`security.md`](docs/security.md)'s reversibility ([`docs/undo.md`](docs/undo.md)) |
 | **Offer / learning engine** (detect friction → offer a durable fix → confirm → persist; `FrictionResolver` registry gated via `async_get_tools` §2.5) | entity aliases, **command aliases**, annotations, threshold edits, todo-default resolution — storage is per-sink (registry / YAML / FTS), only the *offer flow* is shared ([`docs/learning.md`](docs/learning.md)) |
-| **Dynamic prompt-assembly seam** (§2.5 `async_get_tools` + §5.2 injection) — carries **three gated payload types: tools, context data, and instructions**; the instruction payload is a **SKILL**, injected two ways (machinery-gated whole vs. `load_skill`-pulled from a resident-header registry) | tool gating (§2.5), tier-2 context injection (§5.2), the offer engine (above), and the **SKILL registry** — v1 consumer = ephemeral-automation authoring; v2 = provider-published skills ([`docs/skills.md`](docs/skills.md)) |
+| **Dynamic prompt assembly + capability selection** — one `SelectionPlan` budgets **tools, context data, and instructions** through availability filtering, Tool RAG, dependency expansion, and fallback | tool gating, tier-2 context injection, the offer engine, multi-provider APIs, and the SKILL registry ([`docs/capability-selection.md`](docs/capability-selection.md), [`docs/skills.md`](docs/skills.md)) |
 
 **Build-order implication:** the **delivery engine**, **`find_entities`**, the
-**scheduling/trigger substrate**, and the **identity + user-keyed store** each
+**scheduling/trigger substrate**, and the **identity + explicitly scoped store** each
 underpin 3–5 features — so they are the foundations to lay first, before any one
 feature is built end-to-end.
 
@@ -828,11 +948,12 @@ custom_components/<name>/
   __init__.py        # config entry setup, service registration
   config_flow.py     # API key + options (fork anthropic's)
   const.py
-  conversation.py    # ConversationEntity — the agent shell (throwaway)
+  conversation.py    # ConversationEntity — experimental agent shell
   entity.py          # chat loop, streaming, tool-call dispatch (fork anthropic)
-  identity.py        # get_resolved_user() + device→owner config  [§5.1]
-  store.py           # user-keyed Store helper (keying convention)
-  capabilities/      # each = as-if-core llm.py platform [§5.5]
+  chat_log.py        # ChatLog extension + conversation-ID session-state access [§5.1.1]
+  identity.py        # resolved principal/scope + device→owner config [§5.1]
+  store.py           # explicitly household/personal Store helper
+  capabilities/      # provider-neutral internal domain/tool modules [§5.5]
     entities.py      # find_entities              (Phase 0)
     memory.py        # WriteMemory/RecallMemory   (Phase 2)
     reminders.py     # SetReminder/... + scheduler (Phase 3)
@@ -863,7 +984,8 @@ disciplines keep it from becoming a setup wall:
   forbid *runtime* interrogation (asking mid-conversation), not a minimal global page.
 - **Split by risk where it's a safety toggle.** `web_search` (snippets) and `web_fetch`
   (arbitrary attacker URL) are **separate** toggles, not one (security.md L3); memory,
-  continued-conversation, and any fleet telemetry are **opt-in + disclosed**.
+  continued-conversation, and any fleet telemetry are **opt-in + disclosed**
+  ([`docs/telemetry.md`](docs/telemetry.md)).
 
 Named config surfaces the docs already imply (accrete as built): API key / model /
 prompt-caching (anthropic fork); web_search + web_fetch + max_uses (auto-filled location);
@@ -872,17 +994,13 @@ user-sound library; **response verbosity dial (terse ⇄ conversational; default
 verbosity-complaint lever, [`docs/prompt-context.md`](docs/prompt-context.md))**; Voice-ID
 enrollment (Phase 4). Keep each **minimal and default-good.**
 
-### 6.2 Integration topology — module vs. integration (design to the boundary, split JIT)
+### 6.2 Integration topology and capability selection
 
 The file structure above is **one integration with modules**, not many integrations — a
-deliberate choice, because HA's architecture *would* let us split further and we may
-eventually want to. Two boundaries to keep distinct:
-
-- **Module boundary** (what we build first): `capabilities/` shaped as as-if-core `llm.py`
-  platforms, clean contracts, one config entry. Low overhead, fast iteration.
-- **Integration boundary** (later): physically separate installable integrations (a
-  `memory provider`, a `friction-resolver` provider, …), each its own manifest / config
-  entry / lifecycle.
+deliberate choice. Module boundaries keep the proving ground legible and testable; they do
+not predict how core will package the result. A later provider/extension boundary is a
+separate design decision, justified only by demonstrated third-party or
+independent-lifecycle needs.
 
 **HA already supports the modular vision at two levels.** (1) Voice is *already*
 decomposed into separate integration domains — `stt` / `tts` / `wake_word` / `conversation`
@@ -895,19 +1013,17 @@ provider integration can contribute tools to our agent with **no new mechanism.*
 piece that *cannot* split is the **conversation agent itself** — a pipeline binds exactly
 one agent, so Magic Mic's entity is necessarily a single integration.
 
-**The discipline: design to the integration boundary now, split just-in-time.**
+Do not register Magic Mic's internal modules as separate `llm` APIs merely to simulate
+portability. Use `async_register_api` when testing a genuinely independent provider;
+otherwise plain internal composition is the more honest experiment. If a core proposal needs
+a provider registry, the proving ground should supply evidence for its contract rather than
+silently presupposing it.
 
-- Design every cross-capability interface **as if it already crosses an integration
-  boundary** — registration + discovery, no private cross-imports, depend only on
-  `hass`/`llm`/documented contracts (§5.5 dependency-direction, one step further). This
-  *enforces* the contract, **is** the core-contribution shape, and makes a later split
-  near-free. Register capabilities' tools via `async_register_api` even inside one
-  integration, so promotion is moving code, not redesigning.
-- **Don't** physically split in Waves 0–2 ([`docs/build-sequence.md`](docs/build-sequence.md)):
-  each integration is real boilerplate + config surface, and the contracts aren't proven yet
-  — premature splitting fights the rapid-iteration goal. **Promote** to a separate
-  integration JIT, when a contract has stabilized *and* third-party pluggability has concrete
-  value (memory provider, `FrictionResolver`, [`docs/learning.md`](docs/learning.md)).
+Prompt-time **capability selection** means deterministic availability filtering followed by
+relevance retrieval (**Tool RAG**) and budget assembly; *routing* is reserved for actual
+path/executor dispatch. The complete catalog, descriptor/plan contracts, continuity,
+fallback, and rollout design live in
+[`docs/capability-selection.md`](docs/capability-selection.md).
 
 **Multi-provider prompt budget is a proving-ground question, not a blocker.** Merging
 several providers' APIs merges their tools *and* prompt text → more budget pressure (the
@@ -919,18 +1035,15 @@ failure, not a slowdown; see [`docs/prompt-context.md`](docs/prompt-context.md))
 providers is exactly what pushes a many-script home over it, so the gate/filter is
 cap-avoidance, not only cost. Crucially, this is exactly the kind of thing to **discover and
 mitigate in Magic Mic (the throwaway proving ground) before the extension contract freezes
-in core** — a mitigation like **realtime provider/tool filtering** (a quick relevance search
-over tool descriptions to inject only the likely-relevant providers per request) is far
-cheaper to explore now than to retrofit onto a frozen core seam. (Note: tool/provider
-selection is a *different* filtering problem from entity resolution — tool descriptions are
-free-text/semantic, so **embeddings may earn their keep here where §5.3 rejected them for
-bounded/structured entities**; don't over-read §5.3 as forbidding embeddings everywhere.)
-The same seam governs **provider-published SKILLs** (instruction payloads, not just tools —
+in core**. Tool/provider retrieval is a **relevance and budget** mechanism, not the security
+boundary; execution policy still owns identity, consequence, and confirmation
+([`docs/capability-selection.md`](docs/capability-selection.md)).
+The same selection seam governs **provider-published SKILLs** (instruction payloads, not just tools —
 [`docs/skills.md`](docs/skills.md) v2): a resident ~25-tok header per third-party skill has
 the *same* incentive-to-over-include and cost-scales-with-installed-add-ons shape, so the
-relevance filter over descriptions is **one arbiter for both** payload types. SKILL headers
+relevance retriever over descriptions is **one arbiter for both** payload types. SKILL headers
 are why this must be settled here before the contract freezes — v2 provider skills are
-publishing **+** this filter, never publishing alone.
+publishing **+** this selection mechanism, never publishing alone.
 
 ---
 
@@ -940,10 +1053,11 @@ publishing **+** this filter, never publishing alone.
   agents are already in core; Nabu Casa *sells* cloud LLM processing — cloud AI
   is aligned with, not against, the commercial model. Opt-in is necessary but
   already satisfied by precedent.
-- **The real gate is architectural layering.** Core would reject a *monolithic*
-  assistant that bundles memory/reminders/tools inside one provider integration.
-  It accepts thin adapters + provider-agnostic capabilities (Assist API /
-  `llm.py` / MCP).
+- **The real gate is architectural evidence.** Magic Mic may be cohesive while proving the
+  experience. Core adoption will place successful pieces into existing Assist,
+  conversation, intent, scheduling, and integration seams—or add a new seam where the
+  evidence warrants it. We should not prejudge that packaging by manufacturing many
+  integrations inside the POC.
 - **This dissolves the "cloud outpaces local / exposes gaps" worry:** build the
   *capabilities* as provider-agnostic tools and **local models get them too**.
   Cloud vs local reduces to model quality (already accepted). Contributing shared
@@ -956,26 +1070,24 @@ publishing **+** this filter, never publishing alone.
   just an LLM tool) helps no-AI users *and* removes that command from the cloud path for
   AI users (faster/cheaper/offline). This both strengthens the "never degrades the no-AI
   path" story and makes intent-first the performant choice, not just the polite one.
-- **Modularity means core cherry-picks à la carte.** Because every capability is a
-  self-contained, provider-agnostic module (§5.5/§5.6), core can adopt **any subset in any
-  order** — and reject any one on principle at **zero cost to the rest.** Nothing is
-  entangled; there is no all-or-nothing PR. The sequencing below is *our recommended* order,
-  not a dependency chain core is bound to.
-- **The eval / trace harness is the cleanest "merge-first" contribution.** It's
-  **feature-decoupled** (depends on no capability) and **immediately useful to core's own
-  Assist work** — the perennial "which model is best for Assist?" has no reproducible answer
-  today; only ad-hoc community benchmarks exist, none integrated with the pipeline
-  ([`docs/evaluation.md`](docs/evaluation.md) Parts C/F/H). So it can land **before or in
-  parallel with** the capability PRs. This is active utility to the maintainers — a tool they
-  can use for their own development — not a nudge to notice a gap.
-- **Contribution sequencing (least → most controversial):**
+- **Do not promise à-la-carte source modules.** The user-visible capabilities share genuine
+  foundations: session state, identity/scope, execution policy/effects, selection, and
+  scheduling. Core can adopt findings incrementally, but some changes will necessarily
+  establish a shared seam before feature slices can follow. The POC should make those
+  dependencies explicit rather than conceal them behind nominally standalone modules.
+- **The eval / trace work may still be an early contribution**, because it is useful beyond
+  Magic Mic and can validate later Assist changes. Treat that as a hypothesis for maintainer
+  discussion, not a requirement that the experimental harness itself land unchanged
+  ([`docs/evaluation.md`](docs/evaluation.md) Parts C/F/H).
+- **Likely discussion/adoption sequence (least → most controversial), subject to core
+  architecture review:**
   1. `find_entities` / fuzzy resolution — arguably a fix to the exact-match
-     limitation; helps local most. First core PR.
+     limitation; helps local most.
   2. Calendar-write intents/tools — fills an obvious read/write asymmetry.
   3. Persistent reminders — new primitive; moderate discussion (delivery,
      persistence, overlap with timers/todo).
   4. Long-term memory — most opinionated (definition, retention, privacy,
-     per-user). Land last, after proving the pattern in the component.
+     per-user). Discuss last, after proving the pattern in the component.
 - **Localizability is a hard merge gate (§5.7).** Core rejects hardcoded English; new
   intents need localized sentences in `home-assistant/intents`, and any user-facing string
   goes through `strings.json`→translations. Design language-agnostic (or dynamic) from the
@@ -997,8 +1109,9 @@ publishing **+** this filter, never publishing alone.
 - **Phase 0 — Skeleton.** Custom conversation integration on cloud Claude at
   parity with stock Anthropic (inherits device control via Assist API). Add
   `find_entities` (returns `entity_id`, ambiguity guard). Thread `get_resolved_user()`
-  and user-keyed `Store` (empty) through the request. Establish the
-  `capabilities/` `llm.py`-shaped contract.
+  and the explicitly scoped `Store` (empty) through the request. The unidentified
+  `"default"` principal is household-only, never a pseudo-personal user. Establish clean
+  provider-neutral internal contracts without speculative per-capability core packaging.
 - **Phase 1 — Information.** Weather-forecast tool, web-search (enable built-in),
   optional traffic. Highest demand, lowest structural risk.
 - **Phase 2 — Memory.** `Store`-backed long-term memory with `WriteMemory` /

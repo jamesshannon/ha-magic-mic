@@ -34,7 +34,8 @@
 - **v1 = the registry with exactly one consumer: ephemeral-automation authoring.**
   It's the case with no deterministic gate and a body too big/rare to keep resident.
 - **v2 = third-party integrations publishing skills** — deferred, because it inherits
-  the §6.2 budget arbiter (resident-header cost scales with installed add-ons).
+  the capability-selection budget arbiter (resident-header cost scales with installed
+  add-ons; [`capability-selection.md`](capability-selection.md)).
 - **Name it `read_file` (trained affordance), sandbox it to skills (authority).**
   The model has seen `read_file` load a skill thousands of times; a novel
   `load_skill` fights that prior. Keep the name, make the *implementation* a bounded

@@ -147,6 +147,29 @@ any player.
 
 ---
 
+## Build-time scoping gate
+
+Before shipping ambient playback, settle and test:
+
+- **Player compatibility:** codec/container support, authenticated HA media URLs, range
+  requests, buffering, and loop behavior across representative players.
+- **Gapless reality:** measure audible loop seams and long-run stability; do not call a
+  repeated short file “gapless” based only on API behavior.
+- **Session ownership:** identify the playback session the assistant started so duration
+  expiry or “stop the rain” does not stop unrelated music that replaced it.
+- **Restart/expiry:** define what happens to a scheduled stop across HA restart and how stale
+  sleep stops are discarded.
+- **Announcement interaction:** test duck/resume and `assist_satellite` announcements while
+  the loop is active, including players that restart the stream from the beginning.
+- **Asset policy:** document licenses, bundle/download size, user-provided file validation,
+  and the no-cloud guarantee for every sound advertised as local.
+
+These are implementation-time acceptance gates for the ambient-noise slice. Any real-home
+compatibility/use telemetry follows the privacy and aggregation rules in
+[`telemetry.md`](telemetry.md).
+
+---
+
 ## Key references
 
 - `media_player/const.py:205` — `REPEAT_SET` / `RepeatMode`

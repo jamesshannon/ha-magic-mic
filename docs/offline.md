@@ -170,8 +170,9 @@ connection/availability error** (not on a policy refusal or a genuine bad reques
   a *number* of requests are rescued and a wrong best-effort match is possible, but
   offline a legible guess can beat a flat error. Gate conservatively.
 
-This is a **shell policy**, not a capability — portable-agnostic, lives in the throwaway
-conversation loop (§5.5).
+This is a **conversation policy**, not an independently portable capability. Test it in the
+proving-ground loop; any core version would be adapted to the pipeline seam selected with
+maintainers (§5.5).
 
 ### Layer 2 — compile-once / run-deterministic = offline by construction
 The strongest structural lever, and the answer to "what else can be done." The

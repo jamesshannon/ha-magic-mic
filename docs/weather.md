@@ -172,6 +172,29 @@ entity.
 
 ---
 
+## Build-time scoping gate
+
+Before implementing forecast answers, settle and test:
+
+- **Location routing:** distinguish an exposed home weather entity from an arbitrary place;
+  make the local-entity miss → web-search fallback explicit and traceable.
+- **Time semantics:** normalize “tonight,” “tomorrow morning,” weekends, and named weekdays
+  against the forecast location's timezone where known, not blindly against UTC.
+- **Provider capability:** handle daily/hourly/twice-daily support, missing periods, sparse
+  fields, stale `last_updated`, and service errors without inventing precision.
+- **Units and aggregation:** use HA's unit system and define deterministic high/low,
+  precipitation-window, and cross-midnight aggregation before model narration.
+- **Source honesty:** keep structured local forecasts distinct from web snippets; qualify or
+  abstain when web results conflict or do not contain forecast-grade data.
+- **Summary evaluation:** assert that speech preserves dates, conditions, extrema, and
+  uncertainty from the structured result. Fluency cannot compensate for a shifted day or
+  unsupported exact number.
+
+These are feature-level scope decisions for the weather slice, not shared foundations.
+Deployed-use telemetry remains content-free and follows [`telemetry.md`](telemetry.md).
+
+---
+
 ## Sources (ha-core refs)
 
 - `homeassistant/components/weather/intent.py` — `GetWeatherIntent` (state only).

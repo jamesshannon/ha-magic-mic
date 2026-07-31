@@ -41,25 +41,34 @@ a quality loss — [`evaluation.md`](evaluation.md) Part D). The eval **scorecar
 dashboard; build one instrument, not two.
 
 **Seam early, engine just-in-time.** Thread a primitive's *seam* on day one (cheap, avoids a
-retrofit — `get_resolved_user()`, the user-keyed `Store`), but build the *engine* only when its
-first consumer lands (the delivery engine waits for reminders). `find_entities` is the
-exception that comes early — it already has a Wave-1 consumer *and* four downstream ones.
+retrofit — `get_resolved_user()`, the explicitly scoped `Store`), but build the *engine* only
+when its first consumer lands (the delivery engine waits for reminders). `find_entities` is
+the exception that comes early — it already has a Wave-1 consumer *and* four downstream ones.
+
+Two seams need hardening before more Wave-1 behavior lands. First, `"default"` means an
+unidentified caller with household scope only, not a synthetic personal user. Second,
+`MagicMicChatLog` remains the live-interaction object, with deterministic session state
+(pending operation + undo journal) behind a `conversation_id`-keyed sidecar because HA clones
+the dataclass between turns. The blocking implementation checklist is
+[`../TODO.md`](../TODO.md).
 
 **Convergence worth naming:** the features that prove value (axis 2) are almost exactly the
 §5.6 shared primitives — prompt-context moves tokens, `find_entities` moves turns and feeds
 local routing, learning moves local-rate and turns. "Primitives first" and "prove value
 first" are the *same* instruction, so they don't compete.
 
-**Design to the integration boundary, split just-in-time.** Build as **one integration with
-modules**, not many integrations — but write every cross-capability contract *as if* it
-already crosses an integration boundary (registration + discovery, no private cross-imports;
-register tools via `async_register_api`). This enforces the contract, is the core-contribution
-shape, and makes a later split near-free — while avoiding per-integration boilerplate before
-contracts are proven. Promote a module to a standalone integration (a memory provider, a
-`FrictionResolver` provider) **JIT**, once its contract stabilizes and third-party
-pluggability has concrete value (PRODUCT_PLAN §6.2). Corollary: multi-provider prompt-budget
-pressure is a thing to **discover and mitigate here** (realtime provider filtering, §6.2)
-*before* the extension contract freezes in core — the proving-ground payoff.
+**Build one proving ground with honest internal boundaries.** Modules separate concerns and
+keep provider transport out of deterministic logic; they are not rehearsals for one-module-
+per-core-integration or promises of copy/paste migration. Do not add registration/discovery
+machinery until the experiment has a real independent provider. What moves upstream is the
+evidence, behavior, tests, schemas, and proposed seam, adapted with core maintainers. Tool RAG
+and multi-provider pressure are things to measure here before proposing a core capability-
+selection contract (PRODUCT_PLAN §6.2).
+
+**Feature scoping remains just-in-time.** The flagship feature docs contain explicit
+“Build-time scoping gate” sections for interaction-specific semantics, failure behavior, and
+acceptance cases. Those questions must close before that feature's implementation slice, but
+they are not reasons to block unrelated Wave 1 work or invent more shared foundations now.
 
 ---
 
@@ -75,12 +84,18 @@ pressure is a thing to **discover and mitigate here** (realtime provider filteri
 Reported as the **outcome scorecard** (resolved-locally / LLM-correct / after-clarification /
 wrong / "don't understand"), tracked as a *movement* across changes.
 
+This is the development/corpus scorecard, not deployed product telemetry. Whether people
+attempt, complete, ignore, recover from, and reuse the VISION moments in real homes is a
+separate post-deployment measurement layer defined in
+[`telemetry.md`](telemetry.md).
+
 ---
 
-## Component vs. core (what goes where)
+## Proving ground vs. core (what each is for)
 
-The line falls out of the architecture: **LLM-path capability → component; no-AI local-path
-help + the sub-agent pipeline layer → core.** The set that genuinely *needs* core is small:
+Build and measure the coherent experience in the component. Core work begins only when a
+finding requires an existing core seam or maintainers agree that the evidence justifies a
+new one:
 
 - The **fuzzy fallback inside the intent match layer** (§2.4) — as an *LLM tool* `find_entities`
   lives in the component; as the *match-layer fix* that helps the local path it's a core change.
@@ -88,8 +103,10 @@ help + the sub-agent pipeline layer → core.** The set that genuinely *needs* c
 - The **STT/TTS/pipeline/satellite-firmware layer** — barge-in/stop-words, `prefer_local_intents`,
   the `assist_satellite` output surface. *Wire, don't build.*
 
-Everything else builds in the component, shaped like core `llm.py` platforms. **Never block
-component iteration on a core PR** — contributions (§7) are a lagging, à-la-carte track.
+Do not block component iteration on a core PR, but do not describe upstreaming as an
+à-la-carte file-copy track either. Shared foundations may need to land before individual
+features. Tags below describe where experimentation or a prerequisite change occurs, not a
+preselected PR/package boundary.
 
 ---
 
@@ -117,8 +134,9 @@ absorb LLM non-determinism, and `web_search`/`web_fetch` ship on with `user_loca
   **pass-through**: identical behavior to the baseline, but with the trace hook and
   tool-interception seam in place. Inherits device control, streaming, and (Claude-specific,
   optional) **server-side web_search** ([`web-search.md`](web-search.md)).
-- **[C]** Thread `get_resolved_user()` + user-keyed `Store` **empty** through the request (§5.1);
-  establish the `capabilities/` `llm.py`-shaped contract (§5.5).
+- **[C]** Thread `get_resolved_user()` + explicitly scoped `Store` **empty** through the
+  request (§5.1); establish provider-neutral internal contracts without speculative
+  per-capability integration scaffolding (§5.5).
 - **[C]** Tier-A pytest scaffold + the **Tier-B golden-set runner** (seed cases from
   `VISION.md`'s transcripts) + the **value dashboard** (capture `usage` tokens/cache; count
   generations in the chat loop; record local-vs-LLM routing; trace turns).
@@ -132,10 +150,21 @@ absorb LLM non-determinism, and `web_search`/`web_fetch` ship on with `user_loca
 ### Wave 1 — Prove the thesis
 *Axis 2, the core bet — and it's cheap to reach.*
 
+**Entry gate:** complete the pre-Wave-1 foundation checklist in [`../TODO.md`](../TODO.md).
+This freezes the identity/scope contract, ChatLog session-state seam, and two-stage tool policy
+before more capabilities depend on the earlier placeholder interfaces.
+
 - **[C]** **prompt-context §5.2** — taxonomy skeleton + request-conditioned name injection,
   retire the roster dump ([`prompt-context.md`](prompt-context.md)). → measure **Δtokens / TTFT**.
-- **[C] / [core]** **`find_entities`** fuzzy in-match fallback — component tool first; the
-  match-layer version opens the first **[core]** track ([`find-entities.md`](find-entities.md)).
+- **[C]** **Capability-selection shadow mode** — build the provider-neutral catalog,
+  deterministic availability filter, relevance retriever, dependency/budget assembler, and
+  selection trace, but do not remove tools yet. Compare the proposed per-turn API with the
+  tool actually used by the full-roster baseline. Enforce selection only after
+  recall@budget and end-to-end task-success gates pass
+  ([`capability-selection.md`](capability-selection.md)).
+- **[C] / possible core seam** **`find_entities`** fuzzy in-match fallback — component tool
+  first; use its measurements to motivate a match-layer discussion with core maintainers
+  ([`find-entities.md`](find-entities.md)).
   → measure **Δturns** (disambiguation success).
 - **[HA]** Flip **`prefer_local_intents` ON** (§2.9) → measure **Δhassil-intervention rate**.
 - **Testing gate (tool interception):** the Wave 0 equivalence test covers the *pass-through*
@@ -147,7 +176,7 @@ absorb LLM non-determinism, and `web_search`/`web_fetch` ship on with `user_loca
 
 *Proves:* the token/turn/local claims — the **go/no-go** on the design's central bet.
 
-### Wave 2 — Bank cheap magic + first learning + first contribution
+### Wave 2 — Bank cheap magic + first learning + upstream evidence
 *Axis 3 + axis 2 dual-payoff.*
 
 - **[C]** Weather forecast tool ([`weather.md`](weather.md)); what's-playing local intent
@@ -156,22 +185,27 @@ absorb LLM non-determinism, and `web_search`/`web_fetch` ship on with `user_loca
 - **[C]** **Learning v1** — the offer engine + two resolvers: `add_alias` (rides the
   `find_entities` friction signal) + the **command-alias** resolver ([`learning.md`](learning.md)).
   → measure **Δhassil-rate + Δturns + utterances-moved-off-cloud**.
-- **[core]** **First capability PR:** `find_entities` / fuzzy resolution (least controversial,
-  §7). The eval/trace harness is **[core] merge-first**, available to land any time from here.
+- Prepare the `find_entities` results, tests, and proposed match-layer seam for maintainer
+  discussion (§7). The eval/trace work can be discussed independently if it proves broadly
+  useful; neither is assumed to land unchanged.
 
-*Proves:* learning moves the metrics; the contribution pipeline works.
+*Proves:* learning moves the metrics and produces evidence suitable for upstream design
+discussion.
 
 ### Wave 3 — The heavy magic (scheduling spine)
 *Axis 3 high-value, heaviest infra — the VISION Tier-1 hooks.*
 
-- **[C]** **Delivery engine + scheduling substrate** (the 4–5-consumer primitives,
-  [`scheduling-model.md`](scheduling-model.md)).
+- **[C]** **`ScheduledItemStore` first, then the delivery engine + scheduling substrate**
+  (the 4–5-consumer primitives, [`scheduling-model.md`](scheduling-model.md)). Reminders,
+  alarms, scheduled commands, and ephemeral automations must not grow separate durable
+  schemas.
 - **[C]** Reminders (content-free announce + pull-to-read), **conditional reminders**
   (ephemeral-automations — the "remind me in an hour if I haven't closed the door" hook),
   calendar-write.
 - **Testing gate:** the **time/restart/DST simulation harness** ([`evaluation.md`](evaluation.md)
   Part G) becomes required here — the highest-trust-stakes deterministic surface.
-- **[core]** later: calendar-write, then reminders (§7 order).
+- **Possible core work later:** calendar-write and reminder/scheduling seams, after the
+  proving ground establishes their contracts (§7).
 
 *Proves:* the headline VISION demos.
 
@@ -180,8 +214,8 @@ absorb LLM non-determinism, and `web_search`/`web_fetch` ship on with `user_loca
 
 - **[C]/[HA]** `assist_satellite.start_conversation` nudges; voice-ID → per-user context;
   off-satellite push + actionable-notification ack ([`scheduling-model.md`](scheduling-model.md),
-  [`speaker-identification.md`](speaker-identification.md)). **[core]** long-term memory is the
-  last, most-opinionated contribution.
+  [`speaker-identification.md`](speaker-identification.md)). Long-term memory remains the
+  most opinionated candidate for eventual core discussion.
 
 ---
 
@@ -204,8 +238,8 @@ the work is the capabilities + the harness, not the shell.
 
 - Exact Wave-0 dashboard scope: how much trace enrichment (Part A) is needed before the
   baseline is trustworthy vs. added incrementally.
-- Whether `find_entities`' **[core]** match-layer PR leads or trails its component tool (the
-  component tool unblocks Wave 1; the core PR can follow once the pattern is proven).
+- When to take the measured `find_entities` result and proposed match-layer seam to core
+  maintainers; the component experiment unblocks Wave 1 without presupposing PR shape.
 - Reuse-vs-build for the dev harness (DeepEval-shaped vs. hand-rolled) — [`evaluation.md`](evaluation.md)
   Part H; a Wave-0 decision but not a blocker.
 - Where the offer/learning engine module sits relative to `capabilities/` (it gates *other*

@@ -202,6 +202,33 @@ clarify-turn on every play.
 
 ---
 
+## Build-time scoping gate
+
+Before treating the VISION “what's playing?” exchange as complete, settle and test:
+
+- **Active-player resolution:** define how requesting area, playing state, groups, and
+  multiple active players choose the source. Clarify when two plausible players remain.
+- **State freshness and absence:** handle paused/stopped players, stale attributes, ads,
+  radio streams, and backends that omit title/artist/album without fabricating metadata.
+- **Referent capture:** preserve the exact track/artist/album returned by the first answer so
+  a follow-up such as “what year was that recorded?” is grounded in that item, not a fresh
+  guess about whatever is now playing.
+- **Metadata semantics:** distinguish recording date, release date, album release, remaster,
+  and cover version. Ask or qualify the answer when the user's wording and available source
+  do not identify one.
+- **External grounding:** decide when model knowledge is sufficient versus when web search is
+  required, and cite/abstain on conflicting dates.
+- **Playback corrections:** define “the other one,” “not this version,” and “next” as
+  media-domain re-query/queue operations with bounded recent-search state—not generic undo.
+- **Backend matrix:** test native players and Music Assistant separately; do not claim
+  favorite, queue, grouping, or transfer support from a service that lacks it.
+
+These are feature semantics to close when music work begins; the general continuation and
+capability-selection foundations are inherited. Field use, follow-up, metadata-absence, and
+correction signals live in [`telemetry.md`](telemetry.md).
+
+---
+
 ## Roadmap reality
 
 - **The "horizon" item already shipped** — native library search + the

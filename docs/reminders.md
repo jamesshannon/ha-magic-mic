@@ -55,6 +55,10 @@ One tool, `create_reminder` (alarm = the same tool with the alarm preset — the
 "set an alarm for 7" → preset=alarm). **Determinism-in-tools** (§5.4): the LLM supplies
 intent + natural language; the tool does the mechanical work.
 
+Scope follows §5.1. An identified caller may create a personal reminder; the unidentified
+`"default"` principal creates household reminders only and cannot embed a later personal
+lookup. Delivery privacy cannot exceed the scope known at creation.
+
 - **LLM supplies:** the content (for reminders), a **natural time** ("in 20 minutes",
   "tomorrow at 9", "every weekday at 7"), and the implied **preset** (reminder vs alarm,
   from the phrasing).
@@ -65,10 +69,11 @@ intent + natural language; the tool does the mechanical work.
      phrase to structured form; the tool does only the deterministic tz/calendar math — it
      doesn't parse NL dates per-language.
   2. **Pick the store** by the user's visibility/sync intent (the spine's surprise
-     principle): default = **native reminder store** (a `CalendarEntity` we own); if the
-     user signals a shared/visible calendar ("put it on my work calendar"), route to
-     `create_event` there. `ScheduledItem.store` is the seam — **one create flow writes
-     native-or-real**, so this and calendar-write are **not separate builds**.
+     principle): default = the native **`ScheduledItemStore`**, with an optional
+     `CalendarEntity` view; if the user signals a shared/visible calendar ("put it on my
+     work calendar"), route to `create_event` there and persist a UID-linked companion
+     `ScheduledItem` for assistant delivery state. The placement field is the seam, so this
+     and calendar-write are **not separate builds**.
   3. **Apply the preset** (target floor + escalation profile + catch-up grace).
   4. **Name it back** (surprise principle): "Okay — I'll remind you to take the bins out
      tomorrow at 8 AM."
@@ -76,7 +81,9 @@ intent + natural language; the tool does the mechanical work.
 Generation cost: like any tool command, ≥2 generations (create → confirm); fine for a
 non-urgent authoring action. Because the write is **behavioral** (it *will* interrupt
 you later), lean **confirm-by-naming-back** rather than silent (mirrors the
-memory/find-entities "behavioral write → confirm" stance).
+memory/find-entities "behavioral write → confirm" stance). If explicit approval is required,
+store the normalized reminder as an immutable pending operation and let yes/no approve that
+record; do not ask the model to rebuild the reminder after "yes."
 
 ---
 
@@ -117,12 +124,42 @@ Both presets emit through **`assist_satellite`'s service API**, not a bespoke ha
 
 ---
 
+## Build-time scoping gate
+
+Before building the flagship “ding → read it” interaction, settle and test:
+
+- **Due-item correlation:** define which item “read it,” “snooze it,” and “dismiss it”
+  address when several reminders are due, queued, or audible in different rooms. Never let a
+  generic “read it” fall through to calendar or memory.
+- **Delivery-session handoff:** record the due item and delivery attempt before announcing,
+  then attach a subsequent pull-to-read turn to that record without copying reminder content
+  into ChatLog.
+- **Privacy at output:** decide what can be announced, named in a queue summary, or read on a
+  shared satellite for household versus personal reminders. An acknowledgement proves
+  engagement, not identity.
+- **State transitions:** make announce, defer-on-busy, escalation, queue, read/ack, snooze,
+  cancel, and expiry explicit and inspectable, including simultaneous callbacks.
+- **Management surface:** support deterministic list/status/cancel/snooze by stable item ID
+  and human description; creation alone is not a complete reminder feature.
+- **Failure language:** name whether an item was queued, missed while HA was down, dropped by
+  short grace, or could not be delivered. No silent loss and no claim that it fired when the
+  output call failed.
+- **Acoustic evaluation:** tune earcon, volume, repeated-alarm behavior, busy-satellite
+  handling, and escalation on real devices—not only mocked service calls.
+
+These decisions belong to the Wave-3 reminder slice and its deterministic timing/delivery
+tests, not the pre-Wave-1 gate. Real-home delivery, escalation, acknowledgement, and reuse
+signals live in [`telemetry.md`](telemetry.md).
+
+---
+
 ## Open items
 
 - **Preset values to tune on real use / evals:** escalation timeouts + max rungs per
   preset; alarm blare volume/pattern; the reminder broadcast fan-out order.
 - **Snooze defaults** (alarm = N minutes; reminder = "remind me again in…" parse).
-- **Native store schema** — the `CalendarEntity` + `Store` + `ical` wiring
+- **`ScheduledItemStore` schema/migrations** — including the `CalendarEntity` projection,
+  external-event companion reconciliation, and `ical` recurrence expansion
   (implementation-level; meets `calendar.md`'s create surface).
 - **Alarm "missed" informational catch-up** wording/threshold (short blare-grace vs.
   surfacing "your 7 AM alarm didn't fire").

@@ -121,10 +121,16 @@ not solved. Shipping Tier-2 turnkey at HA's privacy bar is exactly the hard part
 
 > Resolved `user_id` from voice-ID scopes our **soft per-user data** — memory,
 > calendar/reminder *reads*, personalization — gated by a **confidence threshold**
-> with an **unknown-speaker fallback** to the household/default user, and only
+> with an **unknown-speaker fallback** to the unidentified `"default"` principal, and only
 > after explicit **enrollment consent**. It **never** grants HA permissions,
 > **never** actuates devices by virtue of identity, and **never** gates
 > high-consequence/irreversible actions — those require a separate step-up.
+
+`"default"` means **unknown person with household scope only**, not a shared personal user.
+An unknown caller may use household facts and household-scoped capabilities, but personal
+calendar, memory, todo, and reminder reads are denied. A recognized person gets household
+scope plus their own personal scope. This keeps requester identity separate from the
+audience of the data.
 
 **HA-specific bright line:** voice-ID must never touch HA's permission /
 entity-control system. HA already has a separate, speaker-independent gate for
@@ -155,7 +161,8 @@ two attack surfaces onto one bound.
 - **The signals `get_resolved_user()` reads, in priority order:** (1) the voice-ID result
   (precomputed upstream, read from session state) → that user; (2) `context.user_id` if it
   maps to a real user — authoritative for text, but for voice it's the pipeline owner, so it
-  ranks *below* (3); (3) configured device→owner; (4) `"default"` household user.
+  ranks *below* (3); (3) configured device→owner; (4) the unidentified `"default"`
+  principal, household-only.
   Low-confidence voice-ID falls through rather than guessing (same ambiguity-guard discipline
   as `find_entities`).
 - **Why it's more tractable for us than for core:** we're *building* the
@@ -163,9 +170,9 @@ two attack surfaces onto one bound.
   personalization-not-auth by keeping `user_id` a scoping key for our per-user
   data that never touches HA permissions (sidesteps reason 2 by construction).
 - **What we'd still own:** an enrollment UX, and honest low-confidence handling
-  (fallback to household/default, never guess).
+  (fallback to unidentified household-only access, never guess).
 
-Deferred to **Phase 4**. The `get_resolved_user()` seam and user-keyed store land in
+Deferred to **Phase 4**. The `get_resolved_user()` seam and explicitly scoped store land in
 Phase 0 so voice-ID drops in later with no data migration.
 
 ---
@@ -193,7 +200,7 @@ fixed-length **embedding vector** (~192–256 dims). Everything else you build:
     other?" (closed-set ambiguity). Same discipline as hassil's `MIN_DIFF_SCORE`
     and our `find_entities` ambiguity guard.
   - **Match only if `best ≥ threshold` AND `(best − second) ≥ margin`; else →
-    unknown → household/default user. Never guess.**
+    unidentified `"default"` principal with household-only access. Never guess.**
 
 Calibration options if you want the number to *mean* something: **PLDA** (more
 calibrated than raw cosine); **Platt/logistic score calibration** on a dev set.
