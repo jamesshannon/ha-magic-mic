@@ -115,7 +115,7 @@ spectrum where required assurance scales with the **consequence of being wrong**
 |---|---|---|---|
 | 1. Preferences | playlist, address-by-name | Yes | low stakes |
 | 2. Personal-data **reads** | calendar, reminders, messages | **Yes — the boundary** | enrollment **consent** + **confidence threshold** + **graceful fallback** ("I don't recognize your voice" → generic/decline); error is *reversible* |
-| 3. High-consequence actions | purchases, unlock, payments | **No** | step-up: voice PIN / app confirm / blocked |
+| 3. High-consequence actions | purchases, unlock, payments | **No** | blocked in the POC; independent step-up is a future option |
 
 Voice-ID is a **medium-assurance** signal. Even Google's Tier-2 is opt-in and has
 documented failure modes (leaking to guests) — accepted risk with mitigations,
@@ -128,7 +128,8 @@ not solved. Shipping Tier-2 turnkey at HA's privacy bar is exactly the hard part
 > with an **unknown-speaker fallback** to the unidentified `"default"` principal, and only
 > after explicit **enrollment consent**. It **never** grants HA permissions,
 > **never** actuates devices by virtue of identity, and **never** gates
-> high-consequence/irreversible actions — those require a separate step-up.
+> high-consequence/irreversible actions. A separate step-up could do that later, but is not
+> part of the POC.
 
 `"default"` means **unknown person with household scope only**, not a shared personal user.
 An unknown caller may use household facts and household-scoped capabilities, but personal

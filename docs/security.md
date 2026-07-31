@@ -21,15 +21,15 @@
 - **The saving grace — this is *not* a general computer-use agent.** Its sinks are
   **bounded HA capabilities**: every action is a schema-validated **intent against an
   *exposed* entity** (§2.2–2.5), most actions are **reversible**, and high-consequence
-  ones can be gated independently of the prompt. Injection can only reach what we
+  ones can be omitted or blocked by deterministic policy. Injection can only reach what we
   deliberately exposed as a tool — a far smaller blast radius than shell/API access.
 - **So the stance is blast-radius control, not injection detection** (which is unsolved):
   (1) a hard **capability bound** — no prompt content, from any source, exceeds the
-  exposed-tool envelope; (2) **high-consequence actions behind an injection-independent
-  gate** (confirm / PIN); (3) a **taint model** — when untrusted content is in context,
-  restrict dangerous sinks; (4) **provenance-label** untrusted content in the prompt;
-  (5) optional **guardrail classifier**; (6) **conservative default exposure** + the
-  web-egress toggle (off by default).
+  exposed-tool envelope; (2) consequence-aware confirmation that prevents call
+  reconstruction but assumes the model describes the call honestly; (3) a **taint model** —
+  when untrusted content is in context, restrict dangerous sinks; (4) **provenance-label**
+  untrusted content in the prompt; (5) optional **guardrail classifier**; (6)
+  **conservative default exposure** + the web-egress toggle (off by default).
 - **`allow untrusted` toggle (per the request):** external retrieval (web_search /
   web_fetch) is the widest ingress and ships **off**; enabling it is an explicit,
   disclosed opt-in. The principled version is a **taint rule**, not just a checkbox
@@ -115,21 +115,26 @@ it either.** The exposure bound is inherited, not re-enforced. (Human-authored r
 automations keep full authority — the distinction is *who authored it*, and it's the same
 authority line drawn in `ephemeral-automations.md`.)
 
-### L2 — High-consequence actions behind an injection-independent gate
+### L2 — Consequence-aware confirmation
 The docs already say **behavioral writes confirm first** (memory / find-entities /
-reminders). Reframe that as a *security* control: physical/destructive/irreversible
-actions require a **human confirmation** the injection can't satisfy on its own. Tie the
-gate to **consequence**, not to injection-detection. Caveat: a confirmation can itself be
-socially-engineered ("say yes to continue"), so for the highest tier (unlock, purchase)
-prefer a **step-up the model can't produce** — a voice-PIN / app-confirm
-([`speaker-identification.md`](speaker-identification.md) Tier-3), not just a spoken "yes."
+reminders). Tie that gate to **consequence**, not to injection-detection. In v1, the main LLM
+writes the spoken confirmation question and the user answers in voice. This gives the user a
+chance to stop an unintended action, but it is not an injection-independent security gate: a
+malicious or fully prompt-injected model could describe a staged operation deceptively.
 
-**Confirmation is a programmatic transition, not a prompt convention.** When an operation
+**Approval is a programmatic transition, not a reconstructed tool call.** When an operation
 needs confirmation, normalize it first and store an immutable pending record
 (`tool + arguments + principal + consequence + expiry`) in the ChatLog's
 conversation-scoped sidecar. A later yes/no approves or discards that record. The model may
 recognize the reply, but it does not reconstruct the operation after approval or get to
-change its arguments between question and execution.
+change its arguments between question and execution. This protects against stochastic
+reconstruction drift, stale or different-principal approval, and replay. It does not verify
+that the model-authored question accurately described the stored operation.
+
+Where a satellite supports `assist_satellite.ask_question`, hassil can match a closed-set
+yes/no response after STT without sending that response through the LLM. The pending record
+still owns the operation. A response that does not match plain yes or no remains a normal user
+turn: it can reject or supersede the pending operation and issue a replacement command.
 
 Identity policy uses the same two-stage enforcement. Personal tools such as a user's
 calendar or private memory are omitted from the tool list for the unidentified `"default"`
@@ -141,10 +146,31 @@ filtered tool.
 
 The first consequence policy is intentionally small and ordinal, not a pretend-calibrated
 probability. An action may be low-risk, require confirmation on a wake-word-free continuation,
-always require confirmation, or require a step-up. Continuation origin, protected-data
-provenance, and a model-emitted sensitivity flag may **raise** the tier but never lower the
-tool/intent's deterministic base. The POC only needs representative policies, not a complete
-Intent × Domain classification before it can demonstrate the mechanism.
+or always require confirmation. Continuation origin, protected-data provenance, and a
+model-emitted sensitivity flag may **raise** the tier but never lower the tool/intent's
+deterministic base. The POC only needs representative policies, not a complete Intent × Domain
+classification before it can demonstrate the mechanism.
+
+#### Deliberately excluded confirmation mechanisms
+
+Three stronger mechanisms are plausible, but none is part of the POC:
+
+- **Tool-owned localized previews.** A tool could return a translation key plus structured
+  placeholders describing its normalized effect. This is the strongest voice-only binding
+  for bounded tools, but it adds a preparation/preview contract and feature-specific
+  translation work. V1 tools do not provide confirmation previews.
+- **An isolated LLM renderer.** A second no-tools generation could receive only the trusted
+  tool description, normalized arguments, and requested language, then write the question.
+  This removes most conversation-context injection and handles complex phrasing and
+  translation, but remains nondeterministic and can still be influenced by hostile argument
+  text. It also adds latency and cost.
+- **Structured step-up.** An app confirmation or other independent interaction could display
+  the normalized operation before approval. This is a stronger boundary for high-consequence
+  actions, but v1 does not require or implement it.
+
+Revisit these only if the proving ground needs a stronger malicious-model threat boundary.
+Until then, do not describe ordinary voice confirmation as proving semantic agreement between
+the spoken question and the stored operation.
 
 ### L3 — Taint model (the principled form of the `allow untrusted` toggle)
 Track **provenance** through a turn: mark content as *trusted* (the user's spoken

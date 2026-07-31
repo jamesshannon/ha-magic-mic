@@ -362,9 +362,10 @@ gets its own file there. Current docs:
   bounded intents** (§2.2–2.5) and determinism-in-tools (§5.4) caps the model's authority,
   so injection reaches only what we exposed, mostly reversible. **Stance = blast-radius
   control, not detection** (unsolved): L1 least-privilege exposure (don't expose
-  locks/alarm by default), L2 high-consequence behind an **injection-independent gate**
-  (confirm/PIN, backed by an immutable pending operation rather than model-reconstructed
-  arguments), plus identity-gated tool exposure and execution, L3 **taint model**
+  locks/alarm by default), L2 consequence-aware voice confirmation backed by an immutable
+  pending operation rather than model-reconstructed arguments, with an explicit
+  non-malicious-model assumption, plus identity-gated tool exposure and execution, L3
+  **taint model**
   (untrusted-in → restrict dangerous sinks; the
   principled form of the **`allow untrusted` toggle** — web retrieval off by default,
   split `web_search` vs `web_fetch`), L4 provenance-labeling, L5 optional **local guardrail
@@ -722,6 +723,14 @@ that stored operation; the model does not reconstruct or alter the operation aft
 Pending state constrains the referent, not the whole next turn: "actually no, turn off the
 lights" may reject the pending action and issue a new command. Open-ended clarifications
 remain model-in-loop through `ChatLog`.
+
+In the POC, the main LLM writes the spoken confirmation question. The immutable record binds
+approval to the operation that was staged, preventing argument reconstruction, stale
+approval, and replay; it does **not** prove that the model described that operation honestly.
+This confirmation mechanism is not a defense against a malicious or fully prompt-injected
+model. Tool-owned localized previews, an isolated renderer model, and structured step-up
+confirmation are deferred alternatives, not v1 requirements. The threat-model boundary and
+future options are recorded in [`docs/security.md`](docs/security.md).
 
 #### 5.1.2 Execution gateway (extend the intent chokepoint)
 

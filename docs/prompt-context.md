@@ -204,6 +204,11 @@ ChatLog's conversation-scoped sidecar. The next answer only approves or rejects 
 `ask_question` is one possible recognition front-end; an LLM-interpreted reply is another.
 Both execute the same stored operation through the same policy check.
 
+The main LLM still writes the confirmation question in v1. The immutable record prevents the
+approval turn from changing the call, but it does not verify that the question faithfully
+described the staged operation. Stronger rendering and step-up alternatives are deliberately
+deferred in [`security.md`](security.md#deliberately-excluded-confirmation-mechanisms).
+
 **Why it's only a candidate, not adopted:** it inverts control — **HA drives** the
 question mid-turn, so weaving an `ask_question` call into the middle of the LLM tool-loop
 is novel, non-trivial control-flow (the loop expects the *model* to drive). And it only

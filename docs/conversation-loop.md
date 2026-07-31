@@ -181,12 +181,12 @@ special reminder case stays precise because "read it" resolves through the pendi
 operation; it must not become a generic request to read calendar or memory data.
 
 **Consequence-aware confirmation is the bounded response to a false accept.** Tools/intents
-may carry a small ordinal consequence policy (`low | confirm-on-continuation | always-confirm
-| step-up`), and continuation origin can promote the required confirmation tier. The gateway
-then stages the exact operation and asks "did I hear you right?" before execution. Model
-metadata or sensitive-data provenance may only raise the deterministic base tier, never
-lower it. A calibrated numeric Intent × Domain risk matrix is not a v1 requirement; prove
-the hook on a few representative operations first.
+may carry a small ordinal consequence policy (`low | confirm-on-continuation |
+always-confirm`), and continuation origin can promote the required confirmation tier. The
+gateway then stages the exact operation and asks "did I hear you right?" before execution.
+Model metadata or sensitive-data provenance may only raise the deterministic base tier,
+never lower it. A calibrated numeric Intent × Domain risk matrix is not a v1 requirement;
+prove the hook on a few representative operations first.
 
 ### The synthesis
 #3 makes #1 safe. Default-continue is only tolerable if the resulting false

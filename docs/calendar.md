@@ -94,10 +94,11 @@ fuzzy-over-fetched-events, not the entity scorer. Delete by UID.
 
 > **Security note:** event summaries/descriptions are **untrusted** (anyone who can send
 > an invite writes them), and delete feeds them to the model *and* performs a destructive
-> action — a prime injection vector. DELETE is a high-consequence, injection-independent-
-> gate case ([`security.md`](security.md) L2): normalize and store the exact delete as an
-> immutable pending operation, name the resolved event in the confirmation, and execute only
-> that stored operation after approval. Treat the summaries as data, not instructions (L4).
+> action — a prime injection vector. Normalize and store the exact delete as an immutable
+> pending operation, have the model name the resolved event in the confirmation, and execute
+> only that stored operation after approval. This prevents argument reconstruction but assumes
+> the model describes the event honestly; it is not an injection-independent gate
+> ([`security.md`](security.md) L2). Treat the summaries as data, not instructions (L4).
 
 ### UPDATE (out of scope)
 Only `local_calendar` supports it; Google/CalDAV can't update through HA. Modeling it as
