@@ -39,6 +39,10 @@
 - `ConversationInput` exposes `context.user_id` (the pipeline *owner*, not the
   speaker), `device_id`, `satellite_id` — **no speaker identity**
   (`conversation/models.py:22`).
+- `ConversationInput` also has no text-versus-voice source. Direct text and STT output both
+  arrive in its `text` field. Device and satellite IDs cannot safely fill that gap because
+  either source may omit or supply them. Until an upstream adapter carries the source,
+  identity resolution must treat it as unknown and ignore `context.user_id`.
 
 ## State outside core
 
@@ -160,9 +164,9 @@ two attack surfaces onto one bound.
   channel keyed by request identity, not the fixed `ConversationInput`.)
 - **The signals `get_resolved_user()` reads, in priority order:** (1) the voice-ID result
   (precomputed upstream, read from session state) → that user; (2) `context.user_id` if it
-  maps to a real user — authoritative for text, but for voice it's the pipeline owner, so it
-  ranks *below* (3); (3) configured device→owner; (4) the unidentified `"default"`
-  principal, household-only.
+  maps to a real user and the request source is explicitly text; (3) configured
+  device→owner for voice; (4) the unidentified `"default"` principal, household-only.
+  A missing source is not guessed from device metadata; it takes the same safe fallback.
   Low-confidence voice-ID falls through rather than guessing (same ambiguity-guard discipline
   as `find_entities`).
 - **Why it's more tractable for us than for core:** we're *building* the

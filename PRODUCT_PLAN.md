@@ -635,6 +635,11 @@ with AI, streaming TTS).
   `device_id`, `satellite_id` (`components/conversation/models.py:22`). `context.user_id` is
   trustworthy for **text** (the logged-in user), but for **voice** it's the **pipeline owner,
   not the speaker** (identical no matter who talks).
+- Core also drops the request origin before calling a conversation agent. Both direct text
+  requests and STT output arrive as `ConversationInput.text`; `device_id` and `satellite_id`
+  are not reliable source classifiers. The request adapter must therefore pass an explicit
+  `text`, `voice`, or `unknown` source into identity resolution. Only explicit `text` may
+  trust `context.user_id`; `unknown` fails closed. Do not infer source from device fields.
 - **Identity and data scope are separate facts.** The resolver reports whether this request
   has a real person and which scope keys it may use. An unidentified voice caller resolves to
   the `"default"` principal: **unknown person, household scope only.** `"default"` is not a
@@ -645,7 +650,8 @@ with AI, streaming TTS).
   whether the turn came from a live mic or a deferred trigger. It is **cheap, deterministic,
   and idempotent**, and it **never runs speaker-ID**. Its result must preserve both the resolved
   person (if any) and the household-only fallback instead of representing `"default"` as an
-  ordinary `user_id`. It reads a resolution already established for this request (see the
+  ordinary `user_id`. It reads the explicit request source and a resolution already
+  established for this request (see the
   populators below), falling back to cheap signals in order: (a) that established person; (b)
   `context.user_id` if it maps to a real, active, non-system HA user; (c) a configured
   device→owner mapping; (d) the unidentified `"default"` principal. **Priority is

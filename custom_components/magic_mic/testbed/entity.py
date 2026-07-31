@@ -24,7 +24,7 @@ from ..const import (
     LOGGER,
     NAME_INJECTION_LIMIT,
 )
-from ..identity import get_resolved_user
+from ..identity import RequestSource, get_resolved_user
 from ..internal.claude.agent import ClaudeConversationEntity
 from .api import TestbedAPI
 from .prompt import async_skeleton_llm_api
@@ -39,16 +39,18 @@ class TestbedConversationEntity(ClaudeConversationEntity):
         chat_log: conversation.ChatLog,
     ) -> conversation.ConversationResult:
         """Get the resolved user, set up the LLM data, wrap the seam, run the loop."""
-        # Get the resolved per-user scope key for this turn (§5.1). Threaded empty in
-        # Wave 0: nothing consumes it yet. The user-keyed store lives in
-        # hass.data[DOMAIN][entry_id]; capabilities will read both.
-        user_id = await get_resolved_user(
+        # ConversationInput does not expose whether its text came directly from an
+        # authenticated text client or from STT. Fail closed until the request adapter
+        # supplies that source explicitly; context.user_id may be a pipeline owner.
+        principal = await get_resolved_user(
             self.hass,
             user_input.context,
-            user_input.device_id,
-            user_input.satellite_id,
+            request_source=RequestSource.UNKNOWN,
         )
-        LOGGER.debug("[testbed] resolved user_id=%s (unused in Wave 0)", user_id)
+        LOGGER.debug(
+            "[testbed] resolved principal user_id=%s (unused in Wave 0)",
+            principal.user_id,
+        )
 
         # Prompt-context Tier 1: hand async_provide_llm_data a skeleton-substituted
         # Assist API so the composed system prompt carries the bounded taxonomy

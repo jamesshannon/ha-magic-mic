@@ -1,10 +1,12 @@
-"""User-keyed persistent storage: the keying convention for per-user data.
+"""Scoped persistent storage for household and personal capability data.
 
-A thin wrapper over HA's `Store` that namespaces all data by resolved `user_id`
-(§5.1). Empty in Wave 0 (no capability consumes it yet); it exists so later
-capabilities (memory, reminders, annotations) never need a multi-user migration.
-The backing store is HA's JSON `Store`; a capability that needs full-text search may
-use its own backend (e.g. SQLite FTS for the memory notebook).
+A thin wrapper over HA's `Store` that namespaces data by a key obtained from
+`ResolvedPrincipal.storage_key()` (§5.1). Household data retains the stable `"default"`
+key; personal data uses a real HA user ID and has no unidentified fallback. Empty in
+Wave 0 (no capability consumes it yet); it exists so later capabilities (memory,
+reminders, annotations) never need a multi-user migration. The backing store is HA's
+JSON `Store`; a capability that needs full-text search may use its own backend (e.g.
+SQLite FTS for the memory notebook).
 """
 
 from typing import Any
@@ -18,7 +20,7 @@ STORAGE_VERSION = 1
 
 
 class UserKeyedStore:
-    """Persist per-user data as `{user_id: {...}}`, namespaced by user_id."""
+    """Persist scoped data as `{scope_key: {...}}`."""
 
     def __init__(self, hass: HomeAssistant, name: str) -> None:
         """Create a store backed by `.storage/<domain>.<name>`."""
@@ -31,11 +33,11 @@ class UserKeyedStore:
         """Load persisted data into memory."""
         self._data = await self._store.async_load() or {}
 
-    def get(self, user_id: str) -> dict[str, Any]:
-        """Return a user's data (empty dict if none)."""
-        return self._data.get(user_id, {})
+    def get(self, scope_key: str) -> dict[str, Any]:
+        """Return scoped data, or an empty dictionary if none exists."""
+        return self._data.get(scope_key, {})
 
-    async def async_set(self, user_id: str, data: dict[str, Any]) -> None:
-        """Replace and persist a user's data."""
-        self._data[user_id] = data
+    async def async_set(self, scope_key: str, data: dict[str, Any]) -> None:
+        """Replace and persist data under an authorized scope key."""
+        self._data[scope_key] = data
         await self._store.async_save(self._data)

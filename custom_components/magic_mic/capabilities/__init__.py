@@ -17,10 +17,11 @@ close to copy/paste:
     ) -> list[llm.Tool]:
         ...
 
-Capabilities scope their data by the resolved user, never by device or satellite: call
-`get_resolved_user(hass, context, ...)` (`..identity`) for the `user_id` key and persist
-through the user-keyed `Store` (`..store`). No capability ships at Wave 0; this package is
-the empty, typed seam Wave 1's `find_entities` is the first to fill.
+Capabilities scope their data by the resolved principal, never by device or satellite. The
+request adapter calls `get_resolved_user(...)` (`..identity`) with an explicit request source;
+capabilities query its household or personal scope instead of interpreting a sentinel user
+ID. No capability ships at Wave 0; this package is the empty, typed seam Wave 1's
+`find_entities` is the first to fill.
 """
 
 from collections.abc import Awaitable, Callable
