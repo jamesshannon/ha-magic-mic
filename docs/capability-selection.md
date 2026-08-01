@@ -100,8 +100,6 @@ CapabilityDescriptor {
   context_loaders: ["calendar_defaults"]
   requirements:
     - calendar integration configured
-  access:
-    - read_personal requires identified person
   dependencies:
     - datetime_normalization
 }
@@ -114,6 +112,12 @@ tokens.
 Descriptors should be provider-neutral. A real independent provider may register them, but
 Magic Mic's own modules can contribute them through ordinary internal composition; do not
 manufacture provider registrations merely to imitate a hypothetical core layout.
+
+Execution policy is associated with each tool, not expanded into this retrieval descriptor.
+The selection system projects the tool's pre-model availability into its filter, while the
+tool policy retains argument-dependent classification and execution authority. One calendar
+bundle may contain unrestricted metadata lookup, personal event reads, and destructive
+writes with different policy. See [`tool-policy.md`](tool-policy.md).
 
 ### Bundles and tools
 
@@ -183,6 +187,11 @@ this request.”
 Consequence policy is usually **not** an availability filter. A tool that requires
 confirmation can be exposed, selected, normalized, and staged. The execution policy decides
 whether it runs.
+
+The current policy kernel already performs this availability stage for classified tools at
+the `TestbedAPI` seam. Unclassified tools remain available in the POC for compatibility and
+are traced as such. Capability-selection shadow mode must report that status rather than
+treating an unknown policy as evidence that a tool is unrestricted.
 
 ---
 
@@ -314,6 +323,11 @@ execution gateway then:
 
 Tool exposure is a prompt/UX boundary. The execution check is the security boundary and
 covers stale, malformed, or directly constructed calls.
+
+The implemented proxy delegates allowed calls to the original `APIInstance`, preserving
+custom executors. Confirmation-sensitive calls instead stage the exact immutable operation.
+The legacy registry and the current permissive unknown-tool boundary are specified in
+[`tool-policy.md`](tool-policy.md).
 
 ---
 
@@ -523,6 +537,8 @@ trace: records miss, recovery, extra generation, and final outcome
 
 - [`prompt-context.md`](prompt-context.md) — overall prompt/I/O budget and context assembly.
 - [`security.md`](security.md) — two-stage exposure/execution policy and consequence gates.
+- [`tool-policy.md`](tool-policy.md) — implemented policy object, registry, and proxy
+  enforcement contract.
 - [`conversation-loop.md`](conversation-loop.md) — continuation state and spurious detection.
 - [`skills.md`](skills.md) — instruction payloads selected alongside tools.
 - [`testbed-proxy.md`](testbed-proxy.md) — proving-ground interception seam.

@@ -198,6 +198,15 @@ gets its own file there. Current docs:
   fallback, shadow-mode rollout, and recall@budget/task-success gates. Selection is not the
   security or spurious-speech boundary.
 
+- [`docs/tool-policy.md`](docs/tool-policy.md) — the provider-neutral **tool exposure and
+  invocation policy contract** beneath capability selection. `ToolPolicy` separates
+  pre-model requirements from argument-dependent call classification; owned tools may
+  declare it through a decorator, while a first-class legacy registry covers existing HA
+  and third-party tools. Documents the real `APIInstance` decorator, explicit permissive
+  `unclassified` state in the POC, immutable confirmation staging, current loss of tool
+  provenance during HA aggregation, long-term configuration layers, and the fail-closed
+  gate required before claiming complete policy coverage.
+
 - [`docs/telemetry.md`](docs/telemetry.md) — **deployed product-outcome telemetry**, kept
   distinct from deterministic tests, per-run traces, and corpus evaluation. Owns
   content-free VISION-moment signals (attempt → complete/recover/reuse), population
@@ -716,6 +725,21 @@ Policy is enforced in code at two points:
    required assurance. The model should not see unusable tools.
 2. **Execution gate:** recheck the same policy in `async_call_tool` before performing the
    action. Exposure is an optimization and UX boundary; execution is the security boundary.
+
+The implemented contract is a `ToolPolicy` object, not a growing passive capability record.
+It exposes a pre-model policy and an argument-dependent call classifier. Magic Mic-owned
+tools may attach one through a decorator. Existing HA and third-party tools require a
+first-class legacy registry until their integrations can publish equivalent metadata.
+`TestbedAPI` is a real decorator over the original `APIInstance`: allowed calls delegate to
+the inner implementation, so custom executors survive policy interposition. See
+[`docs/tool-policy.md`](docs/tool-policy.md).
+
+HA currently flattens LLM-platform contributions into one tool list without preserving a
+stable source-integration identity. The POC therefore resolves legacy policy by concrete
+type plus name, then by tool family, and labels every miss `unclassified`. Unclassified tools
+remain permissive to preserve the baseline, including `find_entities`; this means the
+current registry is not yet a closed security boundary. Broad deployment requires complete
+classification or a fail-closed unknown-tool default.
 
 For a confirmation-sensitive action, persist the normalized tool name and immutable arguments
 as a pending operation with principal, consequence class, and expiry. A later "yes" approves

@@ -8,7 +8,8 @@
 > stays unsolved. The *identity/spoofing* half of security lives in
 > [`speaker-identification.md`](speaker-identification.md); this doc is **content trust**.
 > Cross-refs [`web-search.md`](web-search.md), [`memory.md`](memory.md),
-> [`calendar.md`](calendar.md), [`prompt-context.md`](prompt-context.md).
+> [`calendar.md`](calendar.md), [`prompt-context.md`](prompt-context.md), and
+> [`tool-policy.md`](tool-policy.md).
 
 ---
 
@@ -144,6 +145,14 @@ Availability filtering and safe non-actionable denial hints are specified in
 [`capability-selection.md`](capability-selection.md); relevance retrieval never restores a
 filtered tool.
 
+The implemented evaluator gets policy from the tool itself or a legacy registry, then records
+an explicit `unclassified` result when neither exists. Existing unclassified tools remain
+permissive during the POC so the testbed preserves stock HA behavior. The two-stage mechanism
+is real, but the installed tool set is not yet a closed policy envelope. Do not describe it
+as one until every executable tool is classified or unknown tools default unavailable. The
+registry, migration path, and current HA provenance limitation are detailed in
+[`tool-policy.md`](tool-policy.md).
+
 The first consequence policy is intentionally small and ordinal, not a pretend-calibrated
 probability. An action may be low-risk, require confirmation on a wake-word-free continuation,
 or always require confirmation. Continuation origin, protected-data provenance, and a
@@ -251,6 +260,8 @@ not a shipped guarantee.
   its latency? Only-when-untrusted-enabled?
 - **Default exposure policy for high-consequence domains** — should locks/alarm be
   *excluded* from voice by default, opt-in with a step-up?
+- **Unknown-tool transition** — what classification coverage and administrator escape hatch
+  are required before `unclassified` changes from permissive to unavailable?
 - **Multi-user injection** — a household member planting content that affects another
   user's session; interaction with `get_resolved_user()` scoping.
 - **Device-sourced injection** — is `friendly_name`/state sanitization worthwhile, or is
@@ -272,4 +283,6 @@ not a shipped guarantee.
   ingress; poisoning parallel
 - [`calendar.md`](calendar.md) — event-summary ingest on delete-resolution
 - [`prompt-context.md`](prompt-context.md) — typed-block channels (provenance labeling)
+- [`tool-policy.md`](tool-policy.md) — implemented two-stage evaluator, legacy registry,
+  unknown-tool boundary, and confirmation staging
 - External: Meta Prompt Guard / Llama Guard, NVIDIA NeMo Guardrails (open, local-runnable)

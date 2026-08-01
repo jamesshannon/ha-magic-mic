@@ -52,6 +52,12 @@ unidentified caller with household scope only, not a synthetic personal user. Se
 the dataclass between turns. The blocking implementation checklist is
 [`../TODO.md`](../TODO.md).
 
+Foundation sections 1-4 now implement identity/scope, the ChatLog sidecar, immutable pending
+operations, and the two-stage tool-policy kernel. The policy layer deliberately preserves
+unclassified tools while tracing them; registry coverage and a fail-closed unknown default
+are later deployment gates, not claims made by this POC. The remaining foundation blocker is
+the bounded undo seam and final full-suite gate.
+
 **Convergence worth naming:** the features that prove value (axis 2) are almost exactly the
 §5.6 shared primitives — prompt-context moves tokens, `find_entities` moves turns and feeds
 local routing, learning moves local-rate and turns. "Primitives first" and "prove value
@@ -130,10 +136,12 @@ absorb LLM non-determinism, and `web_search`/`web_fetch` ship on with `user_loca
 - **[C]** Stand up the **Testbed Proxy** ([`testbed-proxy.md`](testbed-proxy.md)):
   `magic_mic.internal.claude` (near-upstream copy of the `anthropic` component, registered as
   its own agent = the **baseline**) + `magic_mic.testbed` (neutral proxy that wraps
-  `chat_log.llm_api` and delegates the loop to the inner agent). At Wave 0 the wrapper is
+  `chat_log.llm_api` and delegates the inherited provider loop). At Wave 0 the wrapper was
   **pass-through**: identical behavior to the baseline, but with the trace hook and
-  tool-interception seam in place. Inherits device control, streaming, and (Claude-specific,
-  optional) **server-side web_search** ([`web-search.md`](web-search.md)).
+  tool-interception seam in place. The foundation pass now filters and rechecks classified
+  tools while delegating allowed calls to the original API instance. It inherits device
+  control, streaming, and (Claude-specific, optional) **server-side web_search**
+  ([`web-search.md`](web-search.md)).
 - **[C]** Thread `get_resolved_user()` + explicitly scoped `Store` **empty** through the
   request (§5.1); establish provider-neutral internal contracts without speculative
   per-capability integration scaffolding (§5.5).

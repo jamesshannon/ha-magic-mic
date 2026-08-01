@@ -66,18 +66,30 @@ await chat_log.async_provide_llm_data(...)   # sets chat_log.llm_api
 await self._async_handle_chat_log(chat_log)  # the model + tool loop
 ```
 
-The testbed slots between them:
+The testbed slots between them. The real call also supplies a provider-neutral policy
+context containing the resolved principal and ChatLog-backed session state:
 
 ```python
-await chat_log.async_provide_llm_data(...)          # 1. real Assist API setup
-chat_log.llm_api = TestbedAPI(chat_log.llm_api)     # 2. wrap: filter / replace / intercept / trace
-await self._inner._async_handle_chat_log(chat_log)  # 3. delegate wire protocol + loop
+await chat_log.async_provide_llm_data(...)                 # 1. real Assist API setup
+chat_log.llm_api = TestbedAPI.wrap(                        # 2. decorate/filter/intercept
+    chat_log.llm_api,
+    ToolPolicyContext(principal=principal, session_state=session_state),
+)
+await self._async_handle_chat_log(chat_log)                # 3. provider wire protocol + loop
 return conversation.async_get_result_from_chat_log(user_input, chat_log)
 ```
 
-Step 3 calls the inner loop directly, not the inner agent's `_async_handle_message` (which
-would re-run step 1 and discard the wrap). That is the one deliberate coupling: our package
-holds an inner-agent instance and calls its loop method.
+Step 3 calls the inherited provider loop directly, not the provider's
+`_async_handle_message` (which would re-run step 1 and discard the wrap). That inherited loop
+is the deliberate coupling between the testbed conversation entity and the internal provider
+shell.
+
+`TestbedAPI` retains the complete inner instance rather than copying its fields and later
+calling the base `APIInstance` implementation. It presents a filtered `.tools` view, then
+delegates every allowed call to `inner.async_call_tool()`. This preserves custom API
+execution behavior and gives execution policy access to the original tool list for stale or
+direct-call checks. Policy resolution and confirmation staging are specified in
+[`tool-policy.md`](tool-policy.md).
 
 ## What the seam gives us
 
@@ -105,6 +117,11 @@ recall and task-success gates pass, the same plan becomes authoritative. See
 survive between turns, such as a pending confirmed operation or the bounded undo journal,
 are exposed through it but backed by a `conversation_id`-keyed sidecar. HA clones the
 dataclass between turns, so arbitrary subclass instance values are turn-local.
+
+Policy decisions are appended to current turn metadata with the stage, tool, policy source,
+allow/deny result, and consequence. Tool arguments are not copied into that trace. A policy
+source of `unclassified` currently preserves pass-through behavior; it is visible debt, not
+an implicit safe classification.
 
 ## The escape hatch: modifying `internal.claude`
 
