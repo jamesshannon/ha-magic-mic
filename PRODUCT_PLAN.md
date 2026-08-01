@@ -386,19 +386,21 @@ gets its own file there. Current docs:
 - [`docs/undo.md`](docs/undo.md) — **cross-cutting shared primitive** the §5.6 method
   surfaced late: "undo that / turn it back / forget that." **Deterministic undo, not
   LLM-reconstructed** — the LLM only *recognizes intent to undo*; the reversal is a
-  **command-pattern journal** replay (each mutating tool records **its own inverse** at
-  execute time; §5.4 applied to reversal). HA hands us the device-control case:
-  `scene.create` **`snapshot_entities`** + `scene.apply` restore full prior state, and
-  intents expose the affected set (`success_results`). Inverses: device = snapshot/restore;
+  **command-pattern journal** replay (each possible mutation records no-op, its own inverse,
+  or an explicit barrier at execute time; §5.4 applied to reversal). HA hands us the
+  device-control case: capture state+attributes before execution, filter to intent
+  `success_results`, and restore through HA state reproduction. Inverses: device = snapshot/restore;
   memory = delete/restore-prior; create-actions (reminder/calendar/todo/alias/automation) =
   delete-by-id; calendar delete = recreate-from-saved. **Recognize as a *local intent*
   (`HassUndo`-shaped)** — deterministic, offline-safe (a locally-handled action must be
   locally undoable, [`offline.md`](docs/offline.md)). Distinct from **`HassNevermind`**
   (abort in-progress), music "next" (re-query), and snooze. **Undo underwrites the
-  *optimistic* execution paths** (terminal-intent fast path, optimistic memory/music) and
-  **operationalizes [`security.md`](docs/security.md)'s reversibility argument.** Not
+  *instrumented optimistic* execution paths** (terminal-intent fast path, optimistic
+  memory/music) and **operationalizes a bounded part of
+  [`security.md`](docs/security.md)'s reversibility argument.** Not
   everything is undoable (irreversible side-effects, world-moved-on, read-only) → decline
-  legibly. v1 = single-level; "declare your inverse" becomes part of the capability
+  legibly. v1 = latest individual mutation, single-use, two-minute session lifetime;
+  "declare your outcome" becomes part of the capability
   contract (§5.5). No undo in core (verified).
 
 - [`docs/explainability.md`](docs/explainability.md) — **cross-cutting trust/debugging
@@ -737,9 +739,10 @@ the inner implementation, so custom executors survive policy interposition. See
 HA currently flattens LLM-platform contributions into one tool list without preserving a
 stable source-integration identity. The POC therefore resolves legacy policy by concrete
 type plus name, then by tool family, and labels every miss `unclassified`. Unclassified tools
-remain permissive to preserve the baseline, including `find_entities`; this means the
-current registry is not yet a closed security boundary. Broad deployment requires complete
-classification or a fail-closed unknown-tool default.
+remain permissive to preserve the baseline; Magic Mic's `find_entities` declares itself
+read-only but remains otherwise unrestricted. The current registry is not yet a closed
+security boundary. Broad deployment requires complete classification or a fail-closed
+unknown-tool default.
 
 For a confirmation-sensitive action, persist the normalized tool name and immutable arguments
 as a pending operation with principal, consequence class, and expiry. A later "yes" approves
@@ -781,6 +784,24 @@ ground does **not** need to retrofit every HA intent: instrument a small represe
 of Magic Mic/demo intents, mark every other action explicitly un-undoable, and use the result
 to propose the core intent contract. Broad coverage comes only after that contract lands in
 core.
+
+The implemented foundation makes every completed call report one of three outcomes out of
+band from model-visible result data: `NoMutation`, `UndoAction`, or `UndoUnavailable`.
+Tool policy also classifies calls as `read_only`, `mutating`, or `unknown`. A possible
+mutation without outcome metadata—and a possible partial mutation that raises—creates an
+explicit `not_supported` barrier, so "undo" cannot fall through to an older action.
+
+`UndoAction` binds a localized description, household or exact personal-owner scope, and an
+immutable inverse descriptor. The bounded session journal records execution/turn IDs,
+timestamps, a two-minute expiry, and single-use state. Built-in strategies demonstrate an
+inverse `intent.async_handle()` call and opt-in entity-state snapshot/reproduction; neither
+the gateway nor the model infers an opposite action. Replay uses resolved identity for
+personal scope and preserves HA's separate `Context` for actual authorization.
+
+The v1 referent is the latest individual mutation, not the last supported entry or all
+effects in a turn. Unsupported, prohibited, and impossible actions are barriers. Locally
+handled hassil actions can still bypass the testbed proxy; they remain outside the undo
+claim until the same outcome contract is captured around the core intent chokepoint.
 
 ### 5.2 Entity resolution strategy (context-window + exact-match fix)
 Three tiers instead of dumping the full roster:
@@ -891,7 +912,7 @@ Primitives identified so far, with their dependents:
 | **ChatLog-centered session state** (conversation-ID sidecar for pending operations + undo; no parallel transcript) | deterministic confirmations, undo, constrained disambiguation, per-turn identity/provenance/effect trace |
 | **Execution gateway over `intent.async_handle()` + capability-tool adapter** (policy, effects, optional `UndoAction`) | hassil intents, LLM `IntentTool`s, custom tools, deferred bodies; selective demo coverage before core adoption |
 | **Prompt-context — I/O contract + taxonomy skeleton + retrieval** | entity context (TTFT, §5.2), memory injection, mic-open/meta-signals (conversation-loop), generation-count-aware output shaping. *Two halves:* output/I/O contract ([`docs/prompt-context.md`](docs/prompt-context.md), done) + input taxonomy/retrieval (§5.2, pending). |
-| **Undo journal** (each mutating tool declares its inverse; deterministic replay) | device control (snapshot/restore), memory/alias writes, reminder/calendar/todo creates, calendar delete, ephemeral automations — and it underwrites every *optimistic* execution path + [`security.md`](docs/security.md)'s reversibility ([`docs/undo.md`](docs/undo.md)) |
+| **Undo journal** (latest mutation records no-op, typed inverse, or explicit barrier; deterministic single-use replay) | device control (snapshot/restore), memory/alias writes, reminder/calendar/todo creates, calendar delete, ephemeral automations — and it underwrites only the *instrumented* optimistic paths + [`security.md`](docs/security.md)'s bounded reversibility ([`docs/undo.md`](docs/undo.md)) |
 | **Offer / learning engine** (detect friction → offer a durable fix → confirm → persist; `FrictionResolver` registry gated via `async_get_tools` §2.5) | entity aliases, **command aliases**, annotations, threshold edits, todo-default resolution — storage is per-sink (registry / YAML / FTS), only the *offer flow* is shared ([`docs/learning.md`](docs/learning.md)) |
 | **Dynamic prompt assembly + capability selection** — one `SelectionPlan` budgets **tools, context data, and instructions** through availability filtering, Tool RAG, dependency expansion, and fallback | tool gating, tier-2 context injection, the offer engine, multi-provider APIs, and the SKILL registry ([`docs/capability-selection.md`](docs/capability-selection.md), [`docs/skills.md`](docs/skills.md)) |
 

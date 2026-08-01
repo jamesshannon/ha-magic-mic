@@ -19,16 +19,16 @@
   exactly the §5.4 determinism-in-tools anti-pattern (unreliable, and it can't see prior
   state). This is §5.4 applied to reversal.
 - **Command pattern / compensating action.** Every *mutating* capability, at execute
-  time, may return **its own `UndoAction`** for an **undo journal** keyed to the turn.
-  "Undo" = pop the last supported entry and run the inverse. The function that did the
+  time, returns an explicit outcome: `UndoAction`, `UndoUnavailable`, or `NoMutation`.
+  "Undo" inspects the **latest mutation** and either runs its inverse once or declines.
+  It never skips an unsupported action to undo something older. The function that did the
   action builds the compensation because it knows what changed; the gateway only records
-  it. Unsupported actions are explicitly un-undoable, never reconstructed by a generic
-  reasoner.
-- **HA already has the hard part for device control:** `scene.create` with
-  `snapshot_entities` + `scene.apply` captures and restores full entity state (incl.
-  attributes) deterministically (`homeassistant/scene.py:81,120`); intents expose exactly
-  which entities were affected (`success_results`/`failed_results`, `intent.py:1095/1347`).
-  Snapshot the targeted set *before* the action, restore on undo.
+  and dispatches it.
+- **HA already has the hard part for device control:** HA's state-reproduction helper can
+  restore captured state plus attributes without creating a persistent scene entity, and
+  intents expose which targets succeeded. Snapshot candidates *before* the action, filter
+  the inverse to `success_results` afterward, and optionally record expected post-action
+  state so replay can decline if the world moved on.
 - **Recognize undo as a *local intent* where possible** (deterministic, fast, and it
   **works offline** — you turned the lights off locally, "turn them back" must too,
   [`offline.md`](offline.md)). Fall back to an LLM-recognized `undo` only for phrasings
@@ -65,12 +65,28 @@ a closure cannot be serialized, traced, or moved cleanly into core.
 
 ## The undo journal (what each capability records)
 
-Per mutating action, store `{turn_id, timestamp, description, inverse}` where `inverse` is
-capability-specific and **produced by the acting tool**:
+Per possible mutation, store `{execution_id, turn_id, created_at, expires_at, description,
+status, disposition}`. An undoable disposition also contains an authorization binding and
+an immutable, provider-neutral `InverseOperation`; the acting tool or intent produces it.
+Inverse arguments are carried out of band from the public tool-result mapping and therefore
+are not serialized into model context.
+
+There are three successful execution outcomes:
+
+- `NoMutation`: read/no-op; do not add a journal entry or shadow an older mutation.
+- `UndoAction`: a localized description, household or exact personal-owner binding, and an
+  inspectable inverse descriptor.
+- `UndoUnavailable`: an explicit barrier classified as `impossible`, `prohibited`, or
+  `not_supported`.
+
+An unclassified or mutating tool that supplies no disposition is conservatively recorded as
+`not_supported`. A tool exception also records that barrier because a partial effect may
+already have happened. This fail-closed rule prevents "undo" from silently targeting an
+older, unrelated action.
 
 | Action | What's recorded | Deterministic inverse |
 |---|---|---|
-| **Device control** (TurnOn/Off, LightSet, SetPosition, …) | pre-action **state snapshot** of the *targeted* entities (`success_results` → entity_ids → `scene`-style snapshot) | restore the snapshot (`scene.apply` / re-issue the entities' prior states + attributes) |
+| **Device control** (TurnOn/Off, LightSet, SetPosition, …) | pre-action state+attribute snapshot, filtered after execution to successful entity IDs | HA state reproduction for those exact entities |
 | **Memory note (create)** | the written slot + row id | delete the row |
 | **Memory note (overwrite)** | the **prior** slot value | restore prior value |
 | **Alias add** | the added alias string + entity | remove that alias (registry read-modify-write, [`memory.md`](memory.md)) |
@@ -79,19 +95,53 @@ capability-specific and **produced by the acting tool**:
 | **Ephemeral automation create** | the rule id (+ each fired body tool's own journal entry) | remove the rule; **already-fired effects reverse via their body tools' inverses** |
 | **Music play** | — | *correction*, not state-undo (below) |
 
-The snapshot for device control is the load-bearing case, and HA hands it to us:
-`scene.create` with `snapshot_entities` grabs the current state+attributes of a set of
-entities into a re-applyable scene; the intent's `success_results` tells us the set. So
-"undo" of "dim the kitchen to 30%" restores the *exact* prior brightness/color/on-state —
-no model reasoning, no lossy inverse.
+The snapshot for device control is the load-bearing generic case. `UndoHelper` captures
+state and attributes before execution only for domains the caller explicitly marks safe.
+After execution, the intent's successful target IDs select the captured subset. Replay uses
+HA state reproduction directly; it does not create a scene entity. When expected
+post-action states are supplied, an exact state/attribute mismatch consumes the replay as a
+failure rather than overwriting a changed world. Locks are therefore not made undoable just
+because their state is technically reproducible.
+
+Snapshot restoration and an inverse call to the same intent are two reusable strategies,
+not universal inference. Created records normally use a capability-specific delete-by-ID
+inverse. Undoing deletion requires enough owned data to restore the aggregate: for Magic
+Mic stores, prefer tombstones or an explicit aggregate snapshot so child/relationship data
+is restored transactionally. The generic undo layer must never guess foreign-key semantics.
+Recorder history is likewise not an inverse source: it may contain old values, but lacks
+reliable assistant attribution and domain-specific compensation semantics.
 
 **Storage location:** the bounded live journal is conversation-session state exposed through
 `MagicMicChatLog`, not content appended to the transcript and not another interaction
 object. Its backing store is keyed by `conversation_id` because HA clones the `ChatLog`
 dataclass between turns; a value placed only in the subclass instance dictionary would be
-lost. Later, if undo must survive the five-minute chat-session lifetime or a fresh wake-word
-session, promote the bounded journal to a short-TTL integration store without changing the
-capability inverse contract.
+lost. The implemented replay lifetime is two minutes and session-only. Later, if user
+evidence requires undo across chat-session expiry or restart, promote the bounded journal
+to a short-TTL integration store without changing the capability inverse contract.
+
+## Implemented foundation contract
+
+The pre-Wave-1 foundation now provides:
+
+- immutable `UndoAction`, `UndoUnavailable`, `NoMutation`, and `InverseOperation`
+  descriptors;
+- a bounded journal in `MagicMicSessionState`, with single-use states (`available`,
+  `executing`, `undone`, `failed`, `expired`, `unavailable`), execution IDs, turn IDs, and
+  a two-minute expiry;
+- authorization on replay using the resolved household/personal principal while preserving
+  the separate HA `Context` used by intent/service authorization;
+- an executor registry, inverse-intent executor, and opt-in state-snapshot helper/executor;
+- private result metadata for direct tools and HA `IntentResponseDict` results;
+- effect classification (`read_only`, `mutating`, `unknown`) at the proxy seam, with
+  conservative barriers for possible mutations lacking metadata.
+
+Replay claims an entry before execution. Success and failure both prevent a second replay;
+an authorization denial does not consume it. Repeating the original live command remains
+valid because the gateway performs no semantic deduplication.
+
+This is the seam, not the complete user feature. There is not yet a `HassUndo` sentence
+intent or LLM fallback tool, no production Magic Mic mutating capability yet consumes the
+helper, and the core intent catalog has not been retrofitted.
 
 ---
 
@@ -144,9 +194,9 @@ hadn't finished asking." Keeping them distinct avoids a muddled single mechanism
     should check "is this entity still as I left it?" and, if not, **confirm or decline**
     rather than blindly restore — same "don't act on a stale world" instinct as reminder
     catch-up ([`scheduling-model.md`](scheduling-model.md)).
-- **Time-boxed.** Undo is meaningful only for a short window (the conversation / a few
-  minutes). The journal is bounded and recent; "undo" refers to the **last** action (or
-  last turn), not arbitrary history.
+- **Time-boxed.** Undo is meaningful only for a short window. Foundation replay expires in
+  two minutes; "undo" refers to the latest individual mutation, not a prior supported item,
+  a whole multi-tool turn, or arbitrary history.
 
 ---
 
@@ -169,8 +219,8 @@ is what *makes that safe*, so it's a dependency of all of them:
   injection sink.
 
 - `ephemeral-automations.md`'s **ephemeral overrides** ("lights to 100% for 15 min") reuse
-  the same `scene.create` snapshot as their revert target, applied on a boundary trigger
-  rather than on an "undo" utterance. Same capture mechanism, scheduled instead of on-demand.
+  the same state-snapshot/reproduction mechanism as their revert target, applied on a
+  boundary trigger rather than on an "undo" utterance.
 
 Stated once here so those docs can lean on "undoable" without each re-deriving it.
 
@@ -178,7 +228,7 @@ Stated once here so those docs can lean on "undoable" without each re-deriving i
 
 ## Scope & phasing
 
-- **v1 = selective, single-level undo** of the last **supported** mutating action/turn.
+- **v1 = selective, single-level undo** of the latest individual mutating action.
   Instrument a few representative Magic Mic/demo intents and capability tools to prove the
   contract. All other intents report that the action cannot be undone until their core
   handlers adopt `UndoAction`; do not fork the whole intent catalog for the POC.
@@ -192,25 +242,28 @@ Stated once here so those docs can lean on "undoable" without each re-deriving i
 
 ---
 
-## Open questions
+## Remaining direction
 
-- **Undo granularity** — last *action* vs last *turn* (a turn may chain several intents);
-  does "undo" reverse all of the last turn's mutations or just the last one?
-- **Snapshot cost** — snapshot every targeted set pre-action (cheap, but per-command
-  overhead) vs only when an action looks undoable/high-value; TTL on the journal.
-- **World-moved-on policy** — restore-anyway vs confirm vs decline when an entity changed
-  since; how to detect cheaply (state last_changed vs the action timestamp).
-- **Local `HassUndo` vs LLM tool** — is the local intent enough coverage, and does the
-  journal live somewhere the local path can reach it (it must, for offline undo)?
-- **Declare-your-inverse contract** — the exact shape a capability returns so the shell can
-  journal + replay uniformly (an `inverse` action dict? a callable? a service+data?).
+- Add a local `HassUndo`-shaped intent plus an LLM fallback tool that both invoke the same
+  journal replay. Neither may ask the model to reconstruct an inverse.
+- Intercept locally handled hassil mutations. Today they can bypass `TestbedAPI`, so the POC
+  must not claim them as undoable. The core-shaped destination is outcome metadata on
+  `intent.async_handle()` / `IntentResponse`, captured by the shared execution gateway.
+- Instrument a few representative Magic Mic/demo mutations as they are built: inverse
+  intent, state snapshot, custom create/delete compensation, and explicit impossible or
+  prohibited outcomes. Do not fork the full core intent catalog for the demonstration.
+- Decide per capability whether exact post-state checking is sufficient or whether a
+  localized confirmation/decline policy is needed for world-moved-on cases. Foundation
+  snapshot replay intentionally declines.
+- Register and expose the default executor set when the first user-facing undo entry point
+  lands; persistence beyond the two-minute session window remains evidence-driven.
 
 ---
 
 ## Key references
 
-- `homeassistant/components/homeassistant/scene.py:81,120,231` — `snapshot_entities` /
-  `SERVICE_APPLY` (deterministic state capture + restore)
+- `homeassistant/helpers/state.py` — `async_reproduce_state` (deterministic state restore
+  without a scene entity)
 - `homeassistant/helpers/intent.py:1095,1147,1347` — `success_results` / `failed_results`
   / `IntentResponseTarget` (which entities an intent affected)
 - §2.5 — `HassNevermind` (abort-in-progress, distinct from undo)

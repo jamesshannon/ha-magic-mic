@@ -24,6 +24,12 @@ from custom_components.magic_mic.session_state import (
     DATA_SESSION_STATES,
     UNDO_JOURNAL_LIMIT,
 )
+from custom_components.magic_mic.undo import (
+    LocalizedDescription,
+    UndoJournalEntry,
+    UndoUnavailable,
+    UndoUnavailableReason,
+)
 from homeassistant.components import conversation
 from homeassistant.components.conversation import ChatLog
 from homeassistant.core import Context, HomeAssistant
@@ -45,6 +51,19 @@ def _pending_operation() -> PendingOperation:
         UNIDENTIFIED_PRINCIPAL,
         ConsequenceClass.ALWAYS_CONFIRM,
         lifetime=timedelta(seconds=30),
+        now=datetime(2026, 7, 31, tzinfo=UTC),
+    )
+
+
+def _undo_entry(index: int = 0) -> UndoJournalEntry:
+    """Return a typed unavailable mutation for session-lifetime tests."""
+    return UndoJournalEntry.create(
+        UndoUnavailable(
+            description=LocalizedDescription("magic_mic", "fixture_action"),
+            reason=UndoUnavailableReason.NOT_SUPPORTED,
+        ),
+        f"turn-{index}",
+        lifetime=timedelta(minutes=2),
         now=datetime(2026, 7, 31, tzinfo=UTC),
     )
 
@@ -118,7 +137,7 @@ async def test_replace_preserves_session_state(hass: HomeAssistant) -> None:
     chat_log = upgrade_chat_log(ChatLog(hass, "conv-1"))
     state = chat_log.session_state
     pending = _pending_operation()
-    undo = object()
+    undo = _undo_entry()
     state.pending_operation = pending
     state.async_append_undo(undo)
 
@@ -134,7 +153,7 @@ async def test_session_state_isolates_conversations(hass: HomeAssistant) -> None
     first = upgrade_chat_log(ChatLog(hass, "conv-1")).session_state
     second = upgrade_chat_log(ChatLog(hass, "conv-2")).session_state
     first.pending_operation = _pending_operation()
-    first.async_append_undo(object())
+    first.async_append_undo(_undo_entry())
 
     assert second is not first
     assert second.pending_operation is None
@@ -145,17 +164,18 @@ async def test_undo_journal_is_bounded(hass: HomeAssistant) -> None:
     """Appending beyond the fixed limit evicts the oldest journal entries."""
     state = upgrade_chat_log(ChatLog(hass, "conv-1")).session_state
 
-    for entry in range(UNDO_JOURNAL_LIMIT + 2):
+    entries = [_undo_entry(index) for index in range(UNDO_JOURNAL_LIMIT + 2)]
+    for entry in entries:
         state.async_append_undo(entry)
 
-    assert state.undo_journal == tuple(range(2, UNDO_JOURNAL_LIMIT + 2))
+    assert state.undo_journal == tuple(entries[2:])
 
 
 async def test_begin_turn_replaces_only_turn_metadata(hass: HomeAssistant) -> None:
     """A new turn resets metadata while preserving conversation-level state."""
     state = upgrade_chat_log(ChatLog(hass, "conv-1")).session_state
     state.pending_operation = pending = _pending_operation()
-    state.async_append_undo(undo := object())
+    state.async_append_undo(undo := _undo_entry())
     first = state.async_begin_turn("turn-1")
     first.provenance.add("wake_word")
 
@@ -179,7 +199,7 @@ async def test_session_state_expires_with_chat_session(hass: HomeAssistant) -> N
         chat_log = upgrade_chat_log(base_chat_log)
         state = chat_log.session_state
         state.pending_operation = pending = _pending_operation()
-        state.async_append_undo(undo := object())
+        state.async_append_undo(undo := _undo_entry())
         chat_log.async_trace_generation(GenerationRecord(input_tokens=5))
         chat_log.async_add_assistant_content_without_tools(
             conversation.AssistantContent(agent_id="test-agent", content="Done")

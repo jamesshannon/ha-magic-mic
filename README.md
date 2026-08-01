@@ -82,7 +82,8 @@ on):
   (timers, alarms, reminders, todos, and calendar as one model); delivery, escalation, catch-up.
 - [`learning.md`](docs/learning.md): the friction-resolution primitive: recognize confusion,
   offer a durable fix, persist it. Home of aliases, command aliases, annotations.
-- [`undo.md`](docs/undo.md): deterministic reversal by journaling each tool's own inverse.
+- [`undo.md`](docs/undo.md): deterministic, single-use reversal from typed outcomes and
+  capability-owned inverses, with explicit barriers for unsupported mutations.
 - [`conversation-loop.md`](docs/conversation-loop.md): continued conversation / mic-open,
   barge-in, the multi-turn session.
 - [`skills.md`](docs/skills.md): gated instructional payloads: machinery-gated injection

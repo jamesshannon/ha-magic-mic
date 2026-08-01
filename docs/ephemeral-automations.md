@@ -234,7 +234,9 @@ subsystem and doesn't: it's this engine plus a state snapshot, composed.
 
 1. **Snapshot** the target entities. `scene.create` with `snapshot_entities` captures the
    current state (all attributes) into a `from_service` scene at `scene.<id>`
-   (`homeassistant/scene.py:271`). This is the same capture [`undo.md`](undo.md) uses.
+   (`homeassistant/scene.py:271`). This shares [`undo.md`](undo.md)'s state-snapshot
+   concept, but uses a scene because the delayed override must persist independently of a
+   short live conversation session; undo replay itself uses state reproduction directly.
 2. **Apply** the override now (lights → 100%).
 3. **Author a one-shot ephemeral automation** whose trigger is the boundary and whose action
    re-applies the snapshot: `{trigger: +15min OR sunset OR "I leave", action: scene.apply(scene.<id>) → scene.delete(scene.<id>)}`
@@ -243,7 +245,7 @@ subsystem and doesn't: it's this engine plus a state snapshot, composed.
    trigger, "until I leave" a presence trigger. Same two backends, same pipeline.
 
 The snapshot-restore here is the **sanctioned system primitive** the body allows
-(mechanism-synthesized, from [`undo.md`](undo.md)'s scene capture) — *not* an arbitrary
+(mechanism-synthesized, from [`undo.md`](undo.md)'s snapshot pattern) — *not* an arbitrary
 LLM-authored `service:` call, so the override composes within the bounded-body rule above,
 not as an exception to it. Because the snapshot is baked into the compiled automation as
 that literal restore, the revert is **compile-once/run-deterministic**: it fires with no

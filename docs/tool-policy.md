@@ -16,7 +16,8 @@ The kernel has four parts:
 1. `ToolPolicy` provides two deterministic methods:
    - `exposure_policy(context)` returns requirements knowable before arguments exist;
    - `classify_call(arguments, context)` returns the requirements for one normalized call.
-2. `StaticToolPolicy` covers tools whose scope and consequence never vary by argument.
+2. `StaticToolPolicy` covers tools whose scope, consequence, and effect class never vary by
+   argument.
 3. `@tool_policy(...)` lets a Magic Mic-owned tool publish its policy beside its
    implementation.
 4. `ToolPolicyRegistry` supplies policies for existing HA and third-party tools that cannot
@@ -39,6 +40,16 @@ live request adapter does not yet receive continuation origin from HA, so produc
 currently use `is_continuation=False`. Deterministic tests establish the policy behavior;
 the upstream continuation side channel remains future work.
 
+Invocation classification also carries an effect class:
+
+- `read_only`: no journal entry is needed unless the tool explicitly reports otherwise;
+- `mutating`: the result must declare `UndoAction`, `UndoUnavailable`, or `NoMutation`;
+- `unknown`: compatibility default for unclassified/legacy calls, treated conservatively
+  as a possible mutation after execution.
+
+Effect class is execution metadata, not consequence. A low-consequence light command may
+mutate; a sensitive calendar read may remain read-only.
+
 ## Two-stage enforcement
 
 `TestbedAPI` is a real decorator around the original `llm.APIInstance`:
@@ -55,6 +66,10 @@ the upstream continuation side channel remains future work.
    name, arguments, principal, effective consequence, and a 30-second expiry into the
    session's `PendingOperation`, then returns a structured `confirmation_required` tool
    result. The main LLM writes the spoken question; tools do not provide previews in v1.
+5. After a completed call, the proxy records private undo outcome metadata. A mutating or
+   unknown call without it becomes a `not_supported` journal barrier; read-only and explicit
+   no-op outcomes do not shadow the latest mutation. A raised possible mutation also creates
+   a barrier because a partial effect cannot be ruled out.
 
 Scope denial raises a typed, localizable `ToolPolicyDeniedError`. Exposure and execution
 decisions record the tool name, policy source, stage, outcome, and consequence in current
@@ -78,7 +93,7 @@ Capability
     ├── schema and executor
     └── ToolPolicy
         ├── exposure_policy(context)
-        └── classify_call(arguments, context)
+        └── classify_call(arguments, context) → scope, consequence, effect
 ```
 
 Calendar reading and calendar deletion belong to one retrieval bundle but have different
@@ -120,8 +135,10 @@ tools.
 ## Unclassified tools and the security claim
 
 In the POC, an unclassified tool remains exposed and executes exactly as it did before the
-policy layer. `find_entities` and the existing core tools therefore keep their current
-behavior. Every such decision is labeled `unclassified` in the turn trace.
+policy layer. Existing core tools therefore keep their current invocation behavior. Every
+such policy decision is labeled `unclassified` in the turn trace, and its effect defaults to
+`unknown`, so successful execution without undo metadata creates a conservative barrier.
+Magic Mic's `find_entities` declares `read_only`; it remains otherwise unrestricted.
 
 This is a compatibility choice, not a secure default. While unclassified tools are
 permissive, Magic Mic must not claim that its policy registry forms a closed capability
@@ -140,7 +157,7 @@ configuration and request facts.
 
 Keep four sources separate:
 
-1. **Tool declaration:** inherent scope, base consequence, and argument classifier. Owned by
+1. **Tool declaration:** inherent scope, base consequence, effect class, and argument classifier. Owned by
    the tool integration or, during migration, the legacy registry.
 2. **Installation configuration:** capability enablement, entity/domain restrictions,
    network permission, shared-speaker privacy, and administrator confirmation overrides.
@@ -190,6 +207,7 @@ Deterministic tests cover:
 - typed/localizable rejection without inner execution;
 - ordinary versus continuation behavior for `confirm_on_continuation`;
 - immutable staging for continuation and `always_confirm` operations;
+- read-only/no-op versus mutating/unknown journaling behavior and private result metadata;
 - policy trace records and unchanged pass-through for unclassified tools.
 
 These are seam tests. They do not establish that the present empty default legacy registry

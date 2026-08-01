@@ -236,13 +236,17 @@ untrusted content (web/calendar) is actually enabled.
 ## What stays unsolved (state it plainly)
 
 Indirect prompt injection is an **open problem**; none of the above is complete. The
-defensible position is: **assume injection can occasionally succeed, and ensure that when
-it does it cannot cause irreversible or high-consequence harm** — because the sinks are
+defensible position is: **assume injection can occasionally succeed, and bound the harm
+when it does** — because the sinks are
 exposure-bounded (L1), the dangerous ones are gated (L2), untrusted ingress is tainted
 and default-off (L3), and egress is constrained (L6). The "most sinks are **reversible**"
 half of this holds only if reversal is real — which [`undo.md`](undo.md) makes concrete
 (deterministic undo of the assistant's own recent actions); undo and the L2 confirm-gate
-partition the sinks into *reversible* (undo covers) and *irreversible* (gate covers).
+partition only **instrumented** sinks into reversible and explicitly unavailable cases.
+The foundation records unknown/uninstrumented mutations as barriers; it does not make them
+reversible. Locally handled hassil actions also remain outside this claim until they share
+the execution-outcome seam. Irreversible and prohibited actions still require consequence
+gating; undo is not a substitute.
 Residual risk (nuisance control of exposed low-stakes devices, a bad answer, a poisoned
 note surfaced later) is accepted and disclosed. This is an **area for continued work**,
 not a shipped guarantee.

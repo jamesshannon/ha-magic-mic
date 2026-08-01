@@ -101,6 +101,7 @@ direct-call checks. Policy resolution and confirmation staging are specified in
 | Replace the entity roster with a taxonomy skeleton (§5.2) | rewrite `.api_prompt` |
 | Trace every tool call and result | log inside `.async_call_tool` |
 | Enforce identity/consequence policy | omit unavailable tools in `.tools`, recheck in `.async_call_tool` |
+| Capture deterministic effects | journal private undo outcomes; barrier possible mutations with no outcome |
 | Shadow/enforce capability selection | compute a `SelectionPlan`; compare with or replace `.tools`, prompt instructions, and context |
 
 Token, generation, and turn counts for the value dashboard come from inspecting the ChatLog
@@ -121,7 +122,10 @@ dataclass between turns, so arbitrary subclass instance values are turn-local.
 Policy decisions are appended to current turn metadata with the stage, tool, policy source,
 allow/deny result, and consequence. Tool arguments are not copied into that trace. A policy
 source of `unclassified` currently preserves pass-through behavior; it is visible debt, not
-an implicit safe classification.
+an implicit safe classification. Its effect class defaults to `unknown`, so it installs an
+un-undoable barrier after execution unless the result explicitly reports no mutation or an
+inverse. Undo payloads are object attributes outside the public result mapping and are not
+sent back to the model.
 
 ## The escape hatch: modifying `internal.claude`
 

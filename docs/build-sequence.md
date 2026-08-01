@@ -52,11 +52,14 @@ unidentified caller with household scope only, not a synthetic personal user. Se
 the dataclass between turns. The blocking implementation checklist is
 [`../TODO.md`](../TODO.md).
 
-Foundation sections 1-4 now implement identity/scope, the ChatLog sidecar, immutable pending
-operations, and the two-stage tool-policy kernel. The policy layer deliberately preserves
-unclassified tools while tracing them; registry coverage and a fail-closed unknown default
-are later deployment gates, not claims made by this POC. The remaining foundation blocker is
-the bounded undo seam and final full-suite gate.
+Foundation sections 1-5 now implement identity/scope, the ChatLog sidecar, immutable pending
+operations, the two-stage tool-policy kernel, and the bounded undo seam. The policy layer
+deliberately preserves unclassified tools while tracing them; registry coverage and a
+fail-closed unknown default are later deployment gates, not claims made by this POC. Undo is
+likewise selective: possible mutations without typed metadata become explicit barriers, and
+locally handled hassil mutations remain outside the claim until the core intent chokepoint
+can emit the same outcome contract. The remaining foundation blocker is the final full-suite
+gate.
 
 **Convergence worth naming:** the features that prove value (axis 2) are almost exactly the
 §5.6 shared primitives — prompt-context moves tokens, `find_entities` moves turns and feeds
