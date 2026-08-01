@@ -32,6 +32,7 @@ from ..identity import (
     get_resolved_user,
 )
 from ..internal.claude.agent import ClaudeConversationEntity
+from ..tool_policy import ToolPolicyContext
 from .api import TestbedAPI
 from .prompt import async_skeleton_llm_api
 
@@ -66,7 +67,8 @@ class TestbedConversationEntity(ClaudeConversationEntity):
         """Set up the LLM data, wrap the seam, and run the provider loop."""
         principal = get_resolved_user(self.hass, user_input.context)
         magic_chat_log = upgrade_chat_log(chat_log)
-        magic_chat_log.session_state.async_begin_turn(
+        session_state = magic_chat_log.session_state
+        turn_metadata = session_state.async_begin_turn(
             user_input.context.id,
             device_id=user_input.device_id,
             principal=principal,
@@ -115,7 +117,14 @@ class TestbedConversationEntity(ClaudeConversationEntity):
         # internal.claude only when the HA<->LLM contract itself is what needs
         # changing (docs/testbed-proxy.md).
         if magic_chat_log.llm_api is not None:
-            magic_chat_log.llm_api = TestbedAPI.wrap(magic_chat_log.llm_api)
+            magic_chat_log.llm_api = TestbedAPI.wrap(
+                magic_chat_log.llm_api,
+                ToolPolicyContext(
+                    is_continuation=turn_metadata.is_continuation,
+                    principal=principal,
+                    session_state=session_state,
+                ),
+            )
 
         await self._async_handle_chat_log(magic_chat_log)
 

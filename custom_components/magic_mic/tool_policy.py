@@ -19,8 +19,10 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, TypeVar
 
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import llm
 
+from .const import DOMAIN
 from .identity import DataScope, ResolvedPrincipal
 from .pending_operation import ConsequenceClass
 from .session_state import MagicMicSessionState
@@ -72,6 +74,19 @@ class InvocationDecision:
     requires_confirmation: bool
     required_scope: DataScope | None
     source: PolicySource
+
+
+class ToolPolicyDeniedError(HomeAssistantError):
+    """A tool invocation failed the deterministic execution policy."""
+
+    def __init__(self, tool_name: str) -> None:
+        """Initialize a localizable denial without leaking policy details."""
+        self.tool_name = tool_name
+        super().__init__(
+            translation_domain=DOMAIN,
+            translation_key="tool_not_available",
+            translation_placeholders={"tool_name": tool_name},
+        )
 
 
 class ToolPolicy(ABC):
@@ -265,6 +280,7 @@ __all__ = [
     "StaticToolPolicy",
     "ToolPolicy",
     "ToolPolicyContext",
+    "ToolPolicyDeniedError",
     "ToolPolicyRegistry",
     "evaluate_invocation",
     "is_tool_exposed",

@@ -27,6 +27,9 @@
     },
     "system_message_not_found": {
       "message": "The chat log does not start with a system message."
+    },
+    "tool_not_available": {
+      "message": "The tool {tool_name} is not available for this request."
     }
   }
 }

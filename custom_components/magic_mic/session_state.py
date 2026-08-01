@@ -14,6 +14,17 @@ UNDO_JOURNAL_LIMIT = 10
 
 
 @dataclass(slots=True)
+class ToolPolicyTrace:
+    """One deterministic tool exposure or invocation policy decision."""
+
+    allowed: bool
+    consequence: str
+    policy_source: str
+    stage: str
+    tool_name: str
+
+
+@dataclass(slots=True)
 class TurnMetadata:
     """Deterministic policy and effect metadata for the current turn."""
 
@@ -24,6 +35,7 @@ class TurnMetadata:
     principal: ResolvedPrincipal = UNIDENTIFIED_PRINCIPAL
     provenance: set[str] = field(default_factory=set)
     satellite_id: str | None = None
+    tool_policy: list[ToolPolicyTrace] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -110,6 +122,7 @@ __all__ = [
     "DATA_SESSION_STATES",
     "UNDO_JOURNAL_LIMIT",
     "MagicMicSessionState",
+    "ToolPolicyTrace",
     "TurnMetadata",
     "async_get_session_state",
 ]

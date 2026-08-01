@@ -5,38 +5,168 @@ ChatLog, not the provider) and the exposed-entity prompt (`.api_prompt`) through
 `llm.APIInstance`. Wrapping that single object interposes on all three,
 provider-agnostically. See `docs/testbed-proxy.md`.
 
-At Wave 0 this is pass-through plus tracing. Tool filtering/replacement and prompt
-rewriting land here in later waves.
+The wrapper is a real decorator: calls that pass policy delegate to the original API
+instance, preserving custom ``async_call_tool()`` implementations. It presents a filtered
+tool list to the model, but keeps the inner instance and its complete list for the
+authoritative execution-time recheck.
 """
 
-from dataclasses import fields
+from datetime import timedelta
 
 from homeassistant.helpers import llm
 from homeassistant.util.json import JsonObjectType
 
 from ..const import LOGGER
+from ..pending_operation import PendingOperation, async_stage_pending
+from ..session_state import ToolPolicyTrace
+from ..tool_policy import (
+    DEFAULT_TOOL_POLICY_REGISTRY,
+    ToolPolicyContext,
+    ToolPolicyDeniedError,
+    ToolPolicyRegistry,
+    evaluate_invocation,
+    is_tool_exposed,
+)
+
+PENDING_OPERATION_LIFETIME = timedelta(seconds=30)
 
 
 class TestbedAPI(llm.APIInstance):
-    """Pass-through `APIInstance` that traces tool calls.
+    """Policy-enforcing decorator over the original `APIInstance`.
 
     This is the neutral seam. Nothing provider-specific belongs here.
     """
 
+    def __init__(
+        self,
+        inner: llm.APIInstance,
+        policy_context: ToolPolicyContext,
+        policy_registry: ToolPolicyRegistry,
+    ) -> None:
+        """Initialize a filtered view while retaining the original executor."""
+        self._inner = inner
+        self._policy_context = policy_context
+        self._policy_registry = policy_registry
+        exposed_tools = [
+            tool for tool in inner.tools if self._is_exposed(tool, record_trace=True)
+        ]
+        tools = inner.tools if len(exposed_tools) == len(inner.tools) else exposed_tools
+        super().__init__(
+            api=inner.api,
+            api_prompt=inner.api_prompt,
+            custom_serializer=inner.custom_serializer,
+            llm_context=inner.llm_context,
+            tools=tools,
+        )
+
     @classmethod
-    def wrap(cls, inner: llm.APIInstance) -> "TestbedAPI":
-        """Build a testbed wrapper carrying the inner instance's fields."""
-        return cls(**{f.name: getattr(inner, f.name) for f in fields(inner)})
+    def wrap(
+        cls,
+        inner: llm.APIInstance,
+        policy_context: ToolPolicyContext,
+        policy_registry: ToolPolicyRegistry = DEFAULT_TOOL_POLICY_REGISTRY,
+    ) -> "TestbedAPI":
+        """Build the policy decorator around an existing API instance."""
+        return cls(inner, policy_context, policy_registry)
 
     async def async_call_tool(self, tool_input: llm.ToolInput) -> JsonObjectType:
-        """Execute a tool call, tracing the call and its result.
-
-        Later waves intercept here (e.g. route `find_entities` to the fuzzy
-        resolver); for now every call falls through to the real API.
-        """
+        """Recheck policy, stage confirmation, or delegate the exact call."""
         LOGGER.debug(
             "[testbed] tool_call %s args=%s", tool_input.tool_name, tool_input.tool_args
         )
-        result = await super().async_call_tool(tool_input)
+        tool = self._find_inner_tool(tool_input.tool_name)
+        if tool is None:
+            return await self._inner.async_call_tool(tool_input)
+
+        resolved = self._policy_registry.resolve(tool)
+        exposed = is_tool_exposed(resolved, self._policy_context)
+        decision = evaluate_invocation(
+            resolved,
+            tool_input.tool_args,
+            self._policy_context,
+        )
+        allowed = exposed and decision.allowed
+        self._record_trace(
+            allowed=allowed,
+            consequence=decision.consequence,
+            policy_source=decision.source,
+            stage="execution",
+            tool_name=tool.name,
+        )
+        LOGGER.debug(
+            "[testbed] tool_policy %s source=%s allowed=%s consequence=%s",
+            tool.name,
+            decision.source,
+            allowed,
+            decision.consequence,
+        )
+        if not allowed:
+            raise ToolPolicyDeniedError(tool.name)
+
+        if decision.requires_confirmation:
+            operation = PendingOperation.create(
+                arguments=tool_input.tool_args,
+                consequence=decision.consequence,
+                lifetime=PENDING_OPERATION_LIFETIME,
+                principal=self._policy_context.principal,
+                tool_name=tool.name,
+            )
+            async_stage_pending(self._policy_context.session_state, operation)
+            return {
+                "confirmation_required": True,
+                "success": False,
+                "tool_name": tool.name,
+            }
+
+        result = await self._inner.async_call_tool(tool_input)
         LOGGER.debug("[testbed] tool_result %s -> %s", tool_input.tool_name, result)
         return result
+
+    def _find_inner_tool(self, tool_name: str) -> llm.Tool | None:
+        """Return the tool the inner HA executor would resolve first."""
+        return next(
+            (tool for tool in self._inner.tools if tool.name == tool_name), None
+        )
+
+    def _is_exposed(self, tool: llm.Tool, *, record_trace: bool) -> bool:
+        """Evaluate and optionally trace pre-model availability."""
+        resolved = self._policy_registry.resolve(tool)
+        allowed = is_tool_exposed(resolved, self._policy_context)
+        if record_trace:
+            self._record_trace(
+                allowed=allowed,
+                consequence=None,
+                policy_source=resolved.source,
+                stage="exposure",
+                tool_name=tool.name,
+            )
+        LOGGER.debug(
+            "[testbed] tool_exposure %s source=%s allowed=%s",
+            tool.name,
+            resolved.source,
+            allowed,
+        )
+        return allowed
+
+    def _record_trace(
+        self,
+        *,
+        allowed: bool,
+        consequence: object | None,
+        policy_source: object,
+        stage: str,
+        tool_name: str,
+    ) -> None:
+        """Append one compact decision to current turn metadata when available."""
+        metadata = self._policy_context.session_state.turn_metadata
+        if metadata is None:
+            return
+        metadata.tool_policy.append(
+            ToolPolicyTrace(
+                allowed=allowed,
+                consequence=str(consequence) if consequence is not None else "",
+                policy_source=str(policy_source),
+                stage=stage,
+                tool_name=tool_name,
+            )
+        )
