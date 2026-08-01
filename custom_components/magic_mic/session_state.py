@@ -9,6 +9,7 @@ from homeassistant.util.hass_dict import HassKey
 
 from .identity import UNIDENTIFIED_PRINCIPAL, ResolvedPrincipal
 from .pending_operation import PendingOperation
+from .undo import UndoJournalEntry
 
 UNDO_JOURNAL_LIMIT = 10
 
@@ -42,26 +43,27 @@ class TurnMetadata:
 class MagicMicSessionState:
     """Small deterministic state that must survive between conversation turns.
 
-    The pending-operation contract is immutable and provider-neutral. Journal entries
-    remain opaque until the undo contract lands in foundation section 5.
+    The pending-operation contract is immutable and provider-neutral. Undo journal
+    entries are typed and single-use; capability-specific compensation stays outside
+    this state container.
     """
 
     pending_operation: PendingOperation | None = None
     turn_metadata: TurnMetadata | None = None
     _cleanup_registered: bool = field(default=False, init=False, repr=False)
-    _undo_journal: deque[object] = field(
+    _undo_journal: deque[UndoJournalEntry] = field(
         default_factory=lambda: deque(maxlen=UNDO_JOURNAL_LIMIT),
         init=False,
         repr=False,
     )
 
     @property
-    def undo_journal(self) -> tuple[object, ...]:
+    def undo_journal(self) -> tuple[UndoJournalEntry, ...]:
         """Return the bounded undo journal from oldest to newest."""
         return tuple(self._undo_journal)
 
     @callback
-    def async_append_undo(self, entry: object) -> None:
+    def async_append_undo(self, entry: UndoJournalEntry) -> None:
         """Append an entry, evicting the oldest entry at the fixed limit."""
         self._undo_journal.append(entry)
 

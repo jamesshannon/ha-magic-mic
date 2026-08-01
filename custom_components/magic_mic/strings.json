@@ -30,6 +30,36 @@
     },
     "tool_not_available": {
       "message": "The tool {tool_name} is not available for this request."
+    },
+    "undo_already_replayed": {
+      "message": "That action has already been undone."
+    },
+    "undo_execution_failed": {
+      "message": "I couldn't undo that action."
+    },
+    "undo_expired": {
+      "message": "That action is too old to undo."
+    },
+    "undo_impossible": {
+      "message": "That action cannot be undone."
+    },
+    "undo_in_progress": {
+      "message": "That action is already being undone."
+    },
+    "undo_none_available": {
+      "message": "There is no recent action to undo."
+    },
+    "undo_not_authorized": {
+      "message": "You cannot undo that action."
+    },
+    "undo_not_supported": {
+      "message": "That action does not support undo yet."
+    },
+    "undo_previously_failed": {
+      "message": "That action could not be undone safely."
+    },
+    "undo_prohibited": {
+      "message": "That action is not allowed to be undone."
     }
   }
 }
