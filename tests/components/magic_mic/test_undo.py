@@ -2,6 +2,7 @@
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
@@ -19,6 +20,7 @@ from custom_components.magic_mic.undo import (
     NoUndoAvailable,
     UndoAction,
     UndoAlreadyReplayed,
+    UndoExecutionContext,
     UndoExecutionFailed,
     UndoExecutorMissing,
     UndoExecutorRegistry,
@@ -35,6 +37,7 @@ from custom_components.magic_mic.undo import (
     async_record_undo,
     async_replay_latest,
 )
+from homeassistant.core import Context, HomeAssistant
 
 NOW = datetime(2026, 8, 1, 12, tzinfo=UTC)
 PERSON = ResolvedPrincipal(user_id="person-1")
@@ -59,6 +62,17 @@ def _action(
             "fixture.restore",
             {"entity_id": ["light.kitchen"]},
         ),
+    )
+
+
+def _execution_context(
+    principal: ResolvedPrincipal = PERSON,
+) -> UndoExecutionContext:
+    """Build a replay context without treating the principal as HA auth."""
+    return UndoExecutionContext(
+        context=Context(),
+        hass=cast(HomeAssistant, object()),
+        principal=principal,
     )
 
 
@@ -91,6 +105,7 @@ def test_inverse_factories_preserve_strategy() -> None:
     assert intent_inverse.arguments["intent_type"] == "HassCancelTimer"
     assert state_inverse.strategy is UndoStrategy.STATE_SNAPSHOT
     assert state_inverse.executor == "magic_mic.state_snapshot"
+    assert "restore" in state_inverse.arguments
 
 
 def test_scope_binding_distinguishes_household_and_personal() -> None:
@@ -145,13 +160,16 @@ async def test_replay_executes_exact_arguments_once() -> None:
     registry = UndoExecutorRegistry()
     registry.register("fixture.restore", executor)
 
-    result = await async_replay_latest(state, PERSON, registry, now=NOW)
+    execution_context = _execution_context()
+    result = await async_replay_latest(state, execution_context, registry, now=NOW)
 
     assert result is entry
     assert entry.status is UndoStatus.UNDONE
-    executor.assert_awaited_once_with({"entity_id": ["light.kitchen"]})
+    executor.assert_awaited_once_with(
+        {"entity_id": ["light.kitchen"]}, execution_context
+    )
     with pytest.raises(UndoAlreadyReplayed):
-        await async_replay_latest(state, PERSON, registry, now=NOW)
+        await async_replay_latest(state, execution_context, registry, now=NOW)
     assert executor.await_count == 1
 
 
@@ -166,7 +184,12 @@ async def test_repeating_live_action_creates_a_new_replay_target() -> None:
     registry = UndoExecutorRegistry()
     registry.register("fixture.restore", executor)
 
-    replayed = await async_replay_latest(state, PERSON, registry, now=NOW)
+    replayed = await async_replay_latest(
+        state,
+        _execution_context(),
+        registry,
+        now=NOW,
+    )
 
     assert replayed is second
     assert first.status is UndoStatus.AVAILABLE
@@ -187,7 +210,7 @@ async def test_unavailable_latest_does_not_skip_to_older_entry() -> None:
     registry.register("fixture.restore", AsyncMock())
 
     with pytest.raises(UndoNotAvailable) as err:
-        await async_replay_latest(state, PERSON, registry, now=NOW)
+        await async_replay_latest(state, _execution_context(), registry, now=NOW)
 
     assert err.value.reason is UndoUnavailableReason.PROHIBITED
     assert older is not None and older.status is UndoStatus.AVAILABLE
@@ -208,7 +231,12 @@ async def test_personal_action_requires_same_owner_without_consuming() -> None:
     registry.register("fixture.restore", executor)
 
     with pytest.raises(UndoNotAuthorized):
-        await async_replay_latest(state, OTHER_PERSON, registry, now=NOW)
+        await async_replay_latest(
+            state,
+            _execution_context(OTHER_PERSON),
+            registry,
+            now=NOW,
+        )
 
     assert entry is not None and entry.status is UndoStatus.AVAILABLE
     executor.assert_not_awaited()
@@ -231,7 +259,7 @@ async def test_expired_action_is_marked_and_cannot_execute() -> None:
     with pytest.raises(UndoExpired):
         await async_replay_latest(
             state,
-            PERSON,
+            _execution_context(),
             registry,
             now=NOW + timedelta(seconds=30),
         )
@@ -246,7 +274,12 @@ async def test_missing_executor_does_not_claim_action() -> None:
     entry = async_record_undo(state, _action(), "turn-1", now=NOW)
 
     with pytest.raises(UndoExecutorMissing):
-        await async_replay_latest(state, PERSON, UndoExecutorRegistry(), now=NOW)
+        await async_replay_latest(
+            state,
+            _execution_context(),
+            UndoExecutorRegistry(),
+            now=NOW,
+        )
 
     assert entry is not None and entry.status is UndoStatus.AVAILABLE
 
@@ -260,10 +293,10 @@ async def test_failed_inverse_is_consumed_without_unsafe_retry() -> None:
     registry.register("fixture.restore", executor)
 
     with pytest.raises(UndoExecutionFailed):
-        await async_replay_latest(state, PERSON, registry, now=NOW)
+        await async_replay_latest(state, _execution_context(), registry, now=NOW)
     assert entry is not None and entry.status is UndoStatus.FAILED
     with pytest.raises(UndoPreviouslyFailed):
-        await async_replay_latest(state, PERSON, registry, now=NOW)
+        await async_replay_latest(state, _execution_context(), registry, now=NOW)
     assert executor.await_count == 1
 
 
@@ -274,17 +307,20 @@ async def test_concurrent_replay_sees_claimed_entry() -> None:
     started = asyncio.Event()
     release = asyncio.Event()
 
-    async def execute(arguments: object) -> None:
+    async def execute(arguments: object, context: object) -> None:
         started.set()
         await release.wait()
 
     registry = UndoExecutorRegistry()
     registry.register("fixture.restore", execute)  # type: ignore[arg-type]
-    first = asyncio.create_task(async_replay_latest(state, PERSON, registry, now=NOW))
+    execution_context = _execution_context()
+    first = asyncio.create_task(
+        async_replay_latest(state, execution_context, registry, now=NOW)
+    )
     await started.wait()
 
     with pytest.raises(UndoInProgress):
-        await async_replay_latest(state, PERSON, registry, now=NOW)
+        await async_replay_latest(state, execution_context, registry, now=NOW)
     release.set()
     assert await first is entry
 
@@ -294,7 +330,7 @@ async def test_empty_journal_rejects_replay() -> None:
     with pytest.raises(NoUndoAvailable):
         await async_replay_latest(
             MagicMicSessionState(),
-            PERSON,
+            _execution_context(),
             UndoExecutorRegistry(),
             now=NOW,
         )

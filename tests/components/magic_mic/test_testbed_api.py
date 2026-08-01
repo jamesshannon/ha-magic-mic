@@ -5,6 +5,11 @@ from typing import Any
 
 import pytest
 
+from custom_components.magic_mic.execution_result import (
+    ToolExecutionResult,
+    set_intent_undo_disposition,
+)
+
 # Imported as a module (not `from ... import TestbedAPI`) so the `Test`-prefixed
 # class name doesn't trip pytest's test-class collection heuristic.
 from custom_components.magic_mic.identity import (
@@ -17,6 +22,7 @@ from custom_components.magic_mic.session_state import MagicMicSessionState
 from custom_components.magic_mic.testbed import api as testbed_api
 from custom_components.magic_mic.tool_policy import (
     CallPolicy,
+    EffectClass,
     ExposurePolicy,
     StaticToolPolicy,
     ToolPolicy,
@@ -24,8 +30,18 @@ from custom_components.magic_mic.tool_policy import (
     ToolPolicyDeniedError,
     ToolPolicyRegistry,
 )
+from custom_components.magic_mic.undo import (
+    NO_MUTATION,
+    InverseOperation,
+    LocalizedDescription,
+    UndoAction,
+    UndoScopeBinding,
+    UndoStatus,
+    UndoUnavailable,
+    UndoUnavailableReason,
+)
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import llm
+from homeassistant.helpers import intent, llm
 from homeassistant.util.json import JsonObjectType
 
 
@@ -68,14 +84,25 @@ class ArgumentPolicy(ToolPolicy):
         )
 
 
+_DEFAULT_RESULT = object()
+
+
 class RecordingAPIInstance(llm.APIInstance):
     """Inner API whose override proves the wrapper delegates correctly."""
 
     calls: list[llm.ToolInput]
 
-    def __init__(self, tools: list[llm.Tool]) -> None:
+    def __init__(
+        self,
+        tools: list[llm.Tool],
+        *,
+        error: Exception | None = None,
+        result: object = _DEFAULT_RESULT,
+    ) -> None:
         """Initialize the API with observable fields and calls."""
         self.calls = []
+        self.error = error
+        self.result = result
 
         def serializer(value: object) -> object:
             return value
@@ -91,7 +118,21 @@ class RecordingAPIInstance(llm.APIInstance):
     async def async_call_tool(self, tool_input: llm.ToolInput) -> JsonObjectType:
         """Record calls instead of using the base API executor."""
         self.calls.append(tool_input)
+        if self.error is not None:
+            raise self.error
+        if self.result is not _DEFAULT_RESULT:
+            assert isinstance(self.result, dict)
+            return self.result
         return {"executor": "inner", "tool_name": tool_input.tool_name}
+
+
+def _undo_action() -> UndoAction:
+    """Build one household-scoped fixture inverse."""
+    return UndoAction(
+        authorization=UndoScopeBinding(scope=DataScope.HOUSEHOLD),
+        description=LocalizedDescription("magic_mic", "undo_action_tool"),
+        inverse=InverseOperation.custom("fixture.undo", {"value": 1}),
+    )
 
 
 def _context(
@@ -131,13 +172,130 @@ def test_wrap_preserves_api_fields_and_unfiltered_tool_list() -> None:
 async def test_unclassified_call_delegates_to_inner_override() -> None:
     """Pass-through calls preserve arbitrary custom APIInstance execution."""
     inner = RecordingAPIInstance([FixtureTool("unclassified")])
-    wrapped = testbed_api.TestbedAPI.wrap(inner, _context())
+    context = _context()
+    wrapped = testbed_api.TestbedAPI.wrap(inner, context)
     tool_input = llm.ToolInput(tool_name="unclassified", tool_args={"value": 1})
 
     result = await wrapped.async_call_tool(tool_input)
 
     assert result == {"executor": "inner", "tool_name": "unclassified"}
     assert inner.calls == [tool_input]
+    barrier = context.session_state.undo_journal[-1]
+    assert isinstance(barrier.disposition, UndoUnavailable)
+    assert barrier.disposition.reason is UndoUnavailableReason.NOT_SUPPORTED
+
+
+async def test_private_undo_result_is_journaled_but_not_returned() -> None:
+    """Inverse arguments stay out of the mapping returned to the model."""
+    action = _undo_action()
+    inner = RecordingAPIInstance(
+        [FixtureTool("mutating")],
+        result=ToolExecutionResult({"success": True}, action),
+    )
+    registry = ToolPolicyRegistry()
+    registry.register_exact(
+        FixtureTool,
+        "mutating",
+        StaticToolPolicy(effect=EffectClass.MUTATING),
+    )
+    context = _context()
+
+    result = await testbed_api.TestbedAPI.wrap(
+        inner, context, registry
+    ).async_call_tool(llm.ToolInput(tool_name="mutating", tool_args={}))
+
+    assert type(result) is dict
+    assert result == {"success": True}
+    assert "undo" not in result
+    entry = context.session_state.undo_journal[-1]
+    assert entry.disposition is action
+    assert entry.status is UndoStatus.AVAILABLE
+    assert context.session_state.turn_metadata is not None
+    assert context.session_state.turn_metadata.effects == [entry]
+
+
+async def test_intent_response_undo_metadata_survives_ha_wrapper() -> None:
+    """Intent-owned undo metadata remains private through IntentResponseDict."""
+    response = intent.IntentResponse(language="en")
+    action = _undo_action()
+    set_intent_undo_disposition(response, action)
+    wrapped_response = llm.IntentResponseDict(response)
+    inner = RecordingAPIInstance(
+        [FixtureTool("intent")],
+        result=wrapped_response,
+    )
+    context = _context()
+
+    result = await testbed_api.TestbedAPI.wrap(inner, context).async_call_tool(
+        llm.ToolInput(tool_name="intent", tool_args={})
+    )
+
+    assert result is wrapped_response
+    assert context.session_state.undo_journal[-1].disposition is action
+
+
+@pytest.mark.parametrize("effect", [EffectClass.MUTATING, EffectClass.UNKNOWN])
+async def test_missing_undo_metadata_records_barrier(effect: EffectClass) -> None:
+    """A possible mutation cannot expose an older action as latest undo."""
+    inner = RecordingAPIInstance([FixtureTool("possible_mutation")])
+    registry = ToolPolicyRegistry()
+    registry.register_exact(
+        FixtureTool,
+        "possible_mutation",
+        StaticToolPolicy(effect=effect),
+    )
+    context = _context()
+
+    await testbed_api.TestbedAPI.wrap(inner, context, registry).async_call_tool(
+        llm.ToolInput(tool_name="possible_mutation", tool_args={})
+    )
+
+    entry = context.session_state.undo_journal[-1]
+    assert isinstance(entry.disposition, UndoUnavailable)
+    assert entry.disposition.reason is UndoUnavailableReason.NOT_SUPPORTED
+
+
+async def test_explicit_no_mutation_and_read_only_do_not_shadow_undo() -> None:
+    """Known non-effects leave the latest mutation unchanged."""
+    context = _context()
+    for tool_name, effect, result in (
+        (
+            "reported_noop",
+            EffectClass.MUTATING,
+            ToolExecutionResult({"success": True}, NO_MUTATION),
+        ),
+        ("read_only", EffectClass.READ_ONLY, {"success": True}),
+    ):
+        inner = RecordingAPIInstance([FixtureTool(tool_name)], result=result)
+        registry = ToolPolicyRegistry()
+        registry.register_exact(
+            FixtureTool,
+            tool_name,
+            StaticToolPolicy(effect=effect),
+        )
+        await testbed_api.TestbedAPI.wrap(inner, context, registry).async_call_tool(
+            llm.ToolInput(tool_name=tool_name, tool_args={})
+        )
+
+    assert context.session_state.undo_journal == ()
+
+
+async def test_failed_possible_mutation_records_barrier() -> None:
+    """A raised tool may have partially changed state, so undo fails closed."""
+    inner = RecordingAPIInstance(
+        [FixtureTool("failing")],
+        error=RuntimeError("partial failure"),
+    )
+    context = _context()
+
+    with pytest.raises(RuntimeError, match="partial failure"):
+        await testbed_api.TestbedAPI.wrap(inner, context).async_call_tool(
+            llm.ToolInput(tool_name="failing", tool_args={})
+        )
+
+    entry = context.session_state.undo_journal[-1]
+    assert isinstance(entry.disposition, UndoUnavailable)
+    assert entry.disposition.reason is UndoUnavailableReason.NOT_SUPPORTED
 
 
 def test_personal_tool_is_filtered_for_unidentified_principal() -> None:

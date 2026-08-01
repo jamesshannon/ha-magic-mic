@@ -23,6 +23,7 @@ from homeassistant.util.json import JsonObjectType
 from ..const import FIND_ENTITIES_DEFAULT_LIMIT, FIND_ENTITIES_MAX_LIMIT
 from ..entity_candidates import Registries, build_candidate, resolve_area
 from ..fuzzy import resolve_candidates
+from ..tool_policy import EffectClass, StaticToolPolicy, tool_policy
 
 # async_match_targets reports why a match produced nothing; these two mean the model
 # named an area/floor that does not exist (a fixable mistake worth surfacing), as
@@ -33,6 +34,7 @@ _INVALID_FILTER_REASONS = {
 }
 
 
+@tool_policy(StaticToolPolicy(effect=EffectClass.READ_ONLY))
 class FindEntitiesTool(llm.Tool):
     """Resolve a fuzzy name and/or structured filters to canonical entity ids."""
 

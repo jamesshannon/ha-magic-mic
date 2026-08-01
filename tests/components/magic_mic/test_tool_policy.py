@@ -14,6 +14,7 @@ from custom_components.magic_mic.pending_operation import ConsequenceClass
 from custom_components.magic_mic.session_state import MagicMicSessionState
 from custom_components.magic_mic.tool_policy import (
     CallPolicy,
+    EffectClass,
     ExposurePolicy,
     PolicySource,
     StaticToolPolicy,
@@ -96,6 +97,7 @@ def test_unclassified_tools_remain_explicitly_permissive() -> None:
     decision = evaluate_invocation(resolved, {}, _context())
     assert decision.allowed
     assert decision.consequence is ConsequenceClass.LOW
+    assert decision.effect is EffectClass.UNKNOWN
     assert not decision.requires_confirmation
 
 
@@ -117,6 +119,19 @@ def test_declared_policy_takes_precedence_over_legacy_registry() -> None:
 
     assert resolved.source is PolicySource.DECLARED
     assert resolved.policy is declared
+
+
+def test_static_policy_declares_effect_class() -> None:
+    """Effect classification travels with invocation policy."""
+    registry = ToolPolicyRegistry()
+    registry.register_type(
+        FixtureTool,
+        StaticToolPolicy(effect=EffectClass.READ_ONLY),
+    )
+
+    decision = evaluate_invocation(registry.resolve(FixtureTool()), {}, _context())
+
+    assert decision.effect is EffectClass.READ_ONLY
 
 
 def test_legacy_exact_policy_takes_precedence_over_family_policy() -> None:

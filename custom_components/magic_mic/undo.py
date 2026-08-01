@@ -7,7 +7,7 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Protocol, Self
 
-from homeassistant.core import callback
+from homeassistant.core import Context, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 from homeassistant.util.json import JsonObjectType
@@ -135,10 +135,18 @@ class InverseOperation:
         )
 
     @classmethod
-    def state_snapshot(cls, entities: JsonObjectType) -> Self:
+    def state_snapshot(
+        cls,
+        restore: JsonObjectType,
+        *,
+        expected: JsonObjectType | None = None,
+    ) -> Self:
         """Create an inverse that reproduces captured entity states."""
+        arguments: JsonObjectType = {"restore": restore}
+        if expected is not None:
+            arguments["expected"] = expected
         return cls(
-            arguments={"entities": entities},
+            arguments=arguments,
             executor="magic_mic.state_snapshot",
             strategy=UndoStrategy.STATE_SNAPSHOT,
         )
@@ -233,7 +241,20 @@ class UndoJournalState(Protocol):
         """Append one completed mutation."""
 
 
-type UndoExecutor = Callable[[JsonObjectType], Awaitable[None]]
+@dataclass(frozen=True, slots=True)
+class UndoExecutionContext:
+    """Replay request facts, keeping personalization separate from HA auth."""
+
+    hass: HomeAssistant
+    context: Context
+    principal: ResolvedPrincipal
+    assistant: str | None = None
+    device_id: str | None = None
+    language: str | None = None
+    satellite_id: str | None = None
+
+
+type UndoExecutor = Callable[[JsonObjectType, UndoExecutionContext], Awaitable[None]]
 
 
 class UndoExecutorRegistry:
@@ -371,7 +392,7 @@ def async_record_undo(
 
 async def async_replay_latest(
     state: UndoJournalState,
-    principal: ResolvedPrincipal,
+    execution_context: UndoExecutionContext,
     executors: UndoExecutorRegistry,
     *,
     now: datetime | None = None,
@@ -394,7 +415,7 @@ async def async_replay_latest(
         raise UndoPreviouslyFailed
     if entry.status is UndoStatus.EXPIRED:
         raise UndoExpired
-    if not entry.disposition.authorization.allows(principal):
+    if not entry.disposition.authorization.allows(execution_context.principal):
         raise UndoNotAuthorized
 
     inverse = entry.disposition.inverse
@@ -403,7 +424,7 @@ async def async_replay_latest(
 
     entry.status = UndoStatus.EXECUTING
     try:
-        await executor(inverse.mutable_arguments())
+        await executor(inverse.mutable_arguments(), execution_context)
     except Exception as err:
         entry.status = UndoStatus.FAILED
         raise UndoExecutionFailed from err
@@ -422,6 +443,7 @@ __all__ = [
     "UndoAlreadyReplayed",
     "UndoDisposition",
     "UndoError",
+    "UndoExecutionContext",
     "UndoExecutionFailed",
     "UndoExecutorMissing",
     "UndoExecutorRegistry",

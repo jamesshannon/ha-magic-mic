@@ -40,6 +40,14 @@ class PolicySource(StrEnum):
     UNCLASSIFIED = "unclassified"
 
 
+class EffectClass(StrEnum):
+    """Whether a successful invocation can change durable state."""
+
+    MUTATING = "mutating"
+    READ_ONLY = "read_only"
+    UNKNOWN = "unknown"
+
+
 @dataclass(frozen=True, slots=True)
 class ToolPolicyContext:
     """Deterministic request facts shared by both policy stages."""
@@ -62,6 +70,7 @@ class CallPolicy:
     """Requirements for one normalized invocation."""
 
     consequence: ConsequenceClass = ConsequenceClass.LOW
+    effect: EffectClass = EffectClass.UNKNOWN
     required_scope: DataScope | None = None
 
 
@@ -71,6 +80,7 @@ class InvocationDecision:
 
     allowed: bool
     consequence: ConsequenceClass
+    effect: EffectClass
     requires_confirmation: bool
     required_scope: DataScope | None
     source: PolicySource
@@ -118,6 +128,7 @@ class StaticToolPolicy(ToolPolicy):
     """Apply one scope and base consequence to every invocation of a tool."""
 
     consequence: ConsequenceClass = ConsequenceClass.LOW
+    effect: EffectClass = EffectClass.UNKNOWN
     required_scope: DataScope | None = None
 
     def exposure_policy(self, context: ToolPolicyContext) -> ExposurePolicy:
@@ -132,6 +143,7 @@ class StaticToolPolicy(ToolPolicy):
         """Return the static invocation requirement."""
         return CallPolicy(
             consequence=self.consequence,
+            effect=self.effect,
             required_scope=self.required_scope,
         )
 
@@ -237,6 +249,7 @@ def evaluate_invocation(
     return InvocationDecision(
         allowed=allowed,
         consequence=consequence,
+        effect=call_policy.effect,
         required_scope=required_scope,
         requires_confirmation=_requires_confirmation(consequence, context),
         source=resolved.source,
@@ -273,6 +286,7 @@ DEFAULT_TOOL_POLICY_REGISTRY = ToolPolicyRegistry()
 __all__ = [
     "DEFAULT_TOOL_POLICY_REGISTRY",
     "CallPolicy",
+    "EffectClass",
     "ExposurePolicy",
     "InvocationDecision",
     "PolicySource",

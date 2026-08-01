@@ -16,16 +16,25 @@ from datetime import timedelta
 from homeassistant.helpers import llm
 from homeassistant.util.json import JsonObjectType
 
-from ..const import LOGGER
+from ..const import DOMAIN, LOGGER
+from ..execution_result import get_undo_disposition, public_tool_result
 from ..pending_operation import PendingOperation, async_stage_pending
 from ..session_state import ToolPolicyTrace
 from ..tool_policy import (
     DEFAULT_TOOL_POLICY_REGISTRY,
+    EffectClass,
     ToolPolicyContext,
     ToolPolicyDeniedError,
     ToolPolicyRegistry,
     evaluate_invocation,
     is_tool_exposed,
+)
+from ..undo import (
+    LocalizedDescription,
+    UndoDisposition,
+    UndoUnavailable,
+    UndoUnavailableReason,
+    async_record_undo,
 )
 
 PENDING_OPERATION_LIFETIME = timedelta(seconds=30)
@@ -118,9 +127,57 @@ class TestbedAPI(llm.APIInstance):
                 "tool_name": tool.name,
             }
 
-        result = await self._inner.async_call_tool(tool_input)
+        try:
+            result = await self._inner.async_call_tool(tool_input)
+        except Exception:
+            self._record_effect(
+                tool.name,
+                decision.effect,
+                disposition=None,
+            )
+            raise
+        self._record_effect(
+            tool.name,
+            decision.effect,
+            disposition=get_undo_disposition(result),
+        )
         LOGGER.debug("[testbed] tool_result %s -> %s", tool_input.tool_name, result)
-        return result
+        return public_tool_result(result)
+
+    def _record_effect(
+        self,
+        tool_name: str,
+        effect: EffectClass,
+        *,
+        disposition: UndoDisposition | None,
+    ) -> None:
+        """Journal a declared outcome or conservatively block older undo."""
+        if disposition is None:
+            if effect is EffectClass.READ_ONLY:
+                return
+            disposition = UndoUnavailable(
+                description=LocalizedDescription(
+                    translation_domain=DOMAIN,
+                    translation_key="undo_action_tool",
+                    placeholders={"tool_name": tool_name},
+                ),
+                reason=UndoUnavailableReason.NOT_SUPPORTED,
+            )
+
+        metadata = self._policy_context.session_state.turn_metadata
+        if metadata is None:
+            LOGGER.warning(
+                "[testbed] cannot journal effect for %s without turn metadata",
+                tool_name,
+            )
+            return
+        entry = async_record_undo(
+            self._policy_context.session_state,
+            disposition,
+            metadata.turn_id,
+        )
+        if entry is not None:
+            metadata.effects.append(entry)
 
     def _find_inner_tool(self, tool_name: str) -> llm.Tool | None:
         """Return the tool the inner HA executor would resolve first."""
