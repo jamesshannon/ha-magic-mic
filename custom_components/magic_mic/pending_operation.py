@@ -4,24 +4,14 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
-from types import MappingProxyType
-from typing import Protocol, Self, cast
+from typing import Protocol, Self
 
 from homeassistant.core import callback
 from homeassistant.util import dt as dt_util
-from homeassistant.util.json import JsonObjectType, JsonValueType
+from homeassistant.util.json import JsonObjectType
 
 from .identity import ResolvedPrincipal
-
-type FrozenJsonValue = (
-    Mapping[str, FrozenJsonValue]
-    | tuple[FrozenJsonValue, ...]
-    | str
-    | int
-    | float
-    | bool
-    | None
-)
+from .immutable_json import FrozenJsonValue, freeze_json_mapping, thaw_json_mapping
 
 
 class ConsequenceClass(StrEnum):
@@ -56,7 +46,7 @@ class PendingOperation:
             raise ValueError("A pending operation requires a tool name")
         if self.expires_at <= self.created_at:
             raise ValueError("A pending operation must expire after its creation")
-        object.__setattr__(self, "arguments", _freeze_mapping(self.arguments))
+        object.__setattr__(self, "arguments", freeze_json_mapping(self.arguments))
 
     @classmethod
     def create(
@@ -86,7 +76,7 @@ class PendingOperation:
 
     def mutable_arguments(self) -> JsonObjectType:
         """Return a new mutable JSON copy for the executor."""
-        return cast(JsonObjectType, _thaw_json(self.arguments))
+        return thaw_json_mapping(self.arguments)
 
 
 class PendingOperationError(Exception):
@@ -187,31 +177,6 @@ def _consume_pending(state: PendingOperationState) -> PendingOperation:
     if not isinstance(operation, PendingOperation):
         raise NoPendingOperation
     return operation
-
-
-def _freeze_mapping(
-    value: Mapping[str, JsonValueType | FrozenJsonValue],
-) -> Mapping[str, FrozenJsonValue]:
-    """Recursively copy and freeze a JSON mapping."""
-    return MappingProxyType({key: _freeze_json(item) for key, item in value.items()})
-
-
-def _freeze_json(value: JsonValueType | FrozenJsonValue) -> FrozenJsonValue:
-    """Recursively copy and freeze one JSON value."""
-    if isinstance(value, Mapping):
-        return _freeze_mapping(value)
-    if isinstance(value, (list, tuple)):
-        return tuple(_freeze_json(item) for item in value)
-    return value
-
-
-def _thaw_json(value: FrozenJsonValue) -> JsonValueType:
-    """Recursively return mutable JSON containers for execution."""
-    if isinstance(value, Mapping):
-        return {key: _thaw_json(item) for key, item in value.items()}
-    if isinstance(value, tuple):
-        return [_thaw_json(item) for item in value]
-    return value
 
 
 __all__ = [
