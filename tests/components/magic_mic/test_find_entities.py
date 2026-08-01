@@ -7,7 +7,16 @@ from custom_components.magic_mic.capabilities.entities import (
     FindEntitiesTool,
     async_get_tools,
 )
+from custom_components.magic_mic.identity import UNIDENTIFIED_PRINCIPAL
+from custom_components.magic_mic.session_state import MagicMicSessionState
 from custom_components.magic_mic.testbed.prompt import SkeletonAssistAPI
+from custom_components.magic_mic.tool_policy import (
+    DEFAULT_TOOL_POLICY_REGISTRY,
+    EffectClass,
+    PolicySource,
+    ToolPolicyContext,
+    evaluate_invocation,
+)
 from homeassistant.components import conversation
 from homeassistant.components.homeassistant.exposed_entities import async_expose_entity
 from homeassistant.const import ATTR_DEVICE_CLASS, ATTR_FRIENDLY_NAME
@@ -259,6 +268,20 @@ def test_async_get_tools_returns_find_entities(hass: HomeAssistant) -> None:
     tools = async_get_tools(hass, _llm_context())
 
     assert [tool.name for tool in tools] == ["find_entities"]
+
+
+def test_find_entities_declares_read_only_effect() -> None:
+    """The owned lookup tool cannot shadow the latest mutation as unknown."""
+    resolved = DEFAULT_TOOL_POLICY_REGISTRY.resolve(FindEntitiesTool())
+    context = ToolPolicyContext(
+        principal=UNIDENTIFIED_PRINCIPAL,
+        session_state=MagicMicSessionState(),
+    )
+
+    decision = evaluate_invocation(resolved, {}, context)
+
+    assert resolved.source is PolicySource.DECLARED
+    assert decision.effect is EffectClass.READ_ONLY
 
 
 async def test_testbed_roster_includes_find_entities(hass: HomeAssistant) -> None:
