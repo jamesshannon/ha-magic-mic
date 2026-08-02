@@ -333,6 +333,123 @@ documented update procedure. A compact parity suite should at least cover every 
 changed method and every content-block family the fork claims to support. Otherwise
 "near-upstream" is a comment, not a maintained property.
 
+## Pass 4: evaluation validity and cross-cutting behavior
+
+Status: complete. Reviewed corpus validation, live observation, tool/answer scoring,
+state-diff scoring, fixture reset, stored artifacts, A/B execution, and the deterministic
+resolver benchmark. Also traced abnormal provider/tool lifetime against identity cleanup.
+
+### R20. Unjudgeable and unbuilt cases are counted as LLM-correct
+
+**Severity:** Foundational measurement defect. Invalidates the headline task-success count.
+
+`case_correct()` returns `None` when a case has no tool or answer predicate. `classify()`
+then places any non-error response in `LLM_CORRECT` unless correctness is exactly `False`.
+The corpus field `resolves_at_wave0` is serialized into artifacts but never used in scoring.
+An ordinary prose refusal, hallucinated completion, or request for clarification therefore
+counts as a successful resolution when the case is unjudgeable.
+
+The committed baseline demonstrates the problem. `undo-last` has `correct: null` but is in
+the correct bucket. `conditional-reminder` is marked unbuilt, yet the model's false claim
+that it created a conditional reminder passes because the predicate only looks for the word
+"hour." The scorecard reports zero unresolved cases even though the corpus says these cases
+should form the unresolved baseline bucket.
+
+Introduce an explicit expected outcome for unsupported/unresolved behavior and a separate
+`UNJUDGED` result that can never increase correctness. Remove `resolves_at_wave0` or make it
+an enforced expectation. Recompute every stored headline after this correction.
+
+### R21. Tool scoring permits dangerous extra calls and substring argument matches
+
+**Severity:** High evaluation-safety defect.
+
+Expected tools are matched as an ordered subsequence, so any number of unexpected calls may
+occur before, between, or after them without failing the case. String arguments use
+case-insensitive substring matching, so an expected entity or value may match a longer,
+different target. A turn can perform the expected read plus an unrelated mutation and still
+pass.
+
+Make exact normalized matching the default, with explicit per-field match modes for the few
+arguments that need containment or tolerance. Classify observed calls as expected,
+permitted-supporting, or forbidden-extra; mutating extras should always fail. The effect
+journal can eventually provide an independent mutation signal.
+
+### R22. The executable fixture drops state-only entity metadata and exposure setup
+
+**Severity:** High evaluation-fixture defect.
+
+For domains without an executable entity class, `build_executable_world()` writes only the
+state string. It drops the corpus friendly name, attributes, device class, registry entry,
+area assignment, and explicit exposure. Reset likewise restores only the state string. The
+weather fixture therefore loses its temperature and is not prepared like the executable
+entities.
+
+The baseline artifact shows the consequence: the weather case is marked correct for calling
+`GetLiveContext`, while the spoken answer says no weather integration is configured even
+though the corpus defines `weather.home`. Build state-only entities with the same registry,
+attributes, area, and exposure semantics as `world.build_world`, and require an answer
+predicate that proves the requested fact was returned.
+
+### R23. State-diff scoring misses several classes of unintended side effect
+
+**Severity:** High measurement gap for a safety-oriented assistant.
+
+For undeclared existing entities, `unexpected_changes()` compares only the state string.
+Unexpected brightness, volume, setpoint, position, and other attribute mutations pass when
+the state remains unchanged. Entities created during a turn are ignored unless the case
+declares them. Timers, todo rows, calendar records, notifications, broadcasts, and external
+effects are not part of the snapshot at all.
+
+Keep state-diff scoring, but pair it with an execution/effect ledger. Every mutating call or
+created durable record must be either expected or forbidden. For entity attributes, define a
+small domain-aware set of meaningful reproducible attributes rather than ignoring all of
+them to avoid derived-attribute noise.
+
+### R24. The live A/B delta is a single fixed-order sample
+
+**Severity:** Foundational measurement-design defect for the Wave 1 thesis.
+
+The variant runner executes the entire skeleton-only arm and then the entire names-on arm
+once. Model sampling, provider load, prompt-cache warmth, and temporal drift are confounded
+with the feature flag. The stored `-2 generations` result may be a feature effect or ordinary
+model variance; `any_of` handles multiple acceptable outcomes but does not estimate metric
+variance.
+
+Run repeated paired trials and alternate or randomize arm order per case. Report per-case
+paired deltas, distributions, confidence intervals, and failure counts rather than only
+summed totals. Pin model/version and record provider request settings. A single run remains a
+smoke test, not evidence for a go/no-go decision.
+
+### R25. Several advertised scorecard dimensions have no live implementation
+
+**Severity:** Medium completeness gap; required before the corresponding product claims.
+
+The current runner does not collect TTFT/TTLT, execute the combined hassil-to-LLM routing
+path, drive multi-turn clarification, count turns to completion, or score spoken duration.
+`ObservedTurn.clarified` is never populated by a live runner, making the clarification bucket
+unreachable. The present artifact measures single LLM-only turns, tool/state predicates,
+generations, and provider token usage.
+
+Keep the narrower harness, but label artifacts and build-sequence claims with exactly that
+scope. Add each missing dimension before using it as a Wave 1 acceptance gate.
+
+### R26. Abnormal streaming can outlive the resolved-identity registry entry
+
+**Severity:** High cross-cutting failure-path risk; validate before personal tools perform
+I/O.
+
+HA's streaming ChatLog starts tool tasks as soon as tool-call deltas arrive. That upstream
+code has no local `finally` that cancels and joins all started tasks if the stream fails
+before normal tool-result collection. The testbed clears the request's resolved principal in
+its outer `finally` as soon as the provider loop exits. A surviving tool task can therefore
+resume after an await and see the unidentified fallback from `get_resolved_user()`, record an
+effect after the turn ended, or mutate state without a returned tool result.
+
+Add a fault-injection test that starts a blocking personal tool, fails or cancels the model
+stream, and observes task cancellation, identity lifetime, and effect recording. Either own
+and drain tool tasks at the provider/request boundary or make execution carry an immutable
+request context that does not depend on a cleared global lookup while in flight.
+
 ## Declared limitations confirmed by the trace
 
 These are not new findings, but they bound what the implemented foundation currently proves:
@@ -370,4 +487,6 @@ means the data contracts exist, not that their safety properties are active end 
 6. R4: finish conflict semantics before enabling confirmation-sensitive tools.
 7. R6 through R10 before the corresponding prompt, personal-data, or provider feature grows.
 8. R17 and R18 before treating the custom integration as generally installable.
-9. R11, R16, and R19 as test/tooling cleanup that prevents recurrence.
+9. R20 through R24 before using the current scorecard to accept or reject the architecture.
+10. R25 and R26 before claiming end-to-end latency, clarification, or personal-tool safety.
+11. R11, R16, and R19 as test/tooling cleanup that prevents recurrence.
