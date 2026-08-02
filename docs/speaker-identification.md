@@ -163,6 +163,10 @@ two attack surfaces onto one bound.
   per-request session state; the accessor reads it. (This is *why* it must run at STT, where
   the audio is: the conversation stage only has text, so the result has to ride a side
   channel keyed by request identity, not the fixed `ConversationInput`.)
+- **Prompt personalization reads the resolved result.** The prompt gets the resolved user's
+  display name, or no name for an unidentified speaker. The original `Context.user_id` stays
+  intact for HA authorization and tool execution; a pipeline owner is never substituted for
+  an unknown speaker.
 - **The signals the upstream resolver considers, in priority order:** (1) the voice-ID result
   (precomputed upstream) → that user; (2) `context.user_id` if it maps to a real user and the
   request source is explicitly text; (3) configured device→owner for voice; (4) the

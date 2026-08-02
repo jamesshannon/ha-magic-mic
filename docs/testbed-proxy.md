@@ -125,6 +125,13 @@ survive between turns, such as a pending confirmed operation or the bounded undo
 are exposed through it but backed by a `conversation_id`-keyed sidecar. HA clones the
 dataclass between turns, so arbitrary subclass instance values are turn-local.
 
+Prompt personalization is also established at this interface. Before prompt composition,
+the testbed gives `MagicMicChatLog` the display name of the resolved principal, or `None` for
+an unidentified caller. Its prompt-template override substitutes that value for core's
+authorization-derived `user_name` while passing the original `LLMContext` through unchanged.
+Tools and authorization therefore retain the HA `Context`; the model is not told that a
+voice pipeline owner is the current speaker.
+
 Policy decisions are appended to the exact `TurnMetadata` captured for the request, with the
 stage, tool, policy source, allow/deny result, and consequence. The session sidecar retains
 metadata by turn ID rather than exposing one replaceable current-turn pointer, so overlapping

@@ -155,6 +155,13 @@ contracts.
 **Severity:** Medium latent identity defect. Fix before configurable prompts or personal
 prompt context.
 
+**Resolved:** `MagicMicChatLog` now renders prompt-template `user_name` from the principal
+resolved at the request boundary. It keeps the original `LLMContext` and HA `Context`
+unchanged for authorization and tool execution. The resolved display name is turn-local and
+an unidentified caller renders without a name. A regression test gives an unknown voice
+request a pipeline-owner `Context.user_id` and verifies that the prompt does not use the
+owner as its speaker while the authorization context retains that ID.
+
 The testbed correctly resolves an unknown voice request to the unidentified principal, but it
 passes the original `LLMContext` into `ChatLog.async_provide_llm_data()`. Core independently
 derives the prompt-template `user_name` from `llm_context.context.user_id`. For voice, that ID

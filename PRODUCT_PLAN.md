@@ -686,6 +686,11 @@ with AI, streaming TTS).
   [`docs/security.md`](docs/security.md)). So the populator writes `{request → user_id}` into
   per-request session state (`hass.data`), and the accessor (reached by tools via `llm_context`)
   reads it.
+- **Prompt identity follows the resolved principal, not HA authorization identity.** Prompt
+  templates receive the resolved user's display name, or no name for an unidentified caller.
+  The original `LLMContext` and `Context.user_id` remain unchanged for authorization and tool
+  execution. This prevents a voice pipeline owner from being presented to the model as the
+  current speaker.
 - **Capture-time, not execution-time.** A deferred action that touches person-scoped data
   snapshots the resolved person onto its artifact at creation and scopes by the stored value at
   fire. An unidentified caller cannot author an action that later reads personal data. A

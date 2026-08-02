@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from anthropic.types import Message, MessageDeltaUsage, Usage
@@ -33,7 +34,7 @@ from custom_components.magic_mic.undo import (
 from homeassistant.components import conversation
 from homeassistant.components.conversation import ChatLog
 from homeassistant.core import Context, HomeAssistant
-from homeassistant.helpers import chat_session, entity_registry as er
+from homeassistant.helpers import chat_session, entity_registry as er, llm
 
 from .streaming import create_content_block
 
@@ -146,6 +147,38 @@ async def test_replace_preserves_session_state(hass: HomeAssistant) -> None:
     assert next_turn.session_state is state
     assert next_turn.session_state.pending_operation is pending
     assert next_turn.session_state.undo_journal == (undo,)
+
+
+async def test_prompt_uses_explicit_resolved_name(hass: HomeAssistant) -> None:
+    """Resolved prompt identity overrides the authorization user's display name."""
+    context = Context(user_id="authorization-user")
+    llm_context = llm.LLMContext(
+        platform="magic_mic",
+        context=context,
+        language="en",
+        assistant=conversation.DOMAIN,
+        device_id=None,
+    )
+    chat_log = upgrade_chat_log(ChatLog(hass, "conv-1"))
+    chat_log.async_set_prompt_user_name("Resolved Speaker")
+
+    with patch(
+        "homeassistant.auth.AuthManager.async_get_user",
+        new=AsyncMock(return_value=SimpleNamespace(name="Authorization User")),
+    ):
+        await chat_log.async_provide_llm_data(
+            llm_context,
+            user_llm_prompt=(
+                "speaker={{ user_name }}; "
+                "authorization={{ llm_context.context.user_id }}"
+            ),
+        )
+
+    system = chat_log.content[0]
+    assert isinstance(system, conversation.SystemContent)
+    assert "speaker=Resolved Speaker" in system.content
+    assert "authorization=authorization-user" in system.content
+    assert llm_context.context is context
 
 
 async def test_session_state_isolates_conversations(hass: HomeAssistant) -> None:
@@ -287,3 +320,51 @@ async def test_turn_populates_generations(
         await _converse(hass, testbed_id)
 
     assert captured["chat_log"].generation_count == 1
+
+
+async def test_prompt_uses_resolved_identity_but_retains_authorization_context(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_create_stream: AsyncMock,
+) -> None:
+    """An unknown speaker is not personalized as the voice pipeline owner."""
+    entry = setup_integration
+    ent_reg = er.async_get(hass)
+    testbed_id = next(
+        entity.entity_id
+        for entity in ent_reg.entities.values()
+        if entity.platform == "magic_mic"
+        and entity.unique_id == f"{entry.entry_id}_testbed"
+    )
+    prompt = (
+        "speaker={{ user_name or 'unknown' }}; "
+        "authorization={{ llm_context.context.user_id }}"
+    )
+    mock_create_stream.return_value = [create_content_block(0, ["Hello there."])]
+
+    with (
+        patch(
+            "homeassistant.helpers.llm.DEFAULT_INSTRUCTIONS_PROMPT",
+            prompt,
+        ),
+        patch(
+            "homeassistant.auth.AuthManager.async_get_user",
+            new=AsyncMock(return_value=SimpleNamespace(name="Pipeline Owner")),
+        ),
+    ):
+        await conversation.async_converse(
+            hass,
+            "hello",
+            None,
+            Context(user_id="pipeline-owner"),
+            agent_id=testbed_id,
+        )
+
+    system = mock_create_stream.call_args.kwargs["system"]
+    system_text = (
+        system
+        if isinstance(system, str)
+        else "\n".join(block["text"] for block in system)
+    )
+    assert "speaker=unknown" in system_text
+    assert "authorization=pipeline-owner" in system_text

@@ -27,6 +27,7 @@ from ..const import (
 )
 from ..identity import (
     RequestSource,
+    ResolvedPrincipal,
     async_resolve_user,
     clear_resolved_user,
     get_resolved_user,
@@ -67,6 +68,9 @@ class TestbedConversationEntity(ClaudeConversationEntity):
         """Set up the LLM data, wrap the seam, and run the provider loop."""
         principal = get_resolved_user(self.hass, user_input.context)
         magic_chat_log = upgrade_chat_log(chat_log)
+        magic_chat_log.async_set_prompt_user_name(
+            await _async_prompt_user_name(self.hass, principal)
+        )
         session_state = magic_chat_log.session_state
         turn_metadata = session_state.async_begin_turn(
             user_input.context.id,
@@ -179,3 +183,13 @@ def _requesting_area_id(hass: HomeAssistant, device_id: str | None) -> str | Non
         return None
     device = dr.async_get(hass).async_get(device_id)
     return device.area_id if device else None
+
+
+async def _async_prompt_user_name(
+    hass: HomeAssistant, principal: ResolvedPrincipal
+) -> str | None:
+    """Return the display name for an explicitly resolved HA user."""
+    if principal.user_id is None:
+        return None
+    user = await hass.auth.async_get_user(principal.user_id)
+    return user.name if user is not None else None

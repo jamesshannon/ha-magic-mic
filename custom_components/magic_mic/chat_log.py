@@ -17,10 +17,11 @@ divergence.
 """
 
 from dataclasses import dataclass
-from typing import cast
+from typing import cast, override
 
 from homeassistant.components.conversation import ChatLog
 from homeassistant.core import callback
+from homeassistant.helpers import llm
 
 from .session_state import MagicMicSessionState, async_get_session_state
 
@@ -53,11 +54,14 @@ class MagicMicChatLog(ChatLog):
     """Expose session state and record a `GenerationRecord` per model round.
 
     Adds behavior, not dataclass fields. The turn-local record list lives in the instance
-    `__dict__`; conversation-lifetime state lives in the sidecar. The class therefore stays
-    layout-compatible with `ChatLog` for in-place upgrade.
+    `__dict__`, as does the resolved name used for prompt personalization.
+    Conversation-lifetime state lives in the sidecar. The class therefore stays
+    layout-compatible with `ChatLog` for in-place upgrade. Prompt rendering retains the
+    original HA context for authorization without treating its user ID as the speaker.
     """
 
     _GENERATIONS_KEY = "_magic_mic_generations"
+    _PROMPT_USER_NAME_KEY = "_magic_mic_prompt_user_name"
 
     @property
     def session_state(self) -> MagicMicSessionState:
@@ -83,6 +87,31 @@ class MagicMicChatLog(ChatLog):
         """
         self.__dict__.setdefault(self._GENERATIONS_KEY, []).append(record)
         self.async_trace({"generation": record.as_dict()})
+
+    @callback
+    def async_set_prompt_user_name(self, user_name: str | None) -> None:
+        """Set the resolved identity used only for prompt personalization."""
+        self.__dict__[self._PROMPT_USER_NAME_KEY] = user_name
+
+    @override
+    async def _async_expand_prompt_template(
+        self,
+        llm_context: llm.LLMContext,
+        prompt: str,
+        language: str | None,
+        user_name: str | None = None,
+    ) -> str:
+        """Render with resolved identity while preserving HA authorization context."""
+        # Core derives this argument from Context.user_id, which may identify a voice
+        # pipeline owner rather than the speaker. Resolution at the request boundary is
+        # the only source of prompt identity in the proxy.
+        del user_name
+        return await super()._async_expand_prompt_template(
+            llm_context,
+            prompt,
+            language,
+            self.__dict__.get(self._PROMPT_USER_NAME_KEY),
+        )
 
 
 def upgrade_chat_log(chat_log: ChatLog) -> MagicMicChatLog:
