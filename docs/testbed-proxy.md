@@ -173,3 +173,31 @@ possibility becomes the evidence for the matching core proposal (§7).
 - **Provider swap.** Replacing Claude means adding `magic_mic.internal.<provider>` and
   pointing the testbed at it; the proxy, the seam, and the capabilities don't move. The one
   provider-specific hook outside the inner agent is the instrumented client for raw I/O.
+
+## Home Assistant dependency upgrades
+
+`internal.claude` tracks the Anthropic component shipped by the Home Assistant release in
+the project's Python environment. It does not track the head of the `core` development
+branch. The current provider baseline is Home Assistant `2026.7.4`; the installed package in
+`.venv` is authoritative for runtime interfaces. `references/core` may be newer and is not a
+valid source for a provider refresh unless it is checked out at the matching release.
+
+A Home Assistant package upgrade and provider refresh are one coherent maintenance change:
+
+1. Upgrade the Home Assistant dependency intentionally and record the resolved release
+   version. Do not let an incidental refresh of test dependencies silently choose the
+   provider baseline.
+2. Compare every copied Anthropic module with the same released version. Use the installed
+   package for runtime source and a matching release checkout when upstream tests or history
+   are needed.
+3. Refresh the internal copy, then reapply and review only Magic Mic's deliberate changes:
+   local config-entry adaptation, generation-record instrumentation, testbed delegation
+   hooks, and explicitly documented provider options.
+4. Review changes to HA conversation, LLM, config-entry, coordinator, and tool APIs together.
+   A mechanical provider diff is insufficient when the release changes a shared core seam.
+5. Run the provider and proxy unit tests, the full project suite, and the fixed eval corpus.
+   Update this section's baseline version in the same commit.
+
+This cadence accepts that the fork will sometimes lag unreleased provider fixes. A fix may be
+backported deliberately when it affects Magic Mic, but that is a reviewed compatibility
+change against the installed release, not routine synchronization with development `core`.

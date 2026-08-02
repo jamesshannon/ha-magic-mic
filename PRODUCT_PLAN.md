@@ -22,7 +22,9 @@ gets its own file there. Current docs:
   **baseline** for free (same backend, stock vs. wrapped, measure the delta). Claude is the
   demo provider because it's the easiest capable model to test against; **no hard dependency
   on Claude.** Escape hatch: edit `internal.claude` directly when the HA↔LLM contract itself
-  is what needs changing (reach for the proxy first).
+  is what needs changing (reach for the proxy first). The internal provider tracks the
+  released HA package in the project environment, not development `core`; an HA dependency
+  upgrade includes a release-aligned provider refresh and compatibility review.
 - [`docs/external-agents-openclaw.md`](docs/external-agents-openclaw.md) —
   build-vs-delegate decision re: OpenClaw / external agent platforms. **Not**
   building on it; the two delegate patterns (build-on ❌ vs thin front-end ✅)

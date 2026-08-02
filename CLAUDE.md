@@ -65,12 +65,14 @@ working around it.
 ## Development environment
 
 - **Python 3.14**, virtualenv at `.venv/` (already created; don't recreate it).
-- **HA core is cloned at `references/core/`** (gitignored, full repo *including tests*). This
-  is the authoritative local source: read it instead of fetching from GitHub. Especially
-  `homeassistant/helpers/llm.py`, `components/conversation/`, and `components/anthropic/` (the
-  shell this project mirrors); `tests/components/anthropic/` for test patterns (mock streams,
-  fixtures); and `pyproject.toml` for the ruff config we mirror. The installed HA in
-  `.venv/lib/python3.14/site-packages/homeassistant/` is the same source but without tests.
+- **The Home Assistant package installed in `.venv/` is the compatibility baseline.** Read
+  `.venv/lib/python3.14/site-packages/homeassistant/` when verifying current runtime APIs or
+  comparing `magic_mic.internal.claude` with the Anthropic component. Check its version with
+  `importlib.metadata.version("homeassistant")`. The full `references/core/` clone includes
+  tests and is useful for research and test patterns, but it may be ahead of the installed
+  release. Check that first; never import a current-development fix or API into the provider
+  fork merely because it appears in that checkout. See the release-aligned update procedure
+  in [`docs/testbed-proxy.md`](docs/testbed-proxy.md#home-assistant-dependency-upgrades).
 - The Home Assistant **developer docs** are cloned at `references/developers.home-assistant/`
   (gitignored). Consult them for conventions before guessing: test file structure, debugging,
   the integration quality scale. `references/developers.home-assistant/sidebars.js` indexes them.
@@ -164,6 +166,10 @@ Concrete rules (the HA specifics that override or sharpen Google's):
   contracts, tests, and implementation slices that can inform that work—not to file it.
 - **Keep docs and code in sync.** If a change alters a decision recorded in
   `PRODUCT_PLAN.md` or a `docs/` file, update that doc in the same change.
+- **Treat a Home Assistant dependency bump as a coordinated upgrade.** Refresh
+  `internal.claude` from the matching released Anthropic component in the same chunk, reapply
+  the documented provider delta, and run provider, proxy, and eval tests before committing.
+  Do not update the provider fork against unreleased `references/core` independently.
 
 ## Writing prose
 

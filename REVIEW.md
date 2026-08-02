@@ -217,19 +217,24 @@ Log tool name, policy source, timing, and outcome classification without payload
 personal capabilities ship, decide how live HA conversation traces are disclosed, retained,
 and redacted; the model-visible ChatLog and diagnostic telemetry have different requirements.
 
-### R9. The provider fork has already drifted behind correctness fixes in HA core
+### R9. The provider fork needs release-aligned upgrade discipline
 
-**Severity:** Medium provider-adapter defect.
+**Severity:** Maintenance requirement, not a current defect.
 
-The local `internal/claude/entity.py` is described as near-upstream and diffable, but its
-content conversion lacks current core guards that drop whitespace-only text blocks and empty
-messages. Anthropic rejects those payloads. The local diff also mixes the intended generation
-trace changes with unrelated older behavior, making future upstream comparison harder.
+**Corrected:** The original review compared `internal.claude` with the newer
+`references/core` checkout. That is the wrong compatibility baseline. The project currently
+runs the released Home Assistant `2026.7.4` package installed in `.venv`, and the provider
+copy matches that package's Anthropic entity apart from documented Magic Mic adaptations.
+The whitespace-only and empty-message guards cited by the original finding exist in the
+newer checkout, not in the included dependency version. Pulling them in independently could
+also pull assumptions about core APIs that Magic Mic does not yet run against.
 
-Rebase the provider copy onto the checked-out core implementation, then reapply only the
-documented adapter changes. Add a repeatable provenance note containing the upstream commit
-and keep a mechanical diff or update procedure. Tests should cover whitespace-only content
-and attachment-only user messages.
+`internal.claude` should track the Home Assistant version included by the project's Python
+environment, not current development `core`. When that dependency is intentionally upgraded,
+refresh the complete internal provider from the matching released Anthropic component,
+reapply and review the Magic Mic delta, update its provenance version, and run the provider,
+proxy, and eval suites together. The procedure is documented in
+[`docs/testbed-proxy.md`](docs/testbed-proxy.md#home-assistant-dependency-upgrades).
 
 ### R10. Prompt optimization assumes substitution succeeded
 
