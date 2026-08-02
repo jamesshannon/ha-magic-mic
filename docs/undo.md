@@ -69,7 +69,9 @@ Per possible mutation, store `{execution_id, turn_id, created_at, expires_at, de
 status, disposition}`. An undoable disposition also contains an authorization binding and
 an immutable, provider-neutral `InverseOperation`; the acting tool or intent produces it.
 Inverse arguments are carried out of band from the public tool-result mapping and therefore
-are not serialized into model context.
+are not serialized into model context. Descriptor construction validates all nested keys and
+leaves as JSON, including finite-number and circular-reference checks, before retaining an
+immutable owned copy. Python annotations alone are not the boundary.
 
 There are three successful execution outcomes:
 

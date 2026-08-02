@@ -67,7 +67,9 @@ mutate; a sensitive calendar read may remain read-only.
 4. A confirmation-sensitive call does not invoke the inner API. It freezes the exact tool
    name, arguments, principal, effective consequence, and a 30-second expiry into the
    session's `PendingOperation`, then returns a structured `confirmation_required` tool
-   result. HA eager-starts calls in emitted order and staging has no await, so the first such
+   result. Construction validates nested keys and leaves against the JSON value domain,
+   rejects non-finite numbers and circular containers, and owns the resulting immutable
+   copy. HA eager-starts calls in emitted order and staging has no await, so the first such
    call claims the single pending slot. Later calls return a structured
    `pending_operation_already_staged` conflict, leave the first record unchanged, and do no
    work. The main LLM writes the spoken question; tools do not provide previews in v1.

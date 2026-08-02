@@ -759,6 +759,8 @@ unknown-tool default.
 For a confirmation-sensitive action, persist the normalized tool name and immutable arguments
 as a pending operation with principal, consequence class, and expiry. A later "yes" approves
 that stored operation; the model does not reconstruct or alter the operation after approval.
+The immutable argument boundary validates the complete JSON value domain at construction,
+including nested string keys and finite numbers, rather than relying on Python annotations.
 Pending state constrains the referent, not the whole next turn: "actually no, turn off the
 lights" may reject the pending action and issue a new command. Open-ended clarifications
 remain model-in-loop through `ChatLog`.
@@ -807,8 +809,9 @@ explicit `not_supported` barrier, so "undo" cannot fall through to an older acti
 immutable inverse descriptor. The bounded session journal records execution/turn IDs,
 timestamps, a two-minute expiry, and single-use state. Built-in strategies demonstrate an
 inverse `intent.async_handle()` call and opt-in entity-state snapshot/reproduction; neither
-the gateway nor the model infers an opposite action. Replay uses resolved identity for
-personal scope and preserves HA's separate `Context` for actual authorization.
+the gateway nor the model infers an opposite action. Inverse arguments cross the same
+runtime-validated immutable JSON boundary as pending operations. Replay uses resolved
+identity for personal scope and preserves HA's separate `Context` for actual authorization.
 
 The v1 referent is the latest individual mutation, not the last supported entry or all
 effects in a turn. Unsupported, prohibited, and impossible actions are barriers. Locally

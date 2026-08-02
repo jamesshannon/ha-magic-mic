@@ -177,6 +177,13 @@ unchanged for authorization.
 
 **Severity:** Medium contract-hardening defect.
 
+**Resolved:** The shared freeze boundary now validates every nested object key and leaf,
+rejects unsupported Python values, non-finite floats, and circular containers, then owns an
+immutable recursive copy. Pending operations, inverse descriptors, and state snapshots all
+use this boundary. Tests cover invalid nested data and verify that aliased source and thawed
+containers cannot mutate the frozen record. Existing producers already supply valid JSON, so
+the accepted runtime behavior did not change.
+
 `freeze_json_mapping()` recursively freezes mappings and lists but returns every other leaf
 unchanged. Python annotations do not prevent a capability from supplying a mutable custom
 object, set, bytes value, non-string mapping key, or non-finite float. Such a value can make a
