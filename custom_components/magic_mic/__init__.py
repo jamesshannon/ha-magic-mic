@@ -23,7 +23,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MagicMicConfigEntry) -> 
     entry.runtime_data = coordinator
     LOGGER.debug("Available models: %s", coordinator.data)
 
-    # Neutral per-user store, threaded empty in Wave 0 (no consumer yet). Kept in
+    # Neutral explicitly scoped store, threaded empty in Wave 0 (no consumer yet). Kept in
     # hass.data because runtime_data carries the provider coordinator, which the
     # vendored entity expects there.
     store = UserKeyedStore(hass, "store")

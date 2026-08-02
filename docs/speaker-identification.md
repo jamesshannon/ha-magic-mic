@@ -179,7 +179,8 @@ two attack surfaces onto one bound.
   (fallback to unidentified household-only access, never guess).
 
 Deferred to **Phase 4**. The `get_resolved_user()` seam and explicitly scoped store land in
-Phase 0 so voice-ID drops in later with no data migration.
+Phase 0 so voice-ID drops in later with no data migration. Store callers provide the resolved
+principal and requested `DataScope`; they cannot provide a raw user bucket key.
 
 ---
 

@@ -129,6 +129,12 @@ confirmation consumer before it can stage the replacement.
 
 **Severity:** Foundational data-boundary defect. Fix before the first stored capability.
 
+**Resolved:** The public store API now requires `ResolvedPrincipal` plus `DataScope` and
+derives the bucket key internally. Runtime boundary checks reject raw keys and scope strings,
+and unidentified personal reads and writes fail through the principal contract. Load, read,
+write, and persistence boundaries use owned deep copies, with nested-aliasing regression
+tests. No capability consumed the store and the persisted bucket format did not change.
+
 The store accepts an arbitrary string key for both reads and writes. A capability can read or
 replace another user's bucket without presenting a `ResolvedPrincipal` or `DataScope`.
 Callers are expected to invoke `ResolvedPrincipal.storage_key()` correctly, but the stated
@@ -139,9 +145,10 @@ The store also returns its live internal dictionary and retains the caller's dic
 `async_set()`. Either side can mutate data without a corresponding save, producing memory and
 disk state that disagree.
 
-Change the public API to accept the resolved principal and requested scope, deriving the key
-inside the store. Return and retain owned copies, or replace this generic dictionary wrapper
-with capability-specific operations that own mutation and persistence.
+The public API now accepts the resolved principal and requested scope, derives the key inside
+the store, and returns and retains owned copies. Capability-specific stores may still replace
+this generic foundation when their domain operations require stronger transactional
+contracts.
 
 ### R6. HA prompt rendering can use authorization identity instead of resolved identity
 

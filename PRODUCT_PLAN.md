@@ -695,6 +695,11 @@ with AI, streaming TTS).
   commit. Phase 4 voice-ID is the **upstream populator**, not logic inside each capability, so
   it drops in without changing capability call sites. There is no pre-Voice-ID
   `"default"`-personal bucket to migrate or strand.
+- The shared store accepts a `ResolvedPrincipal` and `DataScope`, never a caller-supplied
+  storage key. It derives the household or personal bucket internally, rejects unidentified
+  personal access, and owns deep copies at its read, write, and persistence boundaries. A
+  capability cannot select another user's bucket or mutate stored data without an explicit
+  save.
 
 #### 5.1.1 ChatLog-centered live interaction state
 
