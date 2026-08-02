@@ -12,7 +12,14 @@ from unittest.mock import AsyncMock
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from evals.harness.backing import build_executable_world, register_satellite
-from evals.harness.corpus import Case, Entity, Expected, ExpectedTool, World
+from evals.harness.corpus import (
+    Case,
+    Entity,
+    Expected,
+    ExpectedTool,
+    ProviderOptions,
+    World,
+)
 from evals.harness.variant import _testbed_agent_id, run_arm
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry as ar
@@ -51,6 +58,7 @@ def _lamp_case() -> Case:
         category="device-control",
         routing_truth="local",
         resolves_at_wave0=True,
+        provider_options=ProviderOptions(web_search=True),
         expected=Expected(
             tools=(ExpectedTool("HassTurnOn", {"name": "Reading Lamp"}),)
         ),
@@ -82,14 +90,36 @@ async def test_run_arm_toggles_name_injection(
     cases = [_lamp_case()]
 
     mock_create_stream.return_value = _lamp_turn_stream()
-    off = await run_arm(hass, agent_id, world, satellite, cases, names_on=False)
+    off = await run_arm(
+        hass,
+        agent_id,
+        world,
+        satellite,
+        cases,
+        entry=setup_integration,
+        names_on=False,
+    )
     off_system = _system_text(mock_create_stream)
+    off_tools = {tool["name"] for tool in mock_create_stream.call_args.kwargs["tools"]}
 
     mock_create_stream.return_value = _lamp_turn_stream()
-    on = await run_arm(hass, agent_id, world, satellite, cases, names_on=True)
+    on = await run_arm(
+        hass,
+        agent_id,
+        world,
+        satellite,
+        cases,
+        entry=setup_integration,
+        names_on=True,
+    )
     on_system = _system_text(mock_create_stream)
+    on_tools = {tool["name"] for tool in mock_create_stream.call_args.kwargs["tools"]}
 
     assert off.total == 1
     assert on.total == 1
     assert "Reading Lamp (light.reading_lamp)" in on_system
     assert "Reading Lamp (light.reading_lamp)" not in off_system
+    assert "web_search" in off_tools
+    assert "web_search" in on_tools
+    assert "web_fetch" not in off_tools
+    assert "web_fetch" not in on_tools

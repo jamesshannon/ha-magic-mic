@@ -17,6 +17,7 @@ WAVE0_GOLDEN_SET = CORPUS_DIR / "wave0_golden_set.yaml"
 ROUTING_LOCAL = "local"
 ROUTING_LLM = "llm"
 _ROUTING_VALUES = frozenset({ROUTING_LOCAL, ROUTING_LLM})
+_PROVIDER_OPTION_KEYS = frozenset({"web_fetch", "web_search"})
 
 
 class CorpusError(ValueError):
@@ -85,6 +86,21 @@ class Expected:
 
 
 @dataclass(frozen=True)
+class ProviderOptions:
+    """Provider-native capabilities enabled while a case runs."""
+
+    web_fetch: bool = False
+    web_search: bool = False
+
+    def as_dict(self) -> dict[str, bool]:
+        """Return config-entry options for this provider setup."""
+        return {
+            "web_fetch": self.web_fetch,
+            "web_search": self.web_search,
+        }
+
+
+@dataclass(frozen=True)
 class Case:
     """One single-turn golden-set case.
 
@@ -114,6 +130,7 @@ class Case:
     routing_truth: str
     resolves_at_wave0: bool
     requires: tuple[str, ...] = ()
+    provider_options: ProviderOptions = field(default_factory=ProviderOptions)
     expected: Expected | tuple[Expected, ...] = ()
     expected_llm: Expected | tuple[Expected, ...] | None = None
     setup: dict[str, StateChange] = field(default_factory=dict)
@@ -237,6 +254,30 @@ def _parse_ignore_changes(raw: dict[str, Any] | None) -> dict[str, tuple[str, ..
     return {entity_id: tuple(attrs or ()) for entity_id, attrs in (raw or {}).items()}
 
 
+def _parse_provider_options(raw: Any) -> ProviderOptions:
+    """Parse the provider-specific setup for one case."""
+    if raw is None:
+        return ProviderOptions()
+    if not isinstance(raw, dict):
+        raise CorpusError("'provider_options' must be a mapping")
+    unknown = sorted(set(raw) - _PROVIDER_OPTION_KEYS, key=str)
+    if unknown:
+        raise CorpusError(
+            "unknown provider option(s): " + ", ".join(str(key) for key in unknown)
+        )
+    non_boolean = sorted(
+        key for key, value in raw.items() if not isinstance(value, bool)
+    )
+    if non_boolean:
+        raise CorpusError(
+            "provider option(s) must be boolean: " + ", ".join(non_boolean)
+        )
+    return ProviderOptions(
+        web_fetch=raw.get("web_fetch", False),
+        web_search=raw.get("web_search", False),
+    )
+
+
 def _parse_case(raw: dict[str, Any]) -> Case:
     return Case(
         id=raw["id"],
@@ -245,6 +286,7 @@ def _parse_case(raw: dict[str, Any]) -> Case:
         routing_truth=raw["routing_truth"],
         resolves_at_wave0=bool(raw["resolves_at_wave0"]),
         requires=tuple(raw.get("requires") or ()),
+        provider_options=_parse_provider_options(raw.get("provider_options")),
         expected=_parse_expectation(raw.get("expected")),
         expected_llm=(
             _parse_expectation(raw["expected_llm"]) if "expected_llm" in raw else None

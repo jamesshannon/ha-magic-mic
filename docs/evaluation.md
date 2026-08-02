@@ -197,6 +197,9 @@ Two independent knobs frame the whole harness — set per run:
 - **Corpus — two shapes:**
   - *Single-turn:* `(utterance [, context: device/area/exposed-entities] → expected
     action(s): tool + args / entity resolution [, answer predicate])`.
+    Provider-specific behavior under test is declared per case as setup, such as
+    `provider_options: {web_search: true}`. Unspecified web tools remain off, so a retrieval
+    experiment cannot silently change ordinary device-control cases.
   - *Multi-turn conversation:* a scripted dialogue → expected **trajectory** (turns to
     completion, disambiguation handled) — needed for the "learning/memory removes turns"
     thesis and for barge-in / continued-conversation. A **user-simulator** (VISTA-style,

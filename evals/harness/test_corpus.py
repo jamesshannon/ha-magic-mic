@@ -9,6 +9,7 @@ from evals.harness import (
     Corpus,
     CorpusError,
     Entity,
+    ProviderOptions,
     World,
     load_corpus,
     validate_corpus,
@@ -41,6 +42,65 @@ def test_wave0_golden_set_loads_and_validates() -> None:
 def test_load_corpus_default_path() -> None:
     """``load_corpus`` with no argument loads the Wave 0 golden set."""
     assert load_corpus().cases == load_corpus(WAVE0_GOLDEN_SET).cases
+
+
+def test_provider_options_are_per_case_and_default_off(tmp_path) -> None:
+    """Cases independently configure provider-native web capabilities."""
+    corpus_path = tmp_path / "provider-options.yaml"
+    corpus_path.write_text(
+        """
+world:
+  areas: []
+  entities: []
+cases:
+  - id: default
+    utterance: hello
+    category: small-talk
+    routing_truth: llm
+    resolves_at_wave0: true
+  - id: search
+    utterance: what happened today?
+    category: knowledge
+    routing_truth: llm
+    resolves_at_wave0: true
+    provider_options:
+      web_search: true
+      web_fetch: false
+""",
+        encoding="utf-8",
+    )
+
+    corpus = load_corpus(corpus_path)
+
+    assert corpus.cases[0].provider_options == ProviderOptions()
+    assert corpus.cases[1].provider_options == ProviderOptions(web_search=True)
+
+
+@pytest.mark.parametrize(
+    "provider_options",
+    ["true", "{unknown: true}", "{web_search: yes-please}"],
+)
+def test_invalid_provider_options_are_rejected(tmp_path, provider_options: str) -> None:
+    """Provider options reject unknown shapes, keys, and non-boolean values."""
+    corpus_path = tmp_path / "invalid-provider-options.yaml"
+    corpus_path.write_text(
+        f"""
+world:
+  areas: []
+  entities: []
+cases:
+  - id: invalid
+    utterance: hello
+    category: small-talk
+    routing_truth: llm
+    resolves_at_wave0: true
+    provider_options: {provider_options}
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CorpusError, match=r"provider.?option"):
+        load_corpus(corpus_path)
 
 
 def test_duplicate_ids_rejected() -> None:

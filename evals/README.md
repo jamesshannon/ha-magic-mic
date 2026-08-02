@@ -43,6 +43,7 @@ Each case is a single-turn `(utterance [, context] -> expected action(s) / answe
 | `routing_truth` | Ground-truth label for the **local-vs-LLM split**: `local` = a built-in HASSIL template covers it (given the referenced entities are exposed); `llm` = no HASSIL template, only the model resolves it. This is the label; the runner measures where the utterance *actually* routes and the scorecard compares the two. |
 | `resolves_at_wave0` | Whether Wave 0 (pass-through proxy, no capabilities yet) can produce the right outcome at all. `false` cases are VISION features not built yet; at baseline they land in the "don't understand" bucket on purpose, so the scorecard's starting distribution is honest. |
 | `requires` | Fixture entities/features the case depends on (documents the context assumption; the runner must expose these). |
+| `provider_options` | Optional provider setup for this case. `web_search` and `web_fetch` are independent booleans and both default off when omitted. The live runner applies changes through the Magic Mic config entry before the turn and records the effective values in the artifact. |
 | `expected.tools` | Ordered list of `{name, args}` the correct outcome invokes. `args` are partial hints, not an exact-match contract. Omit for answer-only cases. |
 | `expected.answer` | Optional predicate over the spoken response: `{contains: [...]}` or `{regex: ...}`. |
 | `expect_changes` | `entity_id -> {state, attributes}` the turn must leave the world in. When present, the case is **state-scored**: correctness is the resulting state, not the tool called (`harness/statediff.py`), so it needs no `expected_llm` or `any_of`. Declared entities are checked on state plus each named attribute; every other exposed entity on state alone (catches a wrong-target side effect). Requires the executable world (`backing.py`). |
@@ -139,6 +140,7 @@ from the environment or a project-root `.env`, same as `baseline.py`).
 ```
 .venv/bin/python -m evals.harness.console                       # interactive REPL
 .venv/bin/python -m evals.harness.console --skip-hassil         # start LLM-only
+.venv/bin/python -m evals.harness.console --web-search -u "what happened today?"
 .venv/bin/python -m evals.harness.console -u "turn on the kitchen light" -u "now off it"
 ```
 
@@ -165,6 +167,9 @@ Two knobs, both live-toggleable, are the Scope and agent selectors from
   win, no LLM call); LLM-only skips straight to the model.
 - **Agent** (`:agent baseline|testbed`, or `--agent`): the stock provider agent vs the Magic
   Mic proxy.
+- **Provider web tools** (`--web-search`, `--web-fetch`): enable Claude's native tools for
+  the console session. Both are off when omitted, matching a corpus case with no
+  `provider_options`.
 
 Unlike the corpus runner, the fixture world is **not** reset between turns: state
 accumulates, so "turn it on" then "now turn it off" behave, and a follow-up ("no, I meant the
@@ -277,12 +282,11 @@ Ran the live baseline keyed from a project-root `.env`: stock full-roster prompt
 > the right reason); `implicit-cold` reads the thermostat then asks how warm; `remember-fact`
 > is a VISION feature not built yet.
 
-This is the **pre-magic roster**: the shipped agent now enables `web_search`/`web_fetch`
-(the banked free magic), but `build-sequence.md` captures the baseline *before* that bank,
-so the runner pins those tools off (`pin_pre_magic_roster`, recorded as `web_tools: false`
-in the artifact). That keeps `python -m evals.harness.baseline` reproducing this reference no
-matter what ships. When Wave 1 needs to measure the web tools' effect, run a labelled
-comparison against this artifact rather than moving it.
+This is the **pre-magic roster**. Cases without `provider_options` run with `web_search` and
+`web_fetch` off. A search-specific case can enable either provider tool without changing the
+rest of the corpus, and the artifact records the effective options per case. The runner also
+pins unspecified provider defaults off, preserving this reference if shipped defaults ever
+change.
 
 Config knobs like the web tools, `prefer_local`, and `web_search` `user_location` (off by
 default, privacy-first) are eval **axes**, not just shipped defaults to mirror: measure each

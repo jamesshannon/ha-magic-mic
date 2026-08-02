@@ -30,13 +30,14 @@ Run it with a live key (from the environment or a project-root ``.env``):
 
     ANTHROPIC_API_KEY=sk-... .venv/bin/python -m evals.harness.console
     .venv/bin/python -m evals.harness.console --skip-hassil --agent baseline
+    .venv/bin/python -m evals.harness.console --web-search -u "what happened today?"
     .venv/bin/python -m evals.harness.console -u "turn on the kitchen light" -u "now off"
 """
 
 import argparse
 import asyncio
 from collections.abc import AsyncIterator, Callable, Iterator, Sequence
-from contextlib import asynccontextmanager, contextmanager, nullcontext
+from contextlib import asynccontextmanager, contextmanager
 import copy
 from dataclasses import dataclass, field
 import json
@@ -59,7 +60,7 @@ from homeassistant.core import Context, HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import area_registry as ar, entity_registry as er, intent
 
-from .baseline import REPO_ROOT, load_api_key, pin_pre_magic_roster
+from .baseline import REPO_ROOT, load_api_key
 
 # Running as a plain script bypasses the repo-root conftest, so graft this repo's
 # `custom_components/` onto the package search path exactly as it does; otherwise HA's
@@ -69,6 +70,10 @@ if _REPO_CC not in custom_components.__path__:
     custom_components.__path__.insert(0, _REPO_CC)
 
 from custom_components.magic_mic.const import DOMAIN  # noqa: E402
+from custom_components.magic_mic.internal.claude.const import (  # noqa: E402
+    CONF_WEB_FETCH,
+    CONF_WEB_SEARCH,
+)
 
 from .backing import (  # noqa: E402
     ExecutableWorld,
@@ -335,7 +340,14 @@ def _start_area_id(
     return area_ids.get(norm)
 
 
-async def stand_up(hass: HomeAssistant, api_key: str, *, here: str | None) -> Session:
+async def stand_up(
+    hass: HomeAssistant,
+    api_key: str,
+    *,
+    here: str | None,
+    web_fetch: bool,
+    web_search: bool,
+) -> Session:
     """Set up the local core, the live integration, and the fixture world.
 
     Mirrors `baseline.stand_up_agent`, but keeps a handle to both agents and the client so
@@ -347,7 +359,14 @@ async def stand_up(hass: HomeAssistant, api_key: str, *, here: str | None) -> Se
     hass.data.pop(loader.DATA_CUSTOM_COMPONENTS, None)
     await async_setup_local_agent(hass)
 
-    entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: api_key})
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_API_KEY: api_key},
+        options={
+            CONF_WEB_FETCH: web_fetch,
+            CONF_WEB_SEARCH: web_search,
+        },
+    )
     entry.add_to_hass(hass)
     if not await hass.config_entries.async_setup(entry.entry_id):
         raise RuntimeError("integration failed to set up (check the key is live)")
@@ -982,9 +1001,14 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         "'nowhere' for no location). Move it live with :here",
     )
     parser.add_argument(
-        "--pin-baseline",
+        "--web-search",
         action="store_true",
-        help="disable the shipped web tools (the locked pre-magic reference)",
+        help="enable Claude's native web search for this console session",
+    )
+    parser.add_argument(
+        "--web-fetch",
+        action="store_true",
+        help="enable Claude's native web fetch for this console session",
     )
     parser.add_argument(
         "--no-color",
@@ -1006,28 +1030,33 @@ async def main(argv: Sequence[str] | None = None) -> None:
     api_key = load_api_key()
 
     async with async_test_home_assistant() as hass:
-        with pin_pre_magic_roster() if args.pin_baseline else nullcontext():
-            session = await stand_up(hass, api_key, here=args.here)
-            state = ReplState(
-                agent=args.agent,
-                hassil=not args.skip_hassil,
-                verbose=args.verbose,
-            )
-            if args.utterances:
-                for utterance in args.utterances:
-                    print(style.bold(f"» {utterance}"))
-                    state.last = await drive_turn(
-                        session,
-                        utterance,
-                        agent=state.agent,
-                        hassil=state.hassil,
-                        conversation_id=state.conversation_id,
-                    )
-                    state.conversation_id = state.last.conversation_id
-                    print(render_turn(state.last, style, verbose=state.verbose))
-                    print()
-            else:
-                await repl(session, state, style)
+        session = await stand_up(
+            hass,
+            api_key,
+            here=args.here,
+            web_fetch=args.web_fetch,
+            web_search=args.web_search,
+        )
+        state = ReplState(
+            agent=args.agent,
+            hassil=not args.skip_hassil,
+            verbose=args.verbose,
+        )
+        if args.utterances:
+            for utterance in args.utterances:
+                print(style.bold(f"» {utterance}"))
+                state.last = await drive_turn(
+                    session,
+                    utterance,
+                    agent=state.agent,
+                    hassil=state.hassil,
+                    conversation_id=state.conversation_id,
+                )
+                state.conversation_id = state.last.conversation_id
+                print(render_turn(state.last, style, verbose=state.verbose))
+                print()
+        else:
+            await repl(session, state, style)
 
 
 if __name__ == "__main__":

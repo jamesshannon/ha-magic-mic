@@ -64,7 +64,13 @@ from .backing import (  # noqa: E402
     build_executable_world,
     register_satellite,
 )
-from .corpus import WAVE0_GOLDEN_SET, Case, Corpus, load_corpus  # noqa: E402
+from .corpus import (  # noqa: E402
+    WAVE0_GOLDEN_SET,
+    Case,
+    Corpus,
+    ProviderOptions,
+    load_corpus,
+)
 from .runner import run_case  # noqa: E402
 from .scoring import CaseResult, Scorecard, build_scorecard  # noqa: E402
 from .world import async_setup_local_agent  # noqa: E402
@@ -77,13 +83,11 @@ _BASELINE_UNIQUE_SUFFIX = "_claude_baseline"
 
 @contextmanager
 def pin_pre_magic_roster() -> Iterator[None]:
-    """Disable the server-side web tools for the baseline run, eval-only.
+    """Keep unspecified provider web options off for the baseline run.
 
-    The shipped agent enables `web_search`/`web_fetch` (the banked "free magic"), but the
-    locked baseline is the pre-magic reference: `build-sequence.md` captures it before the
-    magic is banked. Patching the provider `DEFAULT` for the run keeps
-    `python -m evals.harness.baseline` reproducing that reference regardless of what ships,
-    since the agent merges `DEFAULT` into its options at each turn.
+    Cases can explicitly enable either tool through ``provider_options``. Patching the
+    provider defaults keeps every unspecified case on the locked pre-magic roster even if
+    the shipped default changes later.
     """
     with patch.dict(
         DEFAULT,
@@ -137,13 +141,14 @@ def _baseline_agent_id(hass: HomeAssistant, entry: MockConfigEntry) -> str:
 
 async def stand_up_agent(
     hass: HomeAssistant, corpus: Corpus, api_key: str
-) -> tuple[str, ExecutableWorld, Satellite]:
+) -> tuple[str, ExecutableWorld, Satellite, MockConfigEntry]:
     """Set up the local core, the live integration, and the fixture world.
 
-    Returns the baseline agent's entity id, the world handle (for per-case reset), and the
-    voice satellite the turns are issued from (area-less here, so the baseline scores as it
-    did before locations existed). The config-entry setup makes a real ``models.list`` call,
-    so a bad key fails loudly here before any turn runs.
+    Returns the baseline agent's entity id, the world handle (for per-case reset), the voice
+    satellite the turns are issued from, and the config entry used to apply per-case provider
+    options. The satellite is area-less here, so the baseline scores as it did before
+    locations existed. The config-entry setup makes a real ``models.list`` call, so a bad
+    key fails loudly here before any turn runs.
     """
     # Force HA to re-scan for custom integrations so it discovers the grafted
     # `custom_components/` path (the `enable_custom_integrations` fixture's job).
@@ -159,7 +164,29 @@ async def stand_up_agent(
 
     world = await build_executable_world(hass, corpus.world)
     satellite = register_satellite(hass)
-    return _baseline_agent_id(hass, entry), world, satellite
+    return _baseline_agent_id(hass, entry), world, satellite, entry
+
+
+async def apply_provider_options(
+    hass: HomeAssistant,
+    entry: MockConfigEntry,
+    provider_options: ProviderOptions,
+) -> None:
+    """Apply one case's provider setup through the config entry."""
+    desired = provider_options.as_dict()
+    current = {
+        CONF_WEB_FETCH: entry.options.get(CONF_WEB_FETCH, False),
+        CONF_WEB_SEARCH: entry.options.get(CONF_WEB_SEARCH, False),
+    }
+    if current == desired:
+        return
+
+    options = dict(entry.options)
+    options.update(desired)
+    hass.config_entries.async_update_entry(entry, options=options)
+    if not await hass.config_entries.async_reload(entry.entry_id):
+        raise BaselineError("integration failed to reload provider options")
+    await hass.async_block_till_done()
 
 
 async def run_baseline(
@@ -176,9 +203,10 @@ async def run_baseline(
     case runs at the LLM scope (`prefer_local` OFF), scored against its
     ``expected_for(llm=True)`` expectation.
     """
-    agent_id, world, satellite = await stand_up_agent(hass, corpus, api_key)
+    agent_id, world, satellite, entry = await stand_up_agent(hass, corpus, api_key)
     results: list[CaseResult] = []
     for index, case in enumerate(cases, start=1):
+        await apply_provider_options(hass, entry, case.provider_options)
         await world.reset(hass)
         print(f"  [{index:>2}/{len(cases)}] {case.id} ...", flush=True)
         results.append(
@@ -199,6 +227,7 @@ def _result_to_dict(result: CaseResult) -> dict:
         "category": case.category,
         "routing_truth": case.routing_truth,
         "resolves_at_wave0": case.resolves_at_wave0,
+        "provider_options": case.provider_options.as_dict(),
         "bucket": result.bucket.value,
         "correct": result.correct,
         "resolved": observed.resolved,
@@ -222,7 +251,7 @@ def build_artifact(scorecard: Scorecard, model: str, *, subset: bool) -> dict:
             "timestamp": datetime.now(UTC).isoformat(),
             "model": model,
             "prefer_local": False,
-            "web_tools": False,
+            "provider_options": "per-case",
             "corpus": WAVE0_GOLDEN_SET.name,
             "cases": scorecard.total,
             "subset": subset,

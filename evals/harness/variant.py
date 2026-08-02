@@ -49,6 +49,7 @@ from .baseline import (
     RESULTS_DIR,
     BaselineError,
     _result_to_dict,
+    apply_provider_options,
     load_api_key,
     pin_pre_magic_roster,
     select_cases,
@@ -97,12 +98,13 @@ def _testbed_agent_id(hass: HomeAssistant, entry: MockConfigEntry) -> str:
 
 async def stand_up_testbed(
     hass: HomeAssistant, corpus: Corpus, api_key: str, *, area: str
-) -> tuple[str, ExecutableWorld, Satellite]:
+) -> tuple[str, ExecutableWorld, Satellite, MockConfigEntry]:
     """Set up the core, the live integration, and the fixture world, satellite in ``area``.
 
-    Mirrors `baseline.stand_up_agent`, but returns the **testbed** agent and places the
-    satellite in a room (the baseline runs area-less). Placement is what gives injection a
-    room to prefer, so both arms of this run carry it and it cancels in the delta.
+    Mirrors `baseline.stand_up_agent`, but returns the **testbed** agent and config entry and
+    places the satellite in a room (the baseline runs area-less). Placement is what gives
+    injection a room to prefer, so both arms of this run carry it and it cancels in the
+    delta.
     """
     # Force HA to re-scan for custom integrations so it discovers the grafted
     # `custom_components/` path, exactly as the baseline does for a script run.
@@ -121,7 +123,7 @@ async def stand_up_testbed(
     # that same entry, so the satellite lands in the room the corpus entities sit in.
     area_id = ar.async_get(hass).async_get_or_create(area.replace("_", " ")).id
     satellite = register_satellite(hass, area_id=area_id)
-    return _testbed_agent_id(hass, entry), world, satellite
+    return _testbed_agent_id(hass, entry), world, satellite, entry
 
 
 async def run_arm(
@@ -131,6 +133,7 @@ async def run_arm(
     satellite: Satellite,
     cases: Sequence[Case],
     *,
+    entry: MockConfigEntry,
     names_on: bool,
 ) -> Scorecard:
     """Drive every case through the testbed agent with names on or off, and score the arm.
@@ -144,6 +147,7 @@ async def run_arm(
     results = []
     with gate:
         for index, case in enumerate(cases, start=1):
+            await apply_provider_options(hass, entry, case.provider_options)
             await world.reset(hass)
             print(f"  [{label}] [{index:>2}/{len(cases)}] {case.id} ...", flush=True)
             results.append(
@@ -183,7 +187,7 @@ def build_variant_artifact(
             "model": model,
             "area": area,
             "prefer_local": False,
-            "web_tools": False,
+            "provider_options": "per-case",
             "corpus": corpus_name,
             "cases": on.total,
         },
@@ -279,11 +283,27 @@ async def main(argv: Sequence[str] | None = None) -> None:
 
     async with async_test_home_assistant() as hass:
         with pin_pre_magic_roster():
-            agent_id, world, satellite = await stand_up_testbed(
+            agent_id, world, satellite, entry = await stand_up_testbed(
                 hass, corpus, api_key, area=args.area
             )
-            off = await run_arm(hass, agent_id, world, satellite, cases, names_on=False)
-            on = await run_arm(hass, agent_id, world, satellite, cases, names_on=True)
+            off = await run_arm(
+                hass,
+                agent_id,
+                world,
+                satellite,
+                cases,
+                entry=entry,
+                names_on=False,
+            )
+            on = await run_arm(
+                hass,
+                agent_id,
+                world,
+                satellite,
+                cases,
+                entry=entry,
+                names_on=True,
+            )
 
     print("\nskeleton-only\n" + off.render())
     print("\nskeleton+names\n" + on.render())
