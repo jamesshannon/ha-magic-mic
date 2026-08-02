@@ -25,6 +25,11 @@ DEFAULT_NAME_INJECTION = True
 # Top-N names injected per request: enough to cover a room's relevant devices, small
 # enough to stay a bounded tail (the point of retiring the roster). Tunable on the eval.
 NAME_INJECTION_LIMIT = 10
+# Registry and integration values embedded in a system prompt are untrusted data. Keep
+# each value and the complete JSON block bounded independently of ordinary home size.
+PROMPT_CONTEXT_FIELD_LIMIT = 160
+PROMPT_CONTEXT_BLOCK_LIMIT = 8192
+PROMPT_CONTEXT_DEVICE_CLASS_LIMIT = 32
 # Recall floor for what counts as relevant, rapidfuzz token_set_ratio 0-100. Deliberately
 # at/below the resolution FLOOR (find_entities asks when unsure; injection just pre-loads
 # candidates, so a spurious inclusion wastes a few tokens, not a wrong action). Tunable.

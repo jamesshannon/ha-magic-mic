@@ -351,18 +351,27 @@ alter or claim to localize model-facing strings contributed by HA core.
 
 ### R15. Registry-controlled text is inserted into the system prompt without provenance
 
-**Severity:** High security gap while name injection is enabled by default.
+**Severity:** Low defense-in-depth and robustness gap.
 
-Area names, floor names, entity friendly names, and aliases are concatenated directly into
-the system message. Newlines and instruction-like text are not structurally encoded or
-marked as untrusted data. The security design correctly lists registry and integration text
-as an indirect prompt-injection source, but the active Wave 1 prompt path does not yet apply
-its provenance-labeling or taint rules.
+Area and floor names are administrator-managed; aliases and user-assigned entity names are
+too. An administrator deliberately injecting their own assistant is not a meaningful threat
+boundary because they already hold much stronger authority. Integration/device-provided
+friendly names are the narrower indirect-input case: compromised or externally named devices
+can contribute prompt text without independently receiving tool authority. Even there, tool
+policy and egress controls—not prompt formatting—are the security boundary.
 
-Quoting is not a complete injection defense, but the prompt should at least use a bounded,
-clearly delimited data representation and label the values as data that must not supply
-instructions. Add adversarial registry-name tests. Until stronger taint behavior exists,
-this reinforces R1: external egress and dangerous sinks must not be available by default.
+The practical requirements are therefore modest: normalize control characters, cap fields
+and the complete block for reliability, and use a readable delimiter plus a short instruction
+that quoted values are data. Add adversarial registry-name tests without claiming that
+formatting neutralizes prompt injection.
+
+**Resolved:** the entity summary and request-conditioned name block now use readable quoted
+records inside stable markers, preceded by a localized data-not-instructions reminder.
+Control characters are normalized, individual values are capped, and each full block has an
+8,192-character ceiling with an omission marker. Adversarial tests cover newline instruction
+text, oversized friendly names, and an oversized instruction-shaped alias. Aliases can affect
+scorer relevance but are never emitted; a selected entity contributes only its bounded
+friendly name and entity ID.
 
 ### R16. The required end-to-end interception test is missing
 

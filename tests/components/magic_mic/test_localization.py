@@ -52,8 +52,10 @@ async def test_spanish_prompt_and_tool_schema(hass: HomeAssistant) -> None:
         ),
     )
 
-    assert summary.startswith("La estructura de la casa")
-    assert strings.name_injection_header.startswith("Entidades relevantes")
+    assert summary.startswith("A continuación se muestran datos del registro")
+    assert strings.name_injection_header.startswith(
+        "A continuación se muestran datos del registro"
+    )
     assert tool.description.startswith("Busca entidades de Home Assistant")
     assert field_descriptions["area"].startswith("Limitar a un área")
     assert error == {
@@ -67,4 +69,4 @@ async def test_missing_locale_falls_back_to_english(hass: HomeAssistant) -> None
     """HA's translation loader supplies English when a locale file is absent."""
     strings = await async_get_conversation_strings(hass, "eo")
 
-    assert strings.entity_summary_header.startswith("Home structure below")
+    assert strings.entity_summary_header.startswith("Home Assistant registry data follows")

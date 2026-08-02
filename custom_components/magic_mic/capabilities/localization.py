@@ -15,7 +15,6 @@ class ConversationStrings:
     """Request-language strings used in Magic Mic prompts and tool schemas."""
 
     entity_summary_header: str
-    entity_summary_unassigned: str
     find_entities_description: str
     find_entities_error_invalid_area: str
     find_entities_error_invalid_floor: str
@@ -47,7 +46,6 @@ async def async_get_conversation_strings(
 
     return ConversationStrings(
         entity_summary_header=translated("entity_summary.header"),
-        entity_summary_unassigned=translated("entity_summary.unassigned"),
         find_entities_description=translated("find_entities.description"),
         find_entities_error_invalid_area=translated(
             "find_entities.errors.invalid_area"

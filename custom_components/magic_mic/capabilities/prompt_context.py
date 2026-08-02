@@ -16,7 +16,9 @@ registries (§5.5).
 """
 
 from functools import lru_cache
+import json
 import re
+import unicodedata
 
 from hassil import normalize_text
 from home_assistant_intents import get_intents, get_languages
@@ -37,6 +39,9 @@ from ..const import (
     NAME_INJECTION_FLOOR,
     NAME_INJECTION_HOUSE_FLOOR,
     NAME_INJECTION_ROOM_BONUS,
+    PROMPT_CONTEXT_BLOCK_LIMIT,
+    PROMPT_CONTEXT_DEVICE_CLASS_LIMIT,
+    PROMPT_CONTEXT_FIELD_LIMIT,
 )
 from ..entity_candidates import Registries, build_candidate, resolve_area
 from ..fuzzy import Candidate, score, score_candidates, tokenize
@@ -58,9 +63,9 @@ def async_build_entity_summary(
 ) -> str:
     """Return the floor → area → domain → device-class summary with counts.
 
-    One line per area, prefixed by its floor when it has one, then a trailing
-    ``Unassigned`` line for exposed entities with no area. Empty string when
-    nothing is exposed (the caller then falls back to the no-entities prompt).
+    Returns a localized trust instruction followed by bounded, quoted records. Each
+    area/domain pair is one line; ``null`` area and floor identify exposed entities
+    without an assignment. Empty string when nothing is exposed.
     """
     area_reg = ar.async_get(hass)
     floor_reg = fr.async_get(hass)
@@ -81,38 +86,45 @@ def async_build_entity_summary(
     if not counts:
         return ""
 
-    lines = [strings.entity_summary_header]
-    rows: list[tuple[tuple[int, str, str], str]] = []
-    unassigned_line: str | None = None
+    rows: list[tuple[tuple[int, str, str, str], str]] = []
 
     for area_id, domain_map in counts.items():
-        body = ", ".join(
-            _render_domain(domain, domain_map[domain]) for domain in sorted(domain_map)
-        )
-        if area_id is None:
-            unassigned_line = f"{strings.entity_summary_unassigned}: {body}"
-            continue
-
-        area = area_reg.async_get_area(area_id)
-        area_name = area.name if area else area_id
+        area = area_reg.async_get_area(area_id) if area_id is not None else None
+        area_name = area.name if area else (area_id if area_id is not None else None)
         floor = (
             floor_reg.async_get_floor(area.floor_id) if area and area.floor_id else None
         )
-        if floor:
-            rows.append(
-                (
-                    (0, floor.name.casefold(), area_name.casefold()),
-                    f"{floor.name} / {area_name}: {body}",
-                )
+        floor_name = floor.name if floor else None
+        location_order = (
+            (2, "", "")
+            if area_id is None
+            else (
+                (0, floor_name.casefold(), area_name.casefold())
+                if floor_name is not None
+                else (1, "", area_name.casefold())
             )
-        else:
-            rows.append(((1, "", area_name.casefold()), f"{area_name}: {body}"))
+        )
+        rows.extend(
+            [
+                (
+                    (*location_order, domain),
+                    _render_summary_record(
+                        floor_name,
+                        area_name,
+                        domain,
+                        domain_map[domain],
+                    ),
+                )
+                for domain in sorted(domain_map)
+            ]
+        )
 
     rows.sort()
-    lines.extend(line for _, line in rows)
-    if unassigned_line is not None:
-        lines.append(unassigned_line)
-    return "\n".join(lines)
+    return _render_bounded_block(
+        strings.entity_summary_header,
+        "home_assistant_entity_summary",
+        [record for _, record in rows],
+    )
 
 
 def _resolve_area_id(
@@ -270,12 +282,19 @@ def select_request_names(
         return None
 
     ranked.sort(key=lambda row: (-row[0], row[1]))
-    lines = [strings.name_injection_header]
+    records: list[str] = []
     for _relevance, entity_id in ranked[:limit]:
         state = hass.states.get(entity_id)
         name = state.name if state else entity_id
-        lines.append(f"{name} ({entity_id})")
-    return "\n".join(lines)
+        records.append(
+            f"name={_quote_prompt_data(name)}; "
+            f"entity_id={_quote_prompt_data(entity_id)}"
+        )
+    return _render_bounded_block(
+        strings.name_injection_header,
+        "home_assistant_entity_names",
+        records,
+    )
 
 
 @lru_cache
@@ -290,21 +309,73 @@ def language_ignores_whitespace(language: str | None) -> bool:
     return bool(intents.get("settings", {}).get("ignore_whitespace", False))
 
 
-def _render_domain(domain: str, device_class_counts: dict[str | None, int]) -> str:
-    """Render one domain's count, breaking out device classes when present.
-
-    ``light x4`` when the domain has no device classes; ``cover x3 (blind x2)`` when
-    some do (the unclassed remainder is implied by the total).
-    """
-    total = sum(device_class_counts.values())
-    classes = sorted(
-        (device_class, count)
-        for device_class, count in device_class_counts.items()
-        if device_class is not None
+def _render_summary_record(
+    floor_name: str | None,
+    area_name: str | None,
+    domain: str,
+    device_class_counts: dict[str | None, int],
+) -> str:
+    """Render one readable area/domain record with bounded, quoted values."""
+    classes = [
+        f"{_quote_prompt_data(device_class)} x{count}"
+        for device_class, count in sorted(
+            (
+                (device_class, count)
+                for device_class, count in device_class_counts.items()
+                if device_class is not None
+            ),
+            key=lambda item: item[0],
+        )[:PROMPT_CONTEXT_DEVICE_CLASS_LIMIT]
+    ]
+    class_count = len(device_class_counts) - (1 if None in device_class_counts else 0)
+    if class_count > PROMPT_CONTEXT_DEVICE_CLASS_LIMIT:
+        classes.append("…")
+    floor = _quote_prompt_data(floor_name) if floor_name is not None else "null"
+    area = _quote_prompt_data(area_name) if area_name is not None else "null"
+    details = f"; device_classes=[{', '.join(classes)}]" if classes else ""
+    return (
+        f"floor={floor}; area={area}; domain={_quote_prompt_data(domain)}; "
+        f"count={sum(device_class_counts.values())}{details}"
     )
-    if classes:
-        detail = ", ".join(
-            f"{device_class} x{count}" for device_class, count in classes
-        )
-        return f"{domain} x{total} ({detail})"
-    return f"{domain} x{total}"
+
+
+def _prompt_data_value(value: object) -> str:
+    """Normalize and bound one registry value before prompt rendering."""
+    normalized = normalize_text(str(value))
+    without_controls = "".join(
+        " " if unicodedata.category(character).startswith("C") else character
+        for character in normalized
+    )
+    if len(without_controls) <= PROMPT_CONTEXT_FIELD_LIMIT:
+        return without_controls
+    return f"{without_controls[: PROMPT_CONTEXT_FIELD_LIMIT - 1]}…"
+
+
+def _quote_prompt_data(value: object) -> str:
+    """Return one normalized prompt value as a readable JSON string literal."""
+    return json.dumps(_prompt_data_value(value), ensure_ascii=False)
+
+
+def _render_bounded_block(
+    header: str,
+    block_type: str,
+    records: list[str],
+) -> str:
+    """Wrap readable untrusted-data records in a bounded, delimited block."""
+    begin = f"--- BEGIN {block_type} DATA ---"
+    end = f"--- END {block_type} DATA ---"
+    omitted = "[additional registry records omitted]"
+    included = [header, begin]
+    truncated = False
+    for record in records:
+        # Reserve space for both the closing marker and the truncation marker. This
+        # keeps the final block bounded even when the next record does not fit.
+        candidate = "\n".join([*included, record, omitted, end])
+        if len(candidate) > PROMPT_CONTEXT_BLOCK_LIMIT:
+            truncated = True
+            break
+        included.append(record)
+    if truncated:
+        included.append(omitted)
+    included.append(end)
+    return "\n".join(included)

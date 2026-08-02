@@ -25,8 +25,8 @@ from homeassistant.setup import async_setup_component
 from .streaming import create_content_block
 
 ASSISTANT = conversation.DOMAIN
-ENTITY_SUMMARY_HEADER = "Home structure below lists each area"
-NAME_INJECTION_HEADER = "Entities relevant to this request"
+ENTITY_SUMMARY_HEADER = "Each line lists an area and the number of devices"
+NAME_INJECTION_HEADER = "Each line lists one request-relevant entity name and entity_id"
 
 
 class ExtraAPI(llm.API):
@@ -107,7 +107,7 @@ async def test_api_prompt_carries_summary_not_roster(hass: HomeAssistant) -> Non
     instance = await EntitySummaryAssistAPI(hass).async_get_api_instance(_llm_context())
 
     assert ENTITY_SUMMARY_HEADER in instance.api_prompt
-    assert "Living Room: light x1" in instance.api_prompt
+    assert 'area="Living Room"; domain="light"; count=1' in instance.api_prompt
     # The roster marker and the specific device name must be gone.
     assert "Static Context" not in instance.api_prompt
     assert "Reading Lamp" not in instance.api_prompt
@@ -198,7 +198,7 @@ async def test_driven_testbed_turn_sends_summary_baseline_sends_roster(
     baseline_system = _system_text(mock_create_stream)
 
     assert ENTITY_SUMMARY_HEADER in testbed_system
-    assert "Living Room: light x1" in testbed_system
+    assert 'area="Living Room"; domain="light"; count=1' in testbed_system
     assert "Static Context" not in testbed_system
     assert "Reading Lamp" not in testbed_system
 
@@ -269,7 +269,7 @@ async def test_driven_turn_injects_relevant_in_room_name(
     """A named in-room device is injected as a fast-path name; other rooms are not.
 
     Drives a real turn from a living-room satellite whose utterance names the reading
-    lamp. The Tier-2 block appears with that entity's ``name (entity_id)``; the kitchen
+    lamp. The Tier-2 block carries that entity's typed name/id record; the kitchen
     light, neither named nor in the room, stays out.
     """
     device_id = await _two_room_home(hass)
@@ -287,7 +287,7 @@ async def test_driven_turn_injects_relevant_in_room_name(
     system = _system_text(mock_create_stream)
 
     assert NAME_INJECTION_HEADER in system
-    assert "Reading Lamp (light.lr)" in system
+    assert 'name="Reading Lamp"; entity_id="light.lr"' in system
     assert "light.kc" not in system
 
 
@@ -368,6 +368,6 @@ async def test_driven_turn_gate_off_omits_names(
     system = _system_text(mock_create_stream)
 
     assert NAME_INJECTION_HEADER not in system
-    assert "Reading Lamp (light.lr)" not in system
+    assert 'name="Reading Lamp"; entity_id="light.lr"' not in system
     # The entity summary (Tier 1) still applies; only the Tier-2 block is gated off.
     assert ENTITY_SUMMARY_HEADER in system

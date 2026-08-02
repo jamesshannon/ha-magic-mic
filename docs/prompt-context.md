@@ -461,11 +461,26 @@ Design constraints:
 set is every exposed entity; where an entity sits sets how easily it qualifies (room scope
 is a soft prior, Refinement B below, built rather than deferred):
 
-Magic Mic's summary header, unassigned label, and request-name instructions are loaded from
+Magic Mic's summary and request-name instructions are loaded from
 the integration's `conversation` translation category for each request language. The same
 typed string bundle builds the request's `find_entities` tool schema. This localizes only
 Magic Mic-owned additions; prompts and tool text contributed by HA core remain upstream
 concerns.
+
+Both registry-derived prompt blocks use readable quoted records inside stable markers. A
+localized instruction says that quoted values are data, not instructions. Newlines and other
+control characters in registry values are normalized, each value is capped at 160 characters,
+and each complete block is capped at 8,192 characters with an omission marker. The entity
+summary emits one line per area/domain pair; request-name injection emits one
+`name`/`entity_id` line per selected entity. Aliases remain relevance-scoring input and are
+deliberately not copied into the prompt.
+
+This is proportionate robustness and defense-in-depth, not a primary security boundary.
+Area/floor names, aliases, and user-assigned entity names are administrator-controlled; an
+owner deliberately injecting their own assistant already has greater authority. Integration-
+or device-provided friendly names are the narrower indirect-input case. Formatting cannot
+make them trustworthy, so tool policy and external-egress defaults remain the enforcement
+boundaries ([`security.md`](security.md)).
 
 - **In the requesting area** (device area inherited as HA does): admitted at
   `NAME_INJECTION_FLOOR` (55, at or below the resolution floor: a spurious inclusion wastes

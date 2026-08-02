@@ -117,8 +117,9 @@ async def test_run_arm_toggles_name_injection(
 
     assert off.total == 1
     assert on.total == 1
-    assert "Reading Lamp (light.reading_lamp)" in on_system
-    assert "Reading Lamp (light.reading_lamp)" not in off_system
+    injected_record = 'name="Reading Lamp"; entity_id="light.reading_lamp"'
+    assert injected_record in on_system
+    assert injected_record not in off_system
     assert "web_search" in off_tools
     assert "web_search" in on_tools
     assert "web_fetch" not in off_tools
