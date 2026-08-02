@@ -134,9 +134,9 @@ something demonstrable. Tags: **[C]** component · **[core]** needs a core chang
 `evals/results/wave0_baseline.json` (`claude-haiku-4-5`, `prefer_local` OFF, pre-magic
 roster): **21 correct / 4 wrong / 0 unresolved**, 44 generations. Delivered beyond the plan:
 the eval's fixture home is backed by executable entities plus a mocked satellite (so timers
-and the full tool roster run headless), the scorer takes `any_of` acceptable outcomes to
-absorb LLM non-determinism, and `web_search`/`web_fetch` ship on with `user_location` off
-(privacy-first, config-supplied).
+and the full tool roster run headless), and the scorer takes `any_of` acceptable outcomes to
+absorb LLM non-determinism. The stored baseline was captured with `web_search` and
+`web_fetch` enabled; current installs default both provider options off.
 
 - **[C]** Stand up the **Testbed Proxy** ([`testbed-proxy.md`](testbed-proxy.md)):
   `magic_mic.internal.claude` (near-upstream copy of the `anthropic` component, registered as
@@ -155,8 +155,8 @@ absorb LLM non-determinism, and `web_search`/`web_fetch` ship on with `user_loca
   generations in the chat loop; record local-vs-LLM routing; trace turns).
 - **Run the baseline** — stock full-roster prompt, `prefer_local` OFF. *This is the number
   everything is measured against.*
-- **[C]** Bank the free magic: enable `web_search`/`web_fetch` + auto-fill `user_location`
-  from `hass.config`.
+- **[C]** Expose Claude's native `web_search` and `web_fetch` as independent provider
+  options. They default off; enabling one causes Claude to include that server-side tool.
 
 *Proves:* the harness runs; you have a baseline. *Component-only; nothing to contribute yet.*
 

@@ -18,6 +18,22 @@
       "single_instance_allowed": "Already configured. Only a single instance of Magic Mic is supported."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Claude web access",
+        "description": "Configure provider-native web capabilities. Anthropic executes these tools outside Home Assistant.",
+        "data": {
+          "web_fetch": "Enable web fetch",
+          "web_search": "Enable web search"
+        },
+        "data_description": {
+          "web_fetch": "Allow Claude to retrieve the contents of web pages and PDF documents.",
+          "web_search": "Allow Claude to search for current information on the web."
+        }
+      }
+    }
+  },
   "exceptions": {
     "api_authentication_error": {
       "message": "Authentication failed talking to Claude: {message}"

@@ -30,7 +30,14 @@ integration and ran the repository tests with coverage.
 **Severity:** Foundational security and product-contract violation. Blocks Wave 1 until the
 default is corrected and the boundary is described accurately.
 
-`internal/claude/const.py` sets both `CONF_WEB_SEARCH` and `CONF_WEB_FETCH` to `True`.
+**Resolved:** Claude's native `web_search` and `web_fetch` now default off and are exposed
+as independent provider options in Magic Mic's POC configuration UI. Enabling either option
+directly controls whether the Claude adapter includes that server-side tool. No second
+Magic Mic policy gate applies to a provider capability the user enabled. HA-executed tools
+remain governed by the documented tool policy.
+
+At review time, `internal/claude/const.py` set both `CONF_WEB_SEARCH` and `CONF_WEB_FETCH` to
+`True`.
 `ClaudeBaseLLMEntity._get_model_args()` merges those defaults into both the baseline and
 testbed agents, then sends Anthropic's server-side tools directly in the provider request.
 Those tools do not appear in `chat_log.llm_api.tools`, so `TestbedAPI` cannot filter, classify,
@@ -42,10 +49,9 @@ the opposite in several places and is internally inconsistent with its own secur
 cross-reference. The checked-out HA Anthropic integration defaults both tools off; Magic Mic
 changed them to on.
 
-The immediate correction is to default both provider-native tools off. Before either is
-configurable, define a provider-capability control passed from the proxy/configuration layer
-into the provider adapter. Do not claim that `TestbedAPI` bounds every capability while
-provider-native tools can be added after the wrapped `APIInstance` is formatted.
+The correction is to keep provider-native configuration in the provider adapter and expose
+it through Testbed only because Testbed owns the POC UI. Documentation must distinguish
+these provider-executed capabilities from HA tools intercepted by `TestbedAPI`.
 
 ### R2. Concurrent turns in one conversation corrupt turn attribution
 

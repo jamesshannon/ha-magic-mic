@@ -11,7 +11,12 @@ from homeassistant.helpers import llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .internal.claude.agent import ClaudeConversationEntity
-from .internal.claude.const import CONF_CHAT_MODEL, DEFAULT
+from .internal.claude.const import (
+    CONF_CHAT_MODEL,
+    CONF_WEB_FETCH,
+    CONF_WEB_SEARCH,
+    DEFAULT,
+)
 from .internal.claude.coordinator import MagicMicConfigEntry
 from .testbed.entity import TestbedConversationEntity
 
@@ -30,6 +35,12 @@ async def async_setup_entry(
     options = {
         CONF_CHAT_MODEL: DEFAULT[CONF_CHAT_MODEL],
         CONF_LLM_HASS_API: llm.LLM_API_ASSIST,
+        CONF_WEB_FETCH: config_entry.options.get(
+            CONF_WEB_FETCH, DEFAULT[CONF_WEB_FETCH]
+        ),
+        CONF_WEB_SEARCH: config_entry.options.get(
+            CONF_WEB_SEARCH, DEFAULT[CONF_WEB_SEARCH]
+        ),
     }
     entry_id = config_entry.entry_id
     async_add_entities(

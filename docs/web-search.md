@@ -26,10 +26,9 @@
   **delivery-engine / backend-adapter**, not as a capability module. A provider-
   agnostic / local path needs a **client-side search tool** (SearXNG local, or
   Brave/Tavily cloud) — the same **framing-per-backend** split as prompt-context.
-- **Enablement + defaults** is the actual scope: `web_search`/`web_fetch` now ship
-  **on** (`const.py`), `max_uses=5`, while `user_location` is **off by default** and,
-  when enabled, **supplied through config** rather than auto-filled from `hass.config`
-  (privacy-first; see the location decision below).
+- **Enablement + defaults** is the actual scope: `web_search` and `web_fetch` are
+  independent Claude provider options in Magic Mic's options flow. Both ship **off**,
+  `max_uses=5`, and `user_location` remains **off**.
 
 ---
 
@@ -48,15 +47,15 @@ The stock `anthropic` conversation component wires **two server-side tools**:
 
 Both are **`server_tool_use`** (`:436`) — **Anthropic runs them**, not HA. Config keys
 (`const.py:20–28`): `CONF_WEB_SEARCH`, `CONF_WEB_FETCH`, `…_MAX_USES`,
-`…_USER_LOCATION`, `…_CITY/REGION/COUNTRY/TIMEZONE`. **Defaults** (`const.py`):
-`web_search=True`, `web_fetch=True`, `user_location=False`, `max_uses=5`.
+`…_USER_LOCATION`, `…_CITY/REGION/COUNTRY/TIMEZONE`. Magic Mic retains those
+provider-local keys and defaults search, fetch, and location off with `max_uses=5`.
 
-**Implication:** for the cloud backend, "web search" is **not a build** — it's a
-**toggle we inherit** when we fork the component. Which reframes the whole feature.
+**Implication:** for the Claude backend, "web search" is not an HA capability build. It is
+a provider option Magic Mic exposes while it owns the POC configuration UI.
 
 ---
 
-## Why server-side is the right default on cloud
+## Why server-side is the right implementation on Claude
 
 | | Server-side (Anthropic) | Client-side HA tool |
 |---|---|---|
@@ -68,8 +67,8 @@ Both are **`server_tool_use`** (`:436`) — **Anthropic runs them**, not HA. Con
 | **Privacy** | Query → Anthropic + web | Query → chosen provider (SearXNG can be local-ish) |
 
 The generation-counting win (from [`prompt-context.md`](prompt-context.md)) is the
-decisive one on cloud: search folds into the *same* streamed response instead of forcing
-the HA loop to re-generate. So **default = server-side on the Anthropic backend.**
+decisive one on Claude: when the user enables search, it folds into the same streamed
+response instead of forcing the HA loop to re-generate.
 
 ---
 
@@ -89,8 +88,9 @@ the web" as a **capability** rather than an Anthropic quirk, mirror prompt-conte
   local-first-aligned choice) or a cloud API (Brave/Tavily). This path *is* a portable
   capability platform; it just costs the extra round-trip.
 
-Both satisfy one capability contract ("the model may search the web / read a URL"); the
-wiring differs by backend — same pattern as typed-blocks-vs-JSONL output framing.
+Both provide the same user-facing function, but their configuration and execution belong to
+their respective provider adapters. An HA-executed client-side tool also passes through the
+normal HA tool policy; Anthropic's server-side tool does not.
 
 ---
 
@@ -99,10 +99,10 @@ wiring differs by backend — same pattern as typed-blocks-vs-JSONL output frami
 Since the mechanism is inherited, the design work is **when it's on and how it's
 configured**:
 
-- **On/off:** now ships **on** (the "richer info retrieval" the plan calls for). Queries
-  leave the home, so it is disclosed and stays a single toggle, honoring HA local-first +
-  the AI policy. Whether `web_search` itself should default off is a separate open question;
-  location, below, is the sharper privacy concern and is the one that ships off.
+- **On/off:** both native tools ship **off** and are exposed as separate options because
+  they have different behavior. Enabling either option authorizes the Claude provider to
+  include that native tool in its requests. Magic Mic does not add a second policy gate for
+  a provider capability the user explicitly enabled.
 - **Location (privacy-first, config-supplied):** `user_location` is **off by default** and,
   when enabled, every field (`city`/`region`/`country`/`timezone`) is **supplied through
   config**, not derived from `hass.config`. This reverses the earlier auto-fill idea for two
