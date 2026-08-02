@@ -104,9 +104,15 @@ class TestbedAPI(llm.APIInstance):
 
         resolved = self._policy_registry.resolve(tool)
         exposed = is_tool_exposed(resolved, self._policy_context)
+        normalized_input = llm.ToolInput(
+            external=tool_input.external,
+            id=tool_input.id,
+            tool_args=tool.parameters(tool_input.tool_args),
+            tool_name=tool_input.tool_name,
+        )
         decision = evaluate_invocation(
             resolved,
-            tool_input.tool_args,
+            normalized_input.tool_args,
             self._policy_context,
         )
         allowed = exposed and decision.allowed
@@ -129,7 +135,7 @@ class TestbedAPI(llm.APIInstance):
 
         if decision.requires_confirmation:
             operation = PendingOperation.create(
-                arguments=tool_input.tool_args,
+                arguments=normalized_input.tool_args,
                 consequence=decision.consequence,
                 lifetime=PENDING_OPERATION_LIFETIME,
                 principal=self._policy_context.principal,
@@ -162,7 +168,7 @@ class TestbedAPI(llm.APIInstance):
             }
 
         try:
-            result = await self._inner.async_call_tool(tool_input)
+            result = await self._inner.async_call_tool(normalized_input)
         except Exception:
             self._record_effect(
                 tool.name,

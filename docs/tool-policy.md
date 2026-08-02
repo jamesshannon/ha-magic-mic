@@ -58,12 +58,14 @@ mutate; a sensitive calendar read may remain read-only.
 1. At construction, it resolves each tool policy and exposes only tools whose pre-model
    requirements pass.
 2. At `async_call_tool()`, it resolves the exact tool from the inner API's complete tool
-   list, repeats the exposure check, classifies the normalized arguments, and checks scope
-   again. A name absent from that advertised list is denied before delegation, even when a
-   custom inner executor would accept it dynamically.
-3. An allowed low-consequence call delegates to the original API instance. This preserves
-   custom `APIInstance.async_call_tool()` implementations instead of bypassing them through
-   the base HA executor.
+   list, applies that tool's declared parameter schema once, repeats the exposure check,
+   classifies the normalized arguments, and checks scope again. A name absent from that
+   advertised list is denied before delegation, even when a custom inner executor would
+   accept it dynamically.
+3. An allowed low-consequence call delegates the same normalized `ToolInput` to the original
+   API instance. This preserves custom `APIInstance.async_call_tool()` implementations
+   instead of bypassing them through the base HA executor, while preventing later coercion or
+   default insertion from changing the operation after policy evaluation.
 4. A confirmation-sensitive call does not invoke the inner API. It freezes the exact tool
    name, arguments, principal, effective consequence, and a 30-second expiry into the
    session's `PendingOperation`, then returns a structured `confirmation_required` tool
@@ -212,6 +214,7 @@ Deterministic tests cover:
 
 - declared, exact-legacy, family-legacy, and unclassified resolution;
 - personal-scope filtering and argument-dependent execution denial;
+- schema coercion before argument-dependent policy and exact normalized delegation;
 - delegation to an arbitrary inner `APIInstance.async_call_tool()` override;
 - typed/localizable rejection without inner execution;
 - ordinary versus continuation behavior for `confirm_on_continuation`;

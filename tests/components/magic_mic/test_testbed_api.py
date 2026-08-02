@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 import pytest
+import voluptuous as vol
 
 from custom_components.magic_mic.execution_result import (
     ToolExecutionResult,
@@ -51,6 +52,8 @@ from homeassistant.util.json import JsonObjectType
 class FixtureTool(llm.Tool):
     """Minimal tool represented by the inner API."""
 
+    parameters = vol.Schema({}, extra=vol.ALLOW_EXTRA)
+
     def __init__(self, name: str) -> None:
         """Initialize a named fixture tool."""
         self.name = name
@@ -82,6 +85,34 @@ class ArgumentPolicy(ToolPolicy):
             required_scope=(
                 DataScope.PERSONAL
                 if arguments.get("scope") == "personal"
+                else DataScope.HOUSEHOLD
+            )
+        )
+
+
+class CoercingTool(FixtureTool):
+    """Fixture whose declared schema changes the policy-relevant representation."""
+
+    parameters = vol.Schema({vol.Optional("personal", default=False): vol.Coerce(bool)})
+
+
+class CoercedArgumentPolicy(ToolPolicy):
+    """Classify a call from the boolean produced by the tool schema."""
+
+    def exposure_policy(self, context: ToolPolicyContext) -> ExposurePolicy:
+        """Expose the mixed-scope tool to household callers."""
+        return ExposurePolicy(required_scope=DataScope.HOUSEHOLD)
+
+    def classify_call(
+        self,
+        arguments: Mapping[str, Any],
+        context: ToolPolicyContext,
+    ) -> CallPolicy:
+        """Require personal scope when the normalized flag is true."""
+        return CallPolicy(
+            required_scope=(
+                DataScope.PERSONAL
+                if arguments.get("personal") is True
                 else DataScope.HOUSEHOLD
             )
         )
@@ -476,6 +507,69 @@ async def test_argument_dependent_scope_is_rechecked() -> None:
         await wrapped.async_call_tool(
             llm.ToolInput(tool_name="mixed", tool_args={"scope": "personal"})
         )
+    assert inner.calls == []
+
+
+async def test_argument_policy_classifies_normalized_input() -> None:
+    """Schema coercion cannot move a call across the policy boundary after checking."""
+    inner = RecordingAPIInstance([CoercingTool("mixed")])
+    registry = ToolPolicyRegistry()
+    registry.register_exact(CoercingTool, "mixed", CoercedArgumentPolicy())
+    wrapped = testbed_api.TestbedAPI.wrap(inner, _context(), registry)
+
+    with pytest.raises(ToolPolicyDeniedError):
+        await wrapped.async_call_tool(
+            llm.ToolInput(tool_name="mixed", tool_args={"personal": 1})
+        )
+
+    assert inner.calls == []
+
+
+async def test_inner_executor_receives_normalized_input() -> None:
+    """Policy and execution consume the same schema-normalized tool arguments."""
+    inner = RecordingAPIInstance([CoercingTool("mixed")])
+    registry = ToolPolicyRegistry()
+    registry.register_exact(CoercingTool, "mixed", CoercedArgumentPolicy())
+    principal = ResolvedPrincipal(user_id="user-1")
+    wrapped = testbed_api.TestbedAPI.wrap(inner, _context(principal), registry)
+    tool_input = llm.ToolInput(
+        external=True,
+        id="call-1",
+        tool_name="mixed",
+        tool_args={"personal": 1},
+    )
+
+    await wrapped.async_call_tool(tool_input)
+
+    assert inner.calls == [
+        llm.ToolInput(
+            external=True,
+            id="call-1",
+            tool_name="mixed",
+            tool_args={"personal": True},
+        )
+    ]
+
+
+async def test_pending_operation_stores_normalized_input() -> None:
+    """Confirmation freezes the same normalized arguments checked by policy."""
+    inner = RecordingAPIInstance([CoercingTool("confirm")])
+    registry = ToolPolicyRegistry()
+    registry.register_exact(
+        CoercingTool,
+        "confirm",
+        StaticToolPolicy(consequence=ConsequenceClass.ALWAYS_CONFIRM),
+    )
+    context = _context()
+    wrapped = testbed_api.TestbedAPI.wrap(inner, context, registry)
+
+    await wrapped.async_call_tool(
+        llm.ToolInput(tool_name="confirm", tool_args={"personal": 1})
+    )
+
+    pending = context.session_state.pending_operation
+    assert pending is not None
+    assert pending.mutable_arguments() == {"personal": True}
     assert inner.calls == []
 
 

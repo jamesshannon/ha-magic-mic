@@ -292,6 +292,12 @@ policy, then pass those exact arguments to the executor, or give a complex `Tool
 tool-owned normalization method whose result is also the invocation payload. Add tests in
 which coercion would cross a scope or consequence boundary.
 
+**Resolved:** `TestbedAPI` now applies the selected tool's declared parameter schema before
+invocation policy. The resulting `ToolInput`, including inserted defaults and coerced values,
+is the single representation used for classification, pending-operation storage, and inner
+API delegation. Tests cover coercion across a scope boundary and verify that invocation
+identity fields survive normalization.
+
 ## Pass 2: entity resolution and prompt context
 
 Status: complete. Reviewed the candidate adapter, fuzzy scorer and ambiguity guard,
