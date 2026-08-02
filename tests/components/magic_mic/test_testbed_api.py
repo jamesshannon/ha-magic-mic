@@ -417,6 +417,27 @@ async def test_direct_call_to_filtered_tool_is_rejected() -> None:
     assert inner.calls == []
 
 
+async def test_undeclared_tool_cannot_reach_dynamic_inner_executor() -> None:
+    """A call absent from the advertised API is rejected before delegation."""
+    inner = RecordingAPIInstance([FixtureTool("declared")])
+    context = _context()
+    wrapped = testbed_api.TestbedAPI.wrap(inner, context)
+
+    with pytest.raises(ToolPolicyDeniedError) as err:
+        await wrapped.async_call_tool(
+            llm.ToolInput(tool_name="dynamically_accepted", tool_args={})
+        )
+
+    assert err.value.translation_domain == "magic_mic"
+    assert err.value.translation_key == "tool_not_available"
+    assert inner.calls == []
+    trace = context.turn_metadata.tool_policy[-1]
+    assert trace.allowed is False
+    assert trace.policy_source == "undeclared"
+    assert trace.stage == "execution"
+    assert trace.tool_name == "dynamically_accepted"
+
+
 async def test_argument_dependent_scope_is_rechecked() -> None:
     """An exposed generic tool may still reject a restricted concrete call."""
     inner = RecordingAPIInstance([FixtureTool("mixed")])

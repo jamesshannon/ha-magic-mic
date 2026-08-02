@@ -37,6 +37,7 @@ class PolicySource(StrEnum):
     DECLARED = "declared"
     LEGACY_EXACT = "legacy_exact"
     LEGACY_TYPE = "legacy_type"
+    UNDECLARED = "undeclared"
     UNCLASSIFIED = "unclassified"
 
 

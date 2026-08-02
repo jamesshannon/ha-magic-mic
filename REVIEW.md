@@ -84,6 +84,11 @@ then completes A.
 
 **Severity:** High security-boundary defect.
 
+**Resolved:** The proxy now denies an absent tool name with the existing localizable
+`ToolPolicyDeniedError`, records an `undeclared` execution-policy trace, and never delegates
+the call. The regression test uses an inner executor that would accept arbitrary names and
+proves it is not reached.
+
 `TestbedAPI.async_call_tool()` delegates directly to `inner.async_call_tool()` when
 `_find_inner_tool()` cannot find the requested name. That path performs no policy resolution,
 exposure check, invocation classification, confirmation, trace, or effect capture. HA's base

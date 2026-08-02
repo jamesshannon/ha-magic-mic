@@ -93,8 +93,9 @@ shell.
 calling the base `APIInstance` implementation. It presents a filtered `.tools` view, then
 delegates every allowed call to `inner.async_call_tool()`. This preserves custom API
 execution behavior and gives execution policy access to the original tool list for stale or
-direct-call checks. Policy resolution and confirmation staging are specified in
-[`tool-policy.md`](tool-policy.md).
+direct-call checks. A call not present in that original advertised list is rejected rather
+than delegated to a potentially dynamic inner executor. Policy resolution and confirmation
+staging are specified in [`tool-policy.md`](tool-policy.md).
 
 ## What the seam gives us
 

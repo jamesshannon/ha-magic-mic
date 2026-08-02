@@ -23,6 +23,7 @@ from ..session_state import ToolPolicyTrace
 from ..tool_policy import (
     DEFAULT_TOOL_POLICY_REGISTRY,
     EffectClass,
+    PolicySource,
     ToolPolicyContext,
     ToolPolicyDeniedError,
     ToolPolicyRegistry,
@@ -85,7 +86,19 @@ class TestbedAPI(llm.APIInstance):
         )
         tool = self._find_inner_tool(tool_input.tool_name)
         if tool is None:
-            return await self._inner.async_call_tool(tool_input)
+            self._record_trace(
+                allowed=False,
+                consequence=None,
+                policy_source=PolicySource.UNDECLARED,
+                stage="execution",
+                tool_name=tool_input.tool_name,
+            )
+            LOGGER.debug(
+                "[testbed] tool_policy %s source=%s allowed=False",
+                tool_input.tool_name,
+                PolicySource.UNDECLARED,
+            )
+            raise ToolPolicyDeniedError(tool_input.tool_name)
 
         resolved = self._policy_registry.resolve(tool)
         exposed = is_tool_exposed(resolved, self._policy_context)

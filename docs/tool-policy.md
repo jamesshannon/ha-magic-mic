@@ -59,7 +59,8 @@ mutate; a sensitive calendar read may remain read-only.
    requirements pass.
 2. At `async_call_tool()`, it resolves the exact tool from the inner API's complete tool
    list, repeats the exposure check, classifies the normalized arguments, and checks scope
-   again.
+   again. A name absent from that advertised list is denied before delegation, even when a
+   custom inner executor would accept it dynamically.
 3. An allowed low-consequence call delegates to the original API instance. This preserves
    custom `APIInstance.async_call_tool()` implementations instead of bypassing them through
    the base HA executor.
@@ -75,7 +76,8 @@ mutate; a sensitive calendar read may remain read-only.
 Scope denial raises a typed, localizable `ToolPolicyDeniedError`. Exposure and execution
 decisions record the tool name, policy source, stage, outcome, and consequence in the exact
 turn metadata carried by the request. They never discover a "current" turn through mutable
-conversation state. The record contains no tool arguments.
+conversation state. An absent tool records policy source `undeclared`; an advertised tool
+without policy metadata records `unclassified`. The record contains no tool arguments.
 
 This provides the stale/direct-call defense even though that path is rare today. More
 importantly, it fixes the contract before restricted tools and selection machinery depend on
