@@ -263,6 +263,11 @@ effective prompt strategy.
 
 **Severity:** Low tooling defect.
 
+**Resolved:** `pytest.ini` now limits default discovery to `tests` and `evals/harness`.
+The documented bare `.venv/bin/pytest` command runs the complete Magic Mic suite without
+collecting static test files under `references/`. Explicit paths can still target other files
+when a developer intentionally supplies the separate environment they require.
+
 `CLAUDE.md` documents `.venv/bin/pytest`, but the checked-out `references/core` tree contains
 test-shaped files and its own test suite. A bare run currently fails during collection before
 collecting this project's tests. `.venv/bin/pytest tests` runs the intended suite.
