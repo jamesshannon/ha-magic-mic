@@ -283,6 +283,56 @@ successful allowed call, a denied call, private outcome stripping, and a provide
 generation. This is the integration point most likely to expose lifecycle behavior that unit
 tests around `TestbedAPI` cannot.
 
+## Pass 3: provider adapter and integration lifecycle
+
+Status: complete. Diffed the embedded Claude adapter against the checked-out HA Anthropic
+integration, inspected configuration/setup/unload and provider failure paths, and compared
+local coverage with the relevant upstream tests.
+
+### R17. Authentication failure has no recovery flow
+
+**Severity:** High production lifecycle defect.
+
+The coordinator correctly raises `ConfigEntryAuthFailed` when the stored API key stops
+working, which asks HA to start reauthentication. `MagicMicConfigFlow` implements only
+`async_step_user`; it has no reauth step that updates the existing entry. The integration can
+therefore detect an expired or revoked key but cannot guide the user through recovery. The
+upstream Anthropic integration implements and tests this flow.
+
+Add a reauthentication flow that validates the replacement key, updates the existing config
+entry, and reloads it. Cover invalid replacement credentials, connection failure, success,
+and coordinator-triggered reauth.
+
+### R18. HACS advertises a Home Assistant version far older than the supported runtime
+
+**Severity:** High installation correctness defect.
+
+`hacs.json` declares Home Assistant `2025.1.0`, while development and tests target Python
+3.14 and HA `2026.7.4`/the checked-out `2026.8.0.dev0` API. The integration uses current
+conversation, ChatLog, LLM, config-entry runtime-data, and intent contracts without a
+compatibility layer. HACS can offer the integration to installations on which it cannot
+import or run.
+
+Set the minimum to the earliest HA release actually exercised by CI. If support for older HA
+is desired, establish a version matrix and compatibility code rather than advertising an
+untested date. The manifest version, release process, and minimum HA version should move
+together.
+
+### R19. Provider parity is not guarded by upstream-derived tests
+
+**Severity:** Medium maintenance defect that has already produced R9.
+
+The provider module retains 61% statement coverage in the local suite. Core's Anthropic tests
+cover streaming block variants, attachments, whitespace-only content, server-tool results,
+API failures, reauth, and option combinations; almost none are carried into this project.
+Because the adapter is copied rather than imported, upstream fixes do not arrive through a
+dependency update.
+
+Define which upstream tests are copied with the adapter and make syncing them part of the
+documented update procedure. A compact parity suite should at least cover every locally
+changed method and every content-block family the fork claims to support. Otherwise
+"near-upstream" is a comment, not a maintained property.
+
 ## Declared limitations confirmed by the trace
 
 These are not new findings, but they bound what the implemented foundation currently proves:
@@ -319,4 +369,5 @@ means the data contracts exist, not that their safety properties are active end 
 5. R13 through R15: make the active prompt path localizable and bound registry text.
 6. R4: finish conflict semantics before enabling confirmation-sensitive tools.
 7. R6 through R10 before the corresponding prompt, personal-data, or provider feature grows.
-8. R11 and R16 as independent test/tooling cleanup.
+8. R17 and R18 before treating the custom integration as generally installable.
+9. R11, R16, and R19 as test/tooling cleanup that prevents recurrence.
