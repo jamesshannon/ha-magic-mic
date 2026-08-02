@@ -62,6 +62,14 @@ conversation-*agent* turn; the pipeline run debug covers the whole voice pipelin
 - **The pipeline run debug *is* the UI system** — websocket-backed, rendered in
   Settings → Voice assistants → pipeline → Debug.
 
+Payloads are part of the trace contract. A useful agent trace must preserve the utterance,
+normalized tool arguments, tool results, and ordering needed to explain and score what
+happened. Standard Python logs are different: they are routinely copied, aggregated, and
+retained outside the trace lifecycle, so Magic Mic logs only tool names and classifications
+there. Before payload-bearing traces gain broader UI, persistence, or export, they need the
+access, retention, selective-redaction, and encryption-at-rest decisions in
+[`security.md`](security.md#diagnostic-trace-privacy).
+
 ### Relationship & nesting
 
 - The conversation trace is conceptually **nested inside** the pipeline's intent

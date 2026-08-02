@@ -198,6 +198,15 @@ guard.
 
 **Severity:** Medium privacy defect now; high once secrets or personal tools exist.
 
+**Resolved in the proxy:** `TestbedAPI` debug logging now records the tool name, policy and
+effect classification, and undo outcome without copying arguments or results into standard
+Python logs owned by Magic Mic. A regression test places distinct secrets in both payloads
+and verifies that neither reaches the proxy logger. HA core's own `ChatLog` debug statements
+still log payloads, and its payload-bearing conversation trace is intentionally unchanged:
+exact inputs, calls, and results are necessary to explain and score an agent turn. Their
+separate access, retention, selective-redaction, export, and possible encryption-at-rest
+requirements are recorded in [`docs/security.md`](docs/security.md).
+
 `TestbedAPI.async_call_tool()` writes complete arguments and results to debug logs. These may
 contain memory values, calendar text, door codes, notification bodies, or provider responses.
 This also violates the repository rule that logs never contain secrets. HA's current ChatLog

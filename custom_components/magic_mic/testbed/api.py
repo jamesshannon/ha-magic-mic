@@ -85,9 +85,7 @@ class TestbedAPI(llm.APIInstance):
 
     async def async_call_tool(self, tool_input: llm.ToolInput) -> JsonObjectType:
         """Recheck policy, stage confirmation, or delegate the exact call."""
-        LOGGER.debug(
-            "[testbed] tool_call %s args=%s", tool_input.tool_name, tool_input.tool_args
-        )
+        LOGGER.debug("[testbed] tool_call %s", tool_input.tool_name)
         tool = self._find_inner_tool(tool_input.tool_name)
         if tool is None:
             self._record_trace(
@@ -172,12 +170,18 @@ class TestbedAPI(llm.APIInstance):
                 disposition=None,
             )
             raise
+        disposition = get_undo_disposition(result)
         self._record_effect(
             tool.name,
             decision.effect,
-            disposition=get_undo_disposition(result),
+            disposition=disposition,
         )
-        LOGGER.debug("[testbed] tool_result %s -> %s", tool_input.tool_name, result)
+        LOGGER.debug(
+            "[testbed] tool_result %s effect=%s undo=%s",
+            tool_input.tool_name,
+            decision.effect,
+            type(disposition).__name__ if disposition is not None else "missing",
+        )
         return public_tool_result(result)
 
     def _record_effect(

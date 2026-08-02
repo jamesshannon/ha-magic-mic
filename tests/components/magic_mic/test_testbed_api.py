@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import Mapping
+import logging
 from typing import Any
 
 import pytest
@@ -202,6 +203,30 @@ async def test_unclassified_call_delegates_to_inner_override() -> None:
     barrier = context.session_state.undo_journal[-1]
     assert isinstance(barrier.disposition, UndoUnavailable)
     assert barrier.disposition.reason is UndoUnavailableReason.NOT_SUPPORTED
+
+
+async def test_proxy_debug_logs_omit_tool_payloads(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Operational debug logs identify the call without copying its payloads."""
+    caplog.set_level(logging.DEBUG, logger="custom_components.magic_mic")
+    inner = RecordingAPIInstance(
+        [FixtureTool("private_tool")],
+        result={"private_result": "result-secret"},
+    )
+    wrapped = testbed_api.TestbedAPI.wrap(inner, _context())
+
+    await wrapped.async_call_tool(
+        llm.ToolInput(
+            tool_name="private_tool",
+            tool_args={"private_argument": "argument-secret"},
+        )
+    )
+
+    assert "tool_call private_tool" in caplog.text
+    assert "tool_result private_tool" in caplog.text
+    assert "argument-secret" not in caplog.text
+    assert "result-secret" not in caplog.text
 
 
 async def test_private_undo_result_is_journaled_but_not_returned() -> None:

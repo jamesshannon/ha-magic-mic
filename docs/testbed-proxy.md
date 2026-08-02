@@ -105,7 +105,7 @@ staging are specified in [`tool-policy.md`](tool-policy.md).
 | Replace a tool's schema | swap the `Tool` in `.tools` |
 | Redirect a tool call (`find_entities` to the fuzzy resolver) | intercept in `.async_call_tool`, fall through for the rest |
 | Replace the entity roster with a taxonomy skeleton (§5.2) | rewrite `.api_prompt` |
-| Trace every tool call and result | log inside `.async_call_tool` |
+| Trace every tool call and result | retain payloads in the ChatLog/conversation trace; write only classifications to the proxy debug log |
 | Enforce identity/consequence policy | omit unavailable tools in `.tools`, recheck in `.async_call_tool` |
 | Capture deterministic effects | journal private undo outcomes; barrier possible mutations with no outcome |
 | Shadow/enforce capability selection | compute a `SelectionPlan`; compare with or replace `.tools`, prompt instructions, and context |

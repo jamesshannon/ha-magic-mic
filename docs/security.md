@@ -231,6 +231,39 @@ untrusted content (web/calendar) is actually enabled.
 - **Don't construct fetch URLs or search queries from private context** without a gate —
   the exfiltration channel. Prefer allowlists for `web_fetch` where feasible.
 
+## Diagnostic trace privacy
+
+Conversation and evaluation traces carry payloads by design. Diagnosing and scoring an
+agent turn requires the utterance, normalized tool arguments, tool results, model-visible
+history, and their ordering. Removing those values wholesale would make the trace unable to
+answer what the assistant saw and did. The payload-bearing trace is therefore a distinct
+diagnostic data product, not ordinary operational telemetry and not a Python debug log.
+
+Magic Mic-owned standard Python logs record tool names and policy/effect outcomes without raw
+arguments or results. That avoids another copy of sensitive values in logging systems whose
+export and retention may be unrelated to the conversation trace. HA core's current `ChatLog`
+debug statements still emit payloads when that logger is enabled; the proxy cannot redefine
+that global core behavior. This change also does not sanitize the `ChatLog` itself,
+conversation traces, pipeline debug data, or an explicitly captured eval artifact.
+
+Before a payload-bearing trace becomes persistent, remotely exported, or more broadly
+user-accessible, define these controls:
+
+- authorize access separately from normal conversation use, and disclose payload contents
+  before export or support sharing;
+- bound retention and provide deletion for local traces and exported artifacts;
+- encrypt persisted trace payloads at rest, with an explicit key and backup lifecycle;
+- investigate structured, field-aware PII or secret redaction for lower-privilege views and
+  exports, while marking every omission so a redacted trace is not mistaken for exact input;
+- keep aggregate deployed-user telemetry payload-free. It should contain scenario outcomes
+  and timings, not utterances, arguments, results, or model-visible history.
+
+Selective redaction is a view or export strategy, not a reason to corrupt the canonical
+short-lived diagnostic record. Some values that resemble PII are the facts needed to debug a
+calendar, notification, or memory failure, and automated detection will have both misses and
+false positives. An encrypted, tightly retained canonical trace plus a redacted sharing view
+is one design to evaluate; it is not implemented or selected yet.
+
 ---
 
 ## What stays unsolved (state it plainly)
