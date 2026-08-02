@@ -202,6 +202,87 @@ Constrain `testpaths` in `pytest.ini` and keep an explicit command for any separ
 tests. This prevents agents and CI jobs from reporting environmental reference-tree failures
 as project failures.
 
+### R12. Argument-dependent policy classifies unnormalized input
+
+**Severity:** Foundational execution-policy defect.
+
+The policy contract and documentation say `classify_call()` receives normalized arguments,
+but `TestbedAPI` passes `tool_input.tool_args` directly before delegating. HA's base
+`APIInstance.async_call_tool()` does not apply `tool.parameters`; individual tools validate or
+coerce inside their own executors. A policy can therefore classify one representation while
+the tool executes another. A string coerced to a number or boolean, an alias normalized by
+the tool, or an omitted default can change the operation after the authorization decision.
+
+The execution gateway needs one check/use representation. Normalize and validate once before
+policy, then pass those exact arguments to the executor, or give a complex `ToolPolicy` a
+tool-owned normalization method whose result is also the invocation payload. Add tests in
+which coercion would cross a scope or consequence boundary.
+
+## Pass 2: entity resolution and prompt context
+
+Status: complete. Reviewed the candidate adapter, fuzzy scorer and ambiguity guard,
+`find_entities`, taxonomy skeleton, request-conditioned name injection, scorer corpus, and
+their HA matcher/exposure dependencies.
+
+### R13. Tokenization drops or fragments non-ASCII languages
+
+**Severity:** High localization defect in a central Wave 1 capability.
+
+Both `fuzzy.py` and `capabilities/prompt_context.py` tokenize with
+`re.compile(r"[^0-9a-z]+")`. Cyrillic and CJK text becomes an empty token set; accented Latin
+words are split into unrelated fragments. Rapidfuzz's primary union scorer can still compare
+some Unicode strings, but the IDF tie-break and localized domain-keyword selection use these
+ASCII-only tokenizers. As a result, the code explicitly loads HA translations and then makes
+many translated terms unusable.
+
+Use Unicode-aware alphanumeric tokenization and normalization, and decide how languages
+without whitespace segmentation are handled. Add the same behavioral cases in multiple HA
+languages, including accented Latin, Cyrillic, and a language such as Chinese or Japanese.
+Do not tune English thresholds and assume they transfer unchanged.
+
+### R14. Model-facing capability instructions are hardcoded in English
+
+**Severity:** Medium localization contract violation.
+
+The skeleton header, `Unassigned` label, name-injection header, tool description, parameter
+descriptions, and `find_entities` error strings are hardcoded English. These strings directly
+shape what the model understands and may be paraphrased to the user. The project treats
+localizability as a foundation requirement, not a later polish pass.
+
+Move prompt fragments and tool/error descriptions behind a language-aware translation seam,
+or return stable structured error codes whose rendering belongs to the conversation layer.
+Tests should build prompts and tool schemas for at least one non-English language.
+
+### R15. Registry-controlled text is inserted into the system prompt without provenance
+
+**Severity:** High security gap while name injection is enabled by default.
+
+Area names, floor names, entity friendly names, and aliases are concatenated directly into
+the system message. Newlines and instruction-like text are not structurally encoded or
+marked as untrusted data. The security design correctly lists registry and integration text
+as an indirect prompt-injection source, but the active Wave 1 prompt path does not yet apply
+its provenance-labeling or taint rules.
+
+Quoting is not a complete injection defense, but the prompt should at least use a bounded,
+clearly delimited data representation and label the values as data that must not supply
+instructions. Add adversarial registry-name tests. Until stronger taint behavior exists,
+this reinforces R1: external egress and dangerous sinks must not be available by default.
+
+### R16. The required end-to-end interception test is missing
+
+**Severity:** Medium test-boundary gap.
+
+`build-sequence.md` requires a driven conversation test before tool interception is
+considered complete: the provider emits a `tool_use`, the baseline follows its stock path,
+and the testbed passes through its proxy path. Existing tests drive prompt construction end
+to end and test `TestbedAPI` directly, but no conversation test drives a tool call through
+the provider stream and proxy together.
+
+Add the required test with observable execution and result behavior. It should cover a
+successful allowed call, a denied call, private outcome stripping, and a provider follow-up
+generation. This is the integration point most likely to expose lifecycle behavior that unit
+tests around `TestbedAPI` cannot.
+
 ## Declared limitations confirmed by the trace
 
 These are not new findings, but they bound what the implemented foundation currently proves:
@@ -233,8 +314,9 @@ means the data contracts exist, not that their safety properties are active end 
 
 1. R1: disable unconfigured egress and establish the provider-capability boundary.
 2. R2: make turn metadata request-local.
-3. R3: reject undeclared tool calls at the execution boundary.
+3. R3 and R12: reject undeclared calls and close the argument check/use gap.
 4. R5: make storage enforce principal and scope before a capability consumes it.
-5. R4: finish conflict semantics before enabling confirmation-sensitive tools.
-6. R6 through R10 before the corresponding prompt, personal-data, or provider feature grows.
-7. R11 as an independent tooling cleanup.
+5. R13 through R15: make the active prompt path localizable and bound registry text.
+6. R4: finish conflict semantics before enabling confirmation-sensitive tools.
+7. R6 through R10 before the corresponding prompt, personal-data, or provider feature grows.
+8. R11 and R16 as independent test/tooling cleanup.
