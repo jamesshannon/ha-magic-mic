@@ -273,9 +273,11 @@ def test_async_get_tools_returns_find_entities(hass: HomeAssistant) -> None:
 def test_find_entities_declares_read_only_effect() -> None:
     """The owned lookup tool cannot shadow the latest mutation as unknown."""
     resolved = DEFAULT_TOOL_POLICY_REGISTRY.resolve(FindEntitiesTool())
+    session_state = MagicMicSessionState()
     context = ToolPolicyContext(
         principal=UNIDENTIFIED_PRINCIPAL,
-        session_state=MagicMicSessionState(),
+        session_state=session_state,
+        turn_metadata=session_state.async_begin_turn("turn-1"),
     )
 
     decision = evaluate_invocation(resolved, {}, context)

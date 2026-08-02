@@ -24,9 +24,10 @@ The kernel has four parts:
    declare the contract themselves.
 
 Both policy methods receive a provider-neutral `ToolPolicyContext`: the resolved principal,
-`MagicMicSessionState`, continuation origin, and an optional minimum consequence raised by
-other deterministic signals. The evaluator produces immutable exposure and invocation
-decisions. It does not execute tools.
+conversation-scoped `MagicMicSessionState`, the exact request-local `TurnMetadata`,
+continuation origin, and an optional minimum consequence raised by other deterministic
+signals. The evaluator produces immutable exposure and invocation decisions. It does not
+execute tools.
 
 The consequence vocabulary remains deliberately ordinal:
 
@@ -72,8 +73,9 @@ mutate; a sensitive calendar read may remain read-only.
    a barrier because a partial effect cannot be ruled out.
 
 Scope denial raises a typed, localizable `ToolPolicyDeniedError`. Exposure and execution
-decisions record the tool name, policy source, stage, outcome, and consequence in current
-turn metadata. The record contains no tool arguments.
+decisions record the tool name, policy source, stage, outcome, and consequence in the exact
+turn metadata carried by the request. They never discover a "current" turn through mutable
+conversation state. The record contains no tool arguments.
 
 This provides the stale/direct-call defense even though that path is rare today. More
 importantly, it fixes the contract before restricted tools and selection machinery depend on

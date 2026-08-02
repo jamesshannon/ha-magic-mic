@@ -185,6 +185,9 @@ async def test_begin_turn_replaces_only_turn_metadata(hass: HomeAssistant) -> No
     assert same is first
     assert second is not first
     assert second.provenance == set()
+    assert state.async_get_turn_metadata("turn-1") is first
+    assert state.async_get_turn_metadata("turn-2") is second
+    assert state.async_get_turn_metadata("missing") is None
     assert state.pending_operation is pending
     assert state.undo_journal == (undo,)
 

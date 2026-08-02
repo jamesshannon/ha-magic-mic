@@ -1,5 +1,6 @@
 """Tests for the testbed policy and tool-execution seam."""
 
+import asyncio
 from collections.abc import Mapping
 from typing import Any
 
@@ -126,6 +127,22 @@ class RecordingAPIInstance(llm.APIInstance):
         return {"executor": "inner", "tool_name": tool_input.tool_name}
 
 
+class BlockingAPIInstance(RecordingAPIInstance):
+    """Inner API that pauses one tool call until its test releases it."""
+
+    def __init__(self, tools: list[llm.Tool], *, result: object) -> None:
+        """Initialize the blocking executor."""
+        super().__init__(tools, result=result)
+        self.release = asyncio.Event()
+        self.started = asyncio.Event()
+
+    async def async_call_tool(self, tool_input: llm.ToolInput) -> JsonObjectType:
+        """Pause after execution starts, then delegate to the recording API."""
+        self.started.set()
+        await self.release.wait()
+        return await super().async_call_tool(tool_input)
+
+
 def _undo_action() -> UndoAction:
     """Build one household-scoped fixture inverse."""
     return UndoAction(
@@ -142,7 +159,7 @@ def _context(
 ) -> ToolPolicyContext:
     """Build policy context with initialized turn metadata."""
     state = MagicMicSessionState()
-    state.async_begin_turn(
+    turn_metadata = state.async_begin_turn(
         "turn-1",
         is_continuation=is_continuation,
         principal=principal,
@@ -151,6 +168,7 @@ def _context(
         is_continuation=is_continuation,
         principal=principal,
         session_state=state,
+        turn_metadata=turn_metadata,
     )
 
 
@@ -210,8 +228,44 @@ async def test_private_undo_result_is_journaled_but_not_returned() -> None:
     entry = context.session_state.undo_journal[-1]
     assert entry.disposition is action
     assert entry.status is UndoStatus.AVAILABLE
-    assert context.session_state.turn_metadata is not None
-    assert context.session_state.turn_metadata.effects == [entry]
+    assert context.turn_metadata.effects == [entry]
+
+
+async def test_overlapping_turn_keeps_effect_attribution_request_local() -> None:
+    """A later turn cannot capture an earlier turn's delayed tool effect."""
+    state = MagicMicSessionState()
+    turn_a = state.async_begin_turn("turn-a")
+    context_a = ToolPolicyContext(
+        principal=UNIDENTIFIED_PRINCIPAL,
+        session_state=state,
+        turn_metadata=turn_a,
+    )
+    inner = BlockingAPIInstance(
+        [FixtureTool("mutating")],
+        result=ToolExecutionResult({"success": True}, _undo_action()),
+    )
+    registry = ToolPolicyRegistry()
+    registry.register_exact(
+        FixtureTool,
+        "mutating",
+        StaticToolPolicy(effect=EffectClass.MUTATING),
+    )
+    wrapped = testbed_api.TestbedAPI.wrap(inner, context_a, registry)
+    call = asyncio.create_task(
+        wrapped.async_call_tool(llm.ToolInput(tool_name="mutating", tool_args={}))
+    )
+    await inner.started.wait()
+
+    turn_b = state.async_begin_turn("turn-b")
+    inner.release.set()
+    await call
+
+    entry = state.undo_journal[-1]
+    assert entry.turn_id == "turn-a"
+    assert turn_a.effects == [entry]
+    assert turn_b.effects == []
+    assert state.async_get_turn_metadata("turn-a") is turn_a
+    assert state.async_get_turn_metadata("turn-b") is turn_b
 
 
 async def test_intent_response_undo_metadata_survives_ha_wrapper() -> None:
@@ -315,10 +369,9 @@ def test_personal_tool_is_filtered_for_unidentified_principal() -> None:
 
     assert wrapped.tools == [unrestricted]
     assert inner.tools == [personal, unrestricted]
-    assert context.session_state.turn_metadata is not None
     assert [
         (trace.tool_name, trace.allowed, trace.stage)
-        for trace in context.session_state.turn_metadata.tool_policy
+        for trace in context.turn_metadata.tool_policy
     ] == [
         ("personal", False, "exposure"),
         ("unrestricted", True, "exposure"),

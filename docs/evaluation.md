@@ -319,8 +319,9 @@ which is precisely the machinery our durable trigger reuses:
 - **Undo journal** — action → recorded inverse → replay → assert state restored
   exactly (scene snapshot round-trip); world-moved-on → confirm/decline ([`undo.md`](undo.md)).
 - **ChatLog session state** — state survives HA's between-turn `dataclasses.replace()`,
-  expires with the chat session, never duplicates transcript content, and isolates concurrent
-  conversation IDs.
+  expires with the chat session, never duplicates transcript content, isolates concurrent
+  conversation IDs, and keeps delayed effects attributed to the originating turn when two
+  turns overlap within one conversation.
 - **Identity/scope policy** — unidentified `"default"` callers can use household scope but
   cannot create or read personal records; recognized/authenticated users see household plus
   only their own personal records.

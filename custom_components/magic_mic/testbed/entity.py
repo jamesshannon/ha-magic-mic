@@ -123,6 +123,7 @@ class TestbedConversationEntity(ClaudeConversationEntity):
                     is_continuation=turn_metadata.is_continuation,
                     principal=principal,
                     session_state=session_state,
+                    turn_metadata=turn_metadata,
                 ),
             )
 

@@ -164,13 +164,7 @@ class TestbedAPI(llm.APIInstance):
                 reason=UndoUnavailableReason.NOT_SUPPORTED,
             )
 
-        metadata = self._policy_context.session_state.turn_metadata
-        if metadata is None:
-            LOGGER.warning(
-                "[testbed] cannot journal effect for %s without turn metadata",
-                tool_name,
-            )
-            return
+        metadata = self._policy_context.turn_metadata
         entry = async_record_undo(
             self._policy_context.session_state,
             disposition,
@@ -215,9 +209,7 @@ class TestbedAPI(llm.APIInstance):
         tool_name: str,
     ) -> None:
         """Append one compact decision to current turn metadata when available."""
-        metadata = self._policy_context.session_state.turn_metadata
-        if metadata is None:
-            return
+        metadata = self._policy_context.turn_metadata
         metadata.tool_policy.append(
             ToolPolicyTrace(
                 allowed=allowed,

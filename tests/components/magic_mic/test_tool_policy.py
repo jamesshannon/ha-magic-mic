@@ -79,11 +79,18 @@ def _context(
     minimum_consequence: ConsequenceClass = ConsequenceClass.LOW,
 ) -> ToolPolicyContext:
     """Build deterministic policy context for a fixture request."""
+    session_state = MagicMicSessionState()
+    turn_metadata = session_state.async_begin_turn(
+        "turn-1",
+        is_continuation=is_continuation,
+        principal=principal,
+    )
     return ToolPolicyContext(
         is_continuation=is_continuation,
         minimum_consequence=minimum_consequence,
         principal=principal,
-        session_state=MagicMicSessionState(),
+        session_state=session_state,
+        turn_metadata=turn_metadata,
     )
 
 

@@ -71,9 +71,14 @@ context containing the resolved principal and ChatLog-backed session state:
 
 ```python
 await chat_log.async_provide_llm_data(...)                 # 1. real Assist API setup
+turn_metadata = session_state.async_begin_turn(turn_id)
 chat_log.llm_api = TestbedAPI.wrap(                        # 2. decorate/filter/intercept
     chat_log.llm_api,
-    ToolPolicyContext(principal=principal, session_state=session_state),
+    ToolPolicyContext(
+        principal=principal,
+        session_state=session_state,
+        turn_metadata=turn_metadata,
+    ),
 )
 await self._async_handle_chat_log(chat_log)                # 3. provider wire protocol + loop
 return conversation.async_get_result_from_chat_log(user_input, chat_log)
@@ -119,13 +124,15 @@ survive between turns, such as a pending confirmed operation or the bounded undo
 are exposed through it but backed by a `conversation_id`-keyed sidecar. HA clones the
 dataclass between turns, so arbitrary subclass instance values are turn-local.
 
-Policy decisions are appended to current turn metadata with the stage, tool, policy source,
-allow/deny result, and consequence. Tool arguments are not copied into that trace. A policy
-source of `unclassified` currently preserves pass-through behavior; it is visible debt, not
-an implicit safe classification. Its effect class defaults to `unknown`, so it installs an
-un-undoable barrier after execution unless the result explicitly reports no mutation or an
-inverse. Undo payloads are object attributes outside the public result mapping and are not
-sent back to the model.
+Policy decisions are appended to the exact `TurnMetadata` captured for the request, with the
+stage, tool, policy source, allow/deny result, and consequence. The session sidecar retains
+metadata by turn ID rather than exposing one replaceable current-turn pointer, so overlapping
+turns cannot redirect delayed effects. Tool arguments are not copied into that trace. A
+policy source of `unclassified` currently preserves pass-through behavior; it is visible
+debt, not an implicit safe classification. Its effect class defaults to `unknown`, so it
+installs an un-undoable barrier after execution unless the result explicitly reports no
+mutation or an inverse. Undo payloads are object attributes outside the public result mapping
+and are not sent back to the model.
 
 ## The escape hatch: modifying `internal.claude`
 

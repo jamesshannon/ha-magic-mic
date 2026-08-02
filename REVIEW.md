@@ -57,6 +57,12 @@ these provider-executed capabilities from HA tools intercepted by `TestbedAPI`.
 
 **Severity:** Foundational contract defect.
 
+**Resolved:** `ToolPolicyContext` now requires the exact request-local `TurnMetadata`.
+Exposure traces, execution traces, and delayed effect recording use that reference. The
+session sidecar retains metadata by turn ID and no longer exposes a replaceable current-turn
+pointer. A regression test pauses turn A's executor, starts turn B, then verifies A's delayed
+undo effect remains attributed only to A.
+
 `MagicMicSessionState` stores one mutable `turn_metadata` pointer for the whole conversation.
 Every turn replaces it in `async_begin_turn()`. `TestbedAPI._record_effect()` later reads that
 shared pointer rather than retaining the `TurnMetadata` created for its request.

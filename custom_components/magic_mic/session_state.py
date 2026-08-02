@@ -45,12 +45,17 @@ class MagicMicSessionState:
 
     The pending-operation contract is immutable and provider-neutral. Undo journal
     entries are typed and single-use; capability-specific compensation stays outside
-    this state container.
+    this state container. Turn metadata is keyed by exact turn ID so overlapping turns
+    cannot replace one another's attribution target.
     """
 
     pending_operation: PendingOperation | None = None
-    turn_metadata: TurnMetadata | None = None
     _cleanup_registered: bool = field(default=False, init=False, repr=False)
+    _turn_metadata: dict[str, TurnMetadata] = field(
+        default_factory=dict,
+        init=False,
+        repr=False,
+    )
     _undo_journal: deque[UndoJournalEntry] = field(
         default_factory=lambda: deque(maxlen=UNDO_JOURNAL_LIMIT),
         init=False,
@@ -78,15 +83,21 @@ class MagicMicSessionState:
         satellite_id: str | None = None,
     ) -> TurnMetadata:
         """Create fresh metadata for a turn, idempotently for the same turn ID."""
-        if self.turn_metadata is None or self.turn_metadata.turn_id != turn_id:
-            self.turn_metadata = TurnMetadata(
+        if (metadata := self._turn_metadata.get(turn_id)) is None:
+            metadata = TurnMetadata(
                 device_id=device_id,
                 is_continuation=is_continuation,
                 principal=principal,
                 satellite_id=satellite_id,
                 turn_id=turn_id,
             )
-        return self.turn_metadata
+            self._turn_metadata[turn_id] = metadata
+        return metadata
+
+    @callback
+    def async_get_turn_metadata(self, turn_id: str) -> TurnMetadata | None:
+        """Return metadata for an exact turn ID when retained by this session."""
+        return self._turn_metadata.get(turn_id)
 
 
 DATA_SESSION_STATES: HassKey[dict[str, MagicMicSessionState]] = HassKey(

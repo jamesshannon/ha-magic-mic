@@ -25,7 +25,7 @@ from homeassistant.helpers import llm
 from .const import DOMAIN
 from .identity import DataScope, ResolvedPrincipal
 from .pending_operation import ConsequenceClass
-from .session_state import MagicMicSessionState
+from .session_state import MagicMicSessionState, TurnMetadata
 
 _POLICY_ATTRIBUTE = "magic_mic_tool_policy"
 _ToolT = TypeVar("_ToolT", bound=type[llm.Tool])
@@ -54,6 +54,7 @@ class ToolPolicyContext:
 
     principal: ResolvedPrincipal
     session_state: MagicMicSessionState
+    turn_metadata: TurnMetadata
     is_continuation: bool = False
     minimum_consequence: ConsequenceClass = ConsequenceClass.LOW
 

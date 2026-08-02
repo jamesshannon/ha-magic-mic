@@ -719,7 +719,9 @@ one implementation constraint: HA uses `dataclasses.replace()` to clone a `ChatL
 turns, so arbitrary subclass `__dict__` state does not survive. Session-scoped state therefore
 lives in a sidecar keyed by `conversation_id`, exposed through `MagicMicChatLog` properties,
 and cleaned up with the HA chat session. This is storage behind the existing object, not a
-second interaction model.
+second interaction model. Turn metadata inside that sidecar is keyed by turn ID, and each
+request carries its exact metadata object into asynchronous policy and effect recording;
+there is no mutable conversation-wide "current turn" pointer.
 
 Policy is enforced in code at two points:
 
