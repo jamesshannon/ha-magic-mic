@@ -18,7 +18,11 @@ from homeassistant.util.json import JsonObjectType
 
 from ..const import DOMAIN, LOGGER
 from ..execution_result import get_undo_disposition, public_tool_result
-from ..pending_operation import PendingOperation, async_stage_pending
+from ..pending_operation import (
+    PendingOperation,
+    PendingOperationAlreadyStaged,
+    async_stage_pending,
+)
 from ..session_state import ToolPolicyTrace
 from ..tool_policy import (
     DEFAULT_TOOL_POLICY_REGISTRY,
@@ -133,7 +137,26 @@ class TestbedAPI(llm.APIInstance):
                 principal=self._policy_context.principal,
                 tool_name=tool.name,
             )
-            async_stage_pending(self._policy_context.session_state, operation)
+            try:
+                async_stage_pending(self._policy_context.session_state, operation)
+            except PendingOperationAlreadyStaged:
+                self._record_trace(
+                    allowed=False,
+                    consequence=decision.consequence,
+                    policy_source=decision.source,
+                    stage="confirmation_conflict",
+                    tool_name=tool.name,
+                )
+                LOGGER.debug(
+                    "[testbed] confirmation conflict for %s; keeping first operation",
+                    tool.name,
+                )
+                return {
+                    "confirmation_required": False,
+                    "error": "pending_operation_already_staged",
+                    "success": False,
+                    "tool_name": tool.name,
+                }
             return {
                 "confirmation_required": True,
                 "success": False,

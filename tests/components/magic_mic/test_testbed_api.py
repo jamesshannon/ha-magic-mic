@@ -41,6 +41,7 @@ from custom_components.magic_mic.undo import (
     UndoUnavailable,
     UndoUnavailableReason,
 )
+from homeassistant.components import conversation
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import intent, llm
 from homeassistant.util.json import JsonObjectType
@@ -529,3 +530,54 @@ async def test_always_confirm_stages_on_an_ordinary_turn() -> None:
 
     assert inner.calls == []
     assert context.session_state.pending_operation is not None
+
+
+async def test_multiple_confirmation_calls_keep_first_without_aborting(
+    hass: HomeAssistant,
+) -> None:
+    """Parallel HA tool handling returns a conflict for calls after the first."""
+    tools = [FixtureTool("first"), FixtureTool("second")]
+    inner = RecordingAPIInstance(tools)
+    registry = ToolPolicyRegistry()
+    for tool in tools:
+        registry.register_exact(
+            FixtureTool,
+            tool.name,
+            StaticToolPolicy(consequence=ConsequenceClass.ALWAYS_CONFIRM),
+        )
+    context = _context()
+    wrapped = testbed_api.TestbedAPI.wrap(inner, context, registry)
+    chat_log = conversation.ChatLog(hass, "conversation-1")
+    chat_log.llm_api = wrapped
+    content = conversation.AssistantContent(
+        agent_id="test-agent",
+        tool_calls=[
+            llm.ToolInput(id="call-1", tool_name="first", tool_args={"value": 1}),
+            llm.ToolInput(id="call-2", tool_name="second", tool_args={"value": 2}),
+        ],
+    )
+
+    results = [result async for result in chat_log.async_add_assistant_content(content)]
+
+    assert [result.tool_result for result in results] == [
+        {
+            "confirmation_required": True,
+            "success": False,
+            "tool_name": "first",
+        },
+        {
+            "confirmation_required": False,
+            "error": "pending_operation_already_staged",
+            "success": False,
+            "tool_name": "second",
+        },
+    ]
+    pending = context.session_state.pending_operation
+    assert pending is not None
+    assert pending.tool_name == "first"
+    assert pending.mutable_arguments() == {"value": 1}
+    assert inner.calls == []
+    conflict = context.turn_metadata.tool_policy[-1]
+    assert conflict.allowed is False
+    assert conflict.stage == "confirmation_conflict"
+    assert conflict.tool_name == "second"

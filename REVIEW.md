@@ -104,6 +104,14 @@ custom inner executor that would accept an undeclared name and prove that it is 
 **Severity:** High once any confirmation-sensitive policy is enabled; fix before the first
 such production tool.
 
+**Resolved:** The first confirmation-sensitive call emitted by the model claims the single
+pending slot. HA eager-starts tool tasks in emitted order, and staging completes before the
+tool coroutine can yield. Later calls now return a structured
+`pending_operation_already_staged` result, preserve the first immutable operation, perform no
+work, and no longer abort ChatLog processing. Replacement utterances remain a responsibility
+of the future confirmation consumer: it must reject or supersede the stored operation before
+routing the replacement command.
+
 The policy wrapper stages a confirmation with the default `StageConflictPolicy.REJECT`.
 `PendingOperationAlreadyStaged` is a plain `Exception`, while HA's ChatLog converts only
 `HomeAssistantError` and voluptuous validation failures into tool results. A second
@@ -111,11 +119,11 @@ confirmation-sensitive call, including two calls emitted in one model generation
 escapes the tool loop and can fail the entire conversation. With concurrent tool execution,
 which operation wins is also an incidental scheduling outcome.
 
-Define deterministic multiple-call behavior before wiring approval. A reasonable v1 rule is
-one pending operation selected by model tool-call order, with later confirmation-sensitive
-calls returning a localizable conflict result and performing no work. The normal replacement
-utterance from the requirements (for example, "No. Turn off the kitchen lights") also needs
-an explicit reject-or-supersede transition before it can stage the replacement.
+The implemented v1 rule keeps one pending operation selected by model tool-call order, with
+later confirmation-sensitive calls returning a structured conflict result and performing no
+work. The normal replacement utterance from the requirements (for example, "No. Turn off the
+kitchen lights") still needs an explicit reject-or-supersede transition in the future
+confirmation consumer before it can stage the replacement.
 
 ### R5. `UserKeyedStore` does not enforce the identity/scope contract it claims
 

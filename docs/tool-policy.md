@@ -67,7 +67,10 @@ mutate; a sensitive calendar read may remain read-only.
 4. A confirmation-sensitive call does not invoke the inner API. It freezes the exact tool
    name, arguments, principal, effective consequence, and a 30-second expiry into the
    session's `PendingOperation`, then returns a structured `confirmation_required` tool
-   result. The main LLM writes the spoken question; tools do not provide previews in v1.
+   result. HA eager-starts calls in emitted order and staging has no await, so the first such
+   call claims the single pending slot. Later calls return a structured
+   `pending_operation_already_staged` conflict, leave the first record unchanged, and do no
+   work. The main LLM writes the spoken question; tools do not provide previews in v1.
 5. After a completed call, the proxy records private undo outcome metadata. A mutating or
    unknown call without it becomes a `not_supported` journal barrier; read-only and explicit
    no-op outcomes do not shadow the latest mutation. A raised possible mutation also creates
@@ -211,6 +214,8 @@ Deterministic tests cover:
 - typed/localizable rejection without inner execution;
 - ordinary versus continuation behavior for `confirm_on_continuation`;
 - immutable staging for continuation and `always_confirm` operations;
+- ordered multi-call staging where the first operation survives and later calls return
+  structured conflicts without aborting the ChatLog;
 - read-only/no-op versus mutating/unknown journaling behavior and private result metadata;
 - policy trace records and unchanged pass-through for unclassified tools.
 
