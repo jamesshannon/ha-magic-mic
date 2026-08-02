@@ -388,6 +388,13 @@ successful allowed call, a denied call, private outcome stripping, and a provide
 generation. This is the integration point most likely to expose lifecycle behavior that unit
 tests around `TestbedAPI` cannot.
 
+**Resolved:** driven conversation tests now feed provider `tool_use` streams through both
+agents. The baseline executes `HassTurnOn` through the stock API path. The testbed executes
+the same real intent through `TestbedAPI`, journals a private undo outcome while keeping its
+inverse arguments out of the provider follow-up, and completes generation two. A second turn
+has the provider emit a policy-hidden `HassTurnOn`; the execution-time recheck denies it, the
+light remains off, and the structured error reaches a successful follow-up generation.
+
 ## Pass 3: provider adapter and integration lifecycle
 
 Status: complete. Diffed the embedded Claude adapter against the checked-out HA Anthropic

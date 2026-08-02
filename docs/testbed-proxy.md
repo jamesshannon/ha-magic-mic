@@ -110,6 +110,14 @@ staging are specified in [`tool-policy.md`](tool-policy.md).
 | Capture deterministic effects | journal private undo outcomes; barrier possible mutations with no outcome |
 | Shadow/enforce capability selection | compute a `SelectionPlan`; compare with or replace `.tools`, prompt instructions, and context |
 
+The interception boundary has a driven conversation test, not only `TestbedAPI` unit tests.
+A mocked provider emits `HassTurnOn` as `tool_use`: the baseline follows stock Assist
+execution, while the testbed crosses the decorator, strips private undo metadata before the
+provider follow-up, and journals it internally. A second case emits the same tool after policy
+has hidden it and verifies execution-time denial, no device effect, and a follow-up generation
+that receives the structured error. This test protects the ChatLog task and serialization
+lifecycle around the neutral seam.
+
 Token, generation, and turn counts for the value dashboard come from inspecting the ChatLog
 at the neutral layer. For raw model I/O (exact request and response bytes, token usage) the
 testbed injects an instrumented Anthropic client into the inner agent, so the loop code stays

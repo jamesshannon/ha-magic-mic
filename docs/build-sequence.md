@@ -180,11 +180,12 @@ before more capabilities depend on the earlier placeholder interfaces.
   ([`find-entities.md`](find-entities.md)).
   → measure **Δturns** (disambiguation success).
 - **[HA]** Flip **`prefer_local_intents` ON** (§2.9) → measure **Δhassil-intervention rate**.
-- **Testing gate (tool interception):** the Wave 0 equivalence test covers the *pass-through*
-  proxy only. **Before any tool filtering / replacement / interception is committed** (the
-  wrapped `TestbedAPI.async_call_tool` routing, e.g. `find_entities` → the fuzzy resolver), add
-  a conversation-turn test driving a `tool_use` response that asserts the interception: the
-  baseline executes the stock tool; the testbed routes/rewrites it. See
+- **[C] Testing gate (tool interception):** driven conversation tests now feed a provider
+  `tool_use` through the complete baseline and testbed loops. They prove stock baseline
+  execution, allowed proxy execution, private undo-outcome stripping, execution-time denial
+  of a hidden tool, and provider follow-up after both success and denial. Keep this boundary
+  test when adding tool replacement or routing such as `find_entities`; unit seam tests around
+  `TestbedAPI` do not cover the ChatLog/provider lifecycle. See
   [`testbed-proxy.md`](testbed-proxy.md).
 
 *Proves:* the token/turn/local claims — the **go/no-go** on the design's central bet.
