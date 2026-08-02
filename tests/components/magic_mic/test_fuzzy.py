@@ -48,6 +48,25 @@ def test_score_is_order_insensitive() -> None:
     assert score("kitchen ceiling", "Ceiling Light Kitchen") >= FUZZY_ACCEPT_SCORE
 
 
+@pytest.mark.parametrize(
+    ("query", "name"),
+    [
+        ("enciende la lámpara", "Lámpara"),
+        ("включи кухонный свет", "Кухонный свет"),
+        ("厨房灯", "厨房灯"),
+        ("台所のライト", "台所のライト"),
+    ],
+)
+def test_score_preserves_unicode_languages(query: str, name: str) -> None:
+    """Accented Latin, Cyrillic, Chinese, and Japanese text remains matchable."""
+    assert score(query, name) >= FUZZY_ACCEPT_SCORE
+
+
+def test_score_normalizes_equivalent_unicode_forms() -> None:
+    """Composed and decomposed accents compare as the same text."""
+    assert score("la\N{COMBINING ACUTE ACCENT}mpara", "lámpara") == pytest.approx(100.0)
+
+
 def test_score_candidates_ranks_by_best_name_and_drops_nameless() -> None:
     """Each candidate scores by its best alias; nameless candidates are dropped."""
     ranked = score_candidates(
@@ -159,6 +178,22 @@ def test_union_alone_leaves_shared_word_cluster_ambiguous() -> None:
 def test_idf_tiebreak_resolves_shared_word_cluster() -> None:
     """The IDF tie-break down-weights the shared 'living room' so the blind wins."""
     resolution = resolve_candidates("living room blind", _SHARED_WORD_HOME, 5)
+
+    assert resolution.match is not None
+    assert resolution.match.key == "cover.blind"
+
+
+def test_idf_tiebreak_preserves_cyrillic_tokens() -> None:
+    """The rarity tie-break works on Cyrillic words instead of receiving empty sets."""
+    candidates = {
+        "cover.blind": Candidate(("гостиная штора",)),
+        "media_player.tv": Candidate(("гостиная телевизор",)),
+        "light.bed": Candidate(("спальня свет",)),
+        "light.kitchen": Candidate(("кухня свет",)),
+        "fan.bath": Candidate(("ванная вентилятор",)),
+    }
+
+    resolution = resolve_candidates("гостиная штора", candidates, 5)
 
     assert resolution.match is not None
     assert resolution.match.key == "cover.blind"

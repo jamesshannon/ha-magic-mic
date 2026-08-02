@@ -370,10 +370,13 @@ that needs to name a device.
   add only if evals show misses.
 - **Compound queries** ("the lamp in the reading nook") — push structure to the
   model (`name` + `area`) vs. accept a blob and factor it. Prefer the model slots.
-- **Localization of the scorer (§5.7)** — `token_set_ratio` is Unicode-safe at the
-  character level but assumes **whitespace word boundaries**, so CJK/Thai tokenization and
-  per-script threshold tuning need eval coverage. Entity names are in the user's own
-  language (fine — we match the spoken name against them), but validate the scorer doesn't
-  silently degrade on non-whitespace scripts.
+- **Localization of the scorer (§5.7)** — the implementation reuses Hassil's Unicode NFC
+  normalization and RapidFuzz's Unicode-aware processor. Accented Latin and Cyrillic survive
+  both union scoring and the IDF tie-break. HA and Hassil do not expose a general linguistic
+  tokenizer for fuzzy search; Hassil handles configured no-whitespace languages in its
+  grammar matcher instead. Do not invent segmentation here. Add labeled per-language
+  resolution corpora and choose any future language-specific scorer or tokenizer from
+  measured failures. The existing English-derived action thresholds are not presumed
+  portable.
 - **`preferred_area_id` / `preferred_floor_id`** — thread known area from prior
   turns as a ranking bias, not just a hard filter.

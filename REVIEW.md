@@ -320,6 +320,14 @@ without whitespace segmentation are handled. Add the same behavioral cases in mu
 languages, including accented Latin, Cyrillic, and a language such as Chinese or Japanese.
 Do not tune English thresholds and assume they transfer unchanged.
 
+**Resolved:** fuzzy scoring and prompt keyword selection now reuse Hassil's Unicode NFC
+normalization and RapidFuzz's Unicode-aware processor. The IDF path therefore preserves
+accented Latin and Cyrillic rather than applying its former ASCII filter. Prompt keyword
+matching also follows the installed HA intents' `ignore_whitespace` setting instead of
+inventing a script inventory or character segmentation policy. Chinese and Japanese
+regressions ensure text is not dropped, while the evaluation plan requires per-language
+threshold reporting and leaves real linguistic segmentation to measured future work.
+
 ### R14. Model-facing capability instructions are hardcoded in English
 
 **Severity:** Medium localization contract violation.

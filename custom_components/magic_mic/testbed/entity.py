@@ -14,7 +14,11 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.llm import LLMContext
 
-from ..capabilities.prompt_context import async_domain_keyword_map, select_request_names
+from ..capabilities.prompt_context import (
+    async_domain_keyword_map,
+    language_ignores_whitespace,
+    select_request_names,
+)
 from ..chat_log import MagicMicChatLog, upgrade_chat_log
 from ..const import (
     CONF_ENTITY_SUMMARY,
@@ -163,6 +167,7 @@ class TestbedConversationEntity(ClaudeConversationEntity):
             assistant,
             user_input.text,
             area_id,
+            ignore_whitespace=language_ignores_whitespace(llm_context.language),
             keyword_map=keyword_map,
             limit=NAME_INJECTION_LIMIT,
         )

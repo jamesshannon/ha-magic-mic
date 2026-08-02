@@ -30,7 +30,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 import math
-import re
+
+from hassil import normalize_text
 
 from .const import (
     FUZZY_ACCEPT_SCORE,
@@ -46,10 +47,6 @@ try:
     _HAVE_RAPIDFUZZ = True
 except ImportError:  # pragma: no cover - rapidfuzz is a manifest requirement
     _HAVE_RAPIDFUZZ = False
-
-# Mirrors rapidfuzz.utils.default_process for the difflib fallback: lowercase, then
-# collapse every non-alphanumeric run to a single space so tokenization matches.
-_NON_ALNUM = re.compile(r"[^0-9a-z]+")
 
 
 @dataclass(slots=True, frozen=True)
@@ -114,9 +111,15 @@ class Candidate:
 
 def score(query: str, name: str) -> float:
     """Return the fuzzy similarity of ``query`` to a single ``name`` in ``[0, 100]``."""
+    query_normalized = normalize_text(query).casefold()
+    name_normalized = normalize_text(name).casefold()
     if _HAVE_RAPIDFUZZ:
-        return fuzz.token_set_ratio(query, name, processor=utils.default_process)
-    return _difflib_token_set_ratio(query, name)
+        return fuzz.token_set_ratio(
+            query_normalized,
+            name_normalized,
+            processor=utils.default_process,
+        )
+    return _difflib_token_set_ratio(query_normalized, name_normalized)
 
 
 def score_candidates(query: str, candidates: dict[str, Candidate]) -> list[Scored]:
@@ -206,7 +209,7 @@ def _score_candidates_idf(query: str, candidates: dict[str, Candidate]) -> list[
     docs = {
         key: token_docs
         for key, candidate in candidates.items()
-        if (token_docs := [t for d in candidate.documents() if (t := _tokenize(d))])
+        if (token_docs := [t for d in candidate.documents() if (t := tokenize(d))])
     }
     document_frequency: Counter[str] = Counter()
     for token_docs in docs.values():
@@ -218,7 +221,7 @@ def _score_candidates_idf(query: str, candidates: dict[str, Candidate]) -> list[
         # unmatched content word is penalized rather than ignored.
         return math.log(1 + total / document_frequency.get(token, 1))
 
-    query_tokens = _tokenize(query)
+    query_tokens = tokenize(query)
     return [
         Scored(
             key, max(_idf_coverage(query_tokens, tokens, idf) for tokens in token_docs)
@@ -272,8 +275,8 @@ def _difflib_token_set_ratio(query: str, name: str) -> float:
     sorted token string and take the best ratio, so a query that is a token subset of
     the name scores 100. Only reached when rapidfuzz is not installed.
     """
-    query_tokens = _tokenize(query)
-    name_tokens = _tokenize(name)
+    query_tokens = tokenize(query)
+    name_tokens = tokenize(name)
     if not query_tokens or not name_tokens:
         return 0.0
 
@@ -289,6 +292,15 @@ def _difflib_token_set_ratio(query: str, name: str) -> float:
     )
 
 
-def _tokenize(value: str) -> set[str]:
-    """Lowercase and split on non-alphanumeric runs, as `default_process` would."""
-    return {token for token in _NON_ALNUM.sub(" ", value.lower()).split() if token}
+def tokenize(value: str) -> set[str]:
+    """Return Hassil-normalized Unicode tokens using RapidFuzz's processor."""
+    normalized = normalize_text(value).casefold()
+    if _HAVE_RAPIDFUZZ:
+        return set(utils.default_process(normalized).split())
+
+    # Match RapidFuzz's basic contract for the dependency-free fallback: retain
+    # Unicode letters and numbers, replacing other characters with separators.
+    processed = "".join(
+        character if character.isalnum() else " " for character in normalized
+    )
+    return set(processed.split())

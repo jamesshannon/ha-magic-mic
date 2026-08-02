@@ -323,7 +323,10 @@ which is precisely the machinery our durable trigger reuses:
 ### Every other subsystem, too
 - **`find_entities` scorer** — a labeled `(query, candidates) → expected ranking + guard
   decision` set (decisive / ambiguous / floor); the ambiguity-threshold regression gate
-  ([`find-entities.md`](find-entities.md)).
+  ([`find-entities.md`](find-entities.md)). Report false accepts, clarifications, and misses
+  by language/script, with accented Latin, Cyrillic, and no-whitespace-script fixtures in
+  the corpus. Unit tests prove those strings survive normalization; they do not establish
+  that one English-tuned threshold is safe in every language.
 - **Undo journal** — action → recorded inverse → replay → assert state restored
   exactly (scene snapshot round-trip); world-moved-on → confirm/decline ([`undo.md`](undo.md)).
 - **ChatLog session state** — state survives HA's between-turn `dataclasses.replace()`,

@@ -15,7 +15,11 @@ Provider-agnostic and core-shaped: depends only on `hass`, the assistant id, and
 registries (§5.5).
 """
 
+from functools import lru_cache
 import re
+
+from hassil import normalize_text
+from home_assistant_intents import get_intents, get_languages
 
 from homeassistant.components.homeassistant import async_should_expose
 from homeassistant.core import HomeAssistant, callback
@@ -26,6 +30,7 @@ from homeassistant.helpers import (
     floor_registry as fr,
 )
 from homeassistant.helpers.translation import async_get_translations
+from homeassistant.util import language as language_util
 
 from ..const import (
     FUZZY_TOKEN_MATCH_SCORE,
@@ -34,7 +39,7 @@ from ..const import (
     NAME_INJECTION_ROOM_BONUS,
 )
 from ..entity_candidates import Registries, build_candidate, resolve_area
-from ..fuzzy import Candidate, score, score_candidates
+from ..fuzzy import Candidate, score, score_candidates, tokenize
 
 # Leads the summary so the model reads the counts as structure, not as an
 # actionable name list. Kept tool-agnostic on purpose: the lookup tool it points to
@@ -60,8 +65,6 @@ NAME_INJECTION_HEADER = (
 _ENTITY_COMPONENT_NAME = re.compile(
     r"^component\.(?P<domain>[^.]+)\.entity_component\.[^.]+\.name$"
 )
-# Collapse every non-alphanumeric run to a space, matching how the fuzzy scorer tokenizes.
-_NON_ALNUM = re.compile(r"[^0-9a-z]+")
 
 
 @callback
@@ -165,12 +168,17 @@ async def async_domain_keyword_map(
         if match is None or "[%" in value:
             continue
         domain = match.group("domain")
-        for token in _tokenize(value):
+        for token in tokenize(value):
             keyword_map.setdefault(token, set()).add(domain)
     return keyword_map
 
 
-def keyword_domains(utterance: str, keyword_map: dict[str, set[str]]) -> set[str]:
+def keyword_domains(
+    utterance: str,
+    keyword_map: dict[str, set[str]],
+    *,
+    ignore_whitespace: bool = False,
+) -> set[str]:
     """Return the domains whose localized name tokens the utterance mentions.
 
     Exact token hits win outright; otherwise each utterance token is compared to the map's
@@ -178,7 +186,14 @@ def keyword_domains(utterance: str, keyword_map: dict[str, set[str]]) -> set[str
     "blinds" ↔ "blind") still lands on its domain without a hardcoded stemmer.
     """
     domains: set[str] = set()
-    for token in _tokenize(utterance):
+    if ignore_whitespace:
+        compact_utterance = "".join(normalize_text(utterance).casefold().split())
+        for map_token, map_domains in keyword_map.items():
+            compact_token = "".join(normalize_text(map_token).casefold().split())
+            if compact_token and compact_token in compact_utterance:
+                domains |= map_domains
+
+    for token in tokenize(utterance):
         if (exact := keyword_map.get(token)) is not None:
             domains |= exact
             continue
@@ -195,6 +210,7 @@ def select_request_names(
     utterance: str,
     area_id: str | None,
     *,
+    ignore_whitespace: bool = False,
     keyword_map: dict[str, set[str]],
     limit: int,
 ) -> str | None:
@@ -236,7 +252,15 @@ def select_request_names(
     }
     # Keyword widening applies only to in-room entities; unbounded it would inject a whole
     # domain, so it is empty when there is no room to bound it.
-    widened = keyword_domains(utterance, keyword_map) if area_id is not None else set()
+    widened = (
+        keyword_domains(
+            utterance,
+            keyword_map,
+            ignore_whitespace=ignore_whitespace,
+        )
+        if area_id is not None
+        else set()
+    )
 
     ranked: list[tuple[float, str]] = []
     for entity_id in candidates:
@@ -266,9 +290,16 @@ def select_request_names(
     return "\n".join(lines)
 
 
-def _tokenize(value: str) -> set[str]:
-    """Lowercase and split on non-alphanumeric runs, as the fuzzy scorer does."""
-    return {token for token in _NON_ALNUM.sub(" ", value.lower()).split() if token}
+@lru_cache
+def language_ignores_whitespace(language: str | None) -> bool:
+    """Return Hassil's configured whitespace behavior for one HA language."""
+    if language is None or not (
+        matches := language_util.matches(language, set(get_languages()))
+    ):
+        return False
+    if (intents := get_intents(matches[0])) is None:
+        return False
+    return bool(intents.get("settings", {}).get("ignore_whitespace", False))
 
 
 def _render_domain(domain: str, device_class_counts: dict[str | None, int]) -> str:

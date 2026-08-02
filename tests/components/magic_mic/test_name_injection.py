@@ -6,6 +6,7 @@ from custom_components.magic_mic.capabilities.prompt_context import (
     NAME_INJECTION_HEADER,
     async_domain_keyword_map,
     keyword_domains,
+    language_ignores_whitespace,
     select_request_names,
 )
 from custom_components.magic_mic.const import NAME_INJECTION_LIMIT
@@ -62,6 +63,7 @@ def _select(hass: HomeAssistant, utterance: str, area_id: str | None, **kwargs) 
         ASSISTANT,
         utterance,
         area_id,
+        ignore_whitespace=kwargs.get("ignore_whitespace", False),
         keyword_map=kwargs.get("keyword_map", {}),
         limit=kwargs.get("limit", NAME_INJECTION_LIMIT),
     )
@@ -88,6 +90,47 @@ def test_keyword_domains_matches_exact_and_plural() -> None:
     assert keyword_domains("turn off the light", keyword_map) == {"light"}
     assert keyword_domains("open the blinds", keyword_map) == {"cover"}
     assert keyword_domains("lock the front door", keyword_map) == set()
+
+
+@pytest.mark.parametrize(
+    ("utterance", "keyword", "domain", "ignore_whitespace"),
+    [
+        ("enciende la lámpara", "lámpara", "light", False),
+        ("включи свет", "свет", "light", False),
+        ("请打开照明", "照明", "light", True),
+    ],
+)
+def test_keyword_domains_matches_localized_terms(
+    utterance: str,
+    keyword: str,
+    domain: str,
+    ignore_whitespace: bool,
+) -> None:
+    """Localized terms follow Unicode tokenization and Hassil whitespace settings."""
+    assert keyword_domains(
+        utterance,
+        {keyword: {domain}},
+        ignore_whitespace=ignore_whitespace,
+    ) == {domain}
+
+
+def test_keyword_domains_does_not_split_chinese_terms_into_characters() -> None:
+    """An unrelated word sharing one ideograph does not activate a domain keyword."""
+    assert (
+        keyword_domains(
+            "明天会下雨",
+            {"照明": {"light"}},
+            ignore_whitespace=True,
+        )
+        == set()
+    )
+
+
+def test_keyword_whitespace_mode_comes_from_ha_intents() -> None:
+    """No-whitespace matching follows the installed HA language configuration."""
+    assert language_ignores_whitespace("zh-CN") is True
+    assert language_ignores_whitespace("zh-Hans") is True
+    assert language_ignores_whitespace("en") is False
 
 
 async def test_select_room_scoped_by_fuzzy_name(hass: HomeAssistant) -> None:

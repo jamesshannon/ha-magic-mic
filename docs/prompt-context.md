@@ -439,6 +439,10 @@ Design constraints:
   `entity_component` names) so it's dynamic per language — a hardcoded English dict both
   fails non-English homes and blocks core-merge. Because it's only a recall *booster*
   (misses degrade to a lookup), a thin/absent map in some language is graceful, not fatal.
+  Matching reuses Hassil normalization and RapidFuzz's Unicode-aware processor. When the
+  installed HA intents for a language set Hassil's `ignore_whitespace` option, a complete
+  translated domain term may also match inside the whitespace-free utterance. Terms are not
+  split into invented character n-grams.
 - **Keyword + fuzzy, not embeddings.** §5.3 settled it: entities are bounded and
   structured, so composed hashmap lookups + fuzzy over the room set suffice; vector
   search is for the *unbounded unstructured* stores (memory), not entities. Resist
@@ -473,7 +477,9 @@ is a soft prior, Refinement B below, built rather than deferred):
   translations (each domain's display name plus its device-class names), so it is
   localized, not a hardcoded English dict. It is deliberately thin: canonical terms
   ("Light", "Blind"), not colloquial synonyms ("lamp", "music"), and misses degrade to
-  fuzzy-name plus one lookup.
+  fuzzy-name plus one lookup. The scorer's Hassil normalization is shared with
+  `find_entities`; thresholds still require per-language corpus calibration rather than
+  extrapolation from English.
 
 Refinement A below was weighed during that build and deferred; it is recorded so it is not
 re-derived from scratch. Revisit it when the eval says the fast path is leaving turns on
