@@ -3,9 +3,8 @@
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.magic_mic.capabilities.localization import ConversationStrings
 from custom_components.magic_mic.capabilities.prompt_context import (
-    ENTITY_SUMMARY_HEADER,
-    UNASSIGNED_LABEL,
     async_build_entity_summary,
 )
 from homeassistant.components import conversation
@@ -54,12 +53,16 @@ def _register(
     async_expose_entity(hass, ASSISTANT, entry.entity_id, expose)
 
 
-async def test_empty_when_nothing_exposed(hass: HomeAssistant) -> None:
+async def test_empty_when_nothing_exposed(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
     """No exposed entities yields an empty summary (caller falls back)."""
-    assert async_build_entity_summary(hass, ASSISTANT) == ""
+    assert async_build_entity_summary(hass, ASSISTANT, conversation_strings) == ""
 
 
-async def test_groups_by_floor_area_domain_with_counts(hass: HomeAssistant) -> None:
+async def test_groups_by_floor_area_domain_with_counts(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
     """Areas group under floors; domains carry counts; device classes break out."""
     floor_reg = fr.async_get(hass)
     area_reg = ar.async_get(hass)
@@ -78,9 +81,9 @@ async def test_groups_by_floor_area_domain_with_counts(hass: HomeAssistant) -> N
     _register(hass, "switch.kitchen_kettle", area_id=kitchen.id)
     _register(hass, "light.bedroom_1", area_id=bedroom.id)
 
-    summary = async_build_entity_summary(hass, ASSISTANT)
+    summary = async_build_entity_summary(hass, ASSISTANT, conversation_strings)
 
-    assert summary.startswith(ENTITY_SUMMARY_HEADER)
+    assert summary.startswith(conversation_strings.entity_summary_header)
     lines = summary.splitlines()[1:]
     # Ground Floor areas sort before Upstairs; areas alphabetical within a floor.
     assert lines == [
@@ -93,7 +96,9 @@ async def test_groups_by_floor_area_domain_with_counts(hass: HomeAssistant) -> N
     ]
 
 
-async def test_floorless_area_and_unassigned_bucket(hass: HomeAssistant) -> None:
+async def test_floorless_area_and_unassigned_bucket(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
     """Areas without a floor render bare; area-less entities land in Unassigned."""
     area_reg = ar.async_get(hass)
     garden = area_reg.async_create("Garden")
@@ -102,16 +107,20 @@ async def test_floorless_area_and_unassigned_bucket(hass: HomeAssistant) -> None
     _register(hass, "sensor.roaming_1")
     _register(hass, "sensor.roaming_2")
 
-    lines = async_build_entity_summary(hass, ASSISTANT).splitlines()[1:]
+    lines = async_build_entity_summary(
+        hass, ASSISTANT, conversation_strings
+    ).splitlines()[1:]
 
     # Floorless areas sort after floored ones; Unassigned is always last.
     assert lines == [
         "Garden: sensor x1 (temperature x1)",
-        f"{UNASSIGNED_LABEL}: sensor x2",
+        f"{conversation_strings.entity_summary_unassigned}: sensor x2",
     ]
 
 
-async def test_device_area_fallback_and_exposure_filter(hass: HomeAssistant) -> None:
+async def test_device_area_fallback_and_exposure_filter(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
     """Entity area falls back to its device; unexposed entities are excluded."""
     area_reg = ar.async_get(hass)
     dev_reg = dr.async_get(hass)
@@ -128,6 +137,8 @@ async def test_device_area_fallback_and_exposure_filter(hass: HomeAssistant) -> 
     _register(hass, "light.office_lamp", device_id=device.id)
     _register(hass, "light.hidden", area_id=office.id, expose=False)
 
-    lines = async_build_entity_summary(hass, ASSISTANT).splitlines()[1:]
+    lines = async_build_entity_summary(
+        hass, ASSISTANT, conversation_strings
+    ).splitlines()[1:]
 
     assert lines == ["Office: light x1"]

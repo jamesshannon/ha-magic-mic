@@ -24,6 +24,7 @@ from ..const import FIND_ENTITIES_DEFAULT_LIMIT, FIND_ENTITIES_MAX_LIMIT
 from ..entity_candidates import Registries, build_candidate, resolve_area
 from ..fuzzy import resolve_candidates
 from ..tool_policy import EffectClass, StaticToolPolicy, tool_policy
+from .localization import ConversationStrings
 
 # async_match_targets reports why a match produced nothing; these two mean the model
 # named an area/floor that does not exist (a fixable mistake worth surfacing), as
@@ -39,46 +40,45 @@ class FindEntitiesTool(llm.Tool):
     """Resolve a fuzzy name and/or structured filters to canonical entity ids."""
 
     name = "find_entities"
-    description = (
-        "Look up Home Assistant entities and their entity_ids by fuzzy name and/or by "
-        "structured filters (area, floor, domain, device class, state). Use it when "
-        "you need entity_ids as data rather than to act now: authoring a reminder or "
-        "automation, listing what exists in an area, or resolving an approximate name "
-        "before another step. Returns scored candidates; when several are close it "
-        "flags them ambiguous so you can ask which one."
-    )
-    parameters = vol.Schema(
-        {
-            vol.Optional(
-                "name",
-                description="Approximate entity name or alias; matched fuzzily.",
-            ): cv.string,
-            vol.Optional(
-                "area",
-                description="Restrict to an area by name, id, or alias.",
-            ): cv.string,
-            vol.Optional(
-                "floor",
-                description="Restrict to a floor by name, id, or alias.",
-            ): cv.string,
-            vol.Optional(
-                "domain",
-                description="Restrict by domain (e.g. 'light'); one or a list.",
-            ): vol.Any(cv.string, [cv.string]),
-            vol.Optional(
-                "device_class",
-                description="Restrict by device class (e.g. 'blind'); one or a list.",
-            ): vol.Any(cv.string, [cv.string]),
-            vol.Optional(
-                "state",
-                description="Restrict to entities currently in this state.",
-            ): cv.string,
-            vol.Optional(
-                "limit",
-                description="Maximum candidates to return.",
-            ): vol.All(vol.Coerce(int), vol.Range(min=1, max=FIND_ENTITIES_MAX_LIMIT)),
-        }
-    )
+
+    def __init__(self, strings: ConversationStrings) -> None:
+        """Build the request-language tool description and parameter schema."""
+        self._strings = strings
+        self.description = strings.find_entities_description
+        self.parameters = vol.Schema(
+            {
+                vol.Optional(
+                    "name",
+                    description=strings.find_entities_field_name,
+                ): cv.string,
+                vol.Optional(
+                    "area",
+                    description=strings.find_entities_field_area,
+                ): cv.string,
+                vol.Optional(
+                    "floor",
+                    description=strings.find_entities_field_floor,
+                ): cv.string,
+                vol.Optional(
+                    "domain",
+                    description=strings.find_entities_field_domain,
+                ): vol.Any(cv.string, [cv.string]),
+                vol.Optional(
+                    "device_class",
+                    description=strings.find_entities_field_device_class,
+                ): vol.Any(cv.string, [cv.string]),
+                vol.Optional(
+                    "state",
+                    description=strings.find_entities_field_state,
+                ): cv.string,
+                vol.Optional(
+                    "limit",
+                    description=strings.find_entities_field_limit,
+                ): vol.All(
+                    vol.Coerce(int), vol.Range(min=1, max=FIND_ENTITIES_MAX_LIMIT)
+                ),
+            }
+        )
 
     @override
     async def async_call(
@@ -89,7 +89,11 @@ class FindEntitiesTool(llm.Tool):
     ) -> JsonObjectType:
         """Resolve the request to a scored, guarded candidate list."""
         if llm_context.assistant is None:
-            return {"success": False, "error": "No assistant configured"}
+            return {
+                "success": False,
+                "error": "assistant_not_configured",
+                "error_text": self._strings.find_entities_error_no_assistant,
+            }
 
         args = self.parameters(tool_input.tool_args)
         name = args.get("name")
@@ -115,9 +119,17 @@ class FindEntitiesTool(llm.Tool):
             if (
                 bad := _INVALID_FILTER_REASONS.get(match_result.no_match_reason)
             ) is not None:
+                error_template = (
+                    self._strings.find_entities_error_invalid_area
+                    if bad == "area"
+                    else self._strings.find_entities_error_invalid_floor
+                )
                 return {
                     "success": False,
-                    "error": f"No {bad} named {match_result.no_match_name!r} exists",
+                    "error": f"invalid_{bad}",
+                    "error_text": error_template.format(
+                        filter_value=match_result.no_match_name,
+                    ),
                 }
             return {"success": True, "results": []}
 
@@ -152,9 +164,13 @@ class FindEntitiesTool(llm.Tool):
         return response
 
 
-def async_get_tools(hass: HomeAssistant, llm_context: llm.LLMContext) -> list[llm.Tool]:
+def async_get_tools(
+    hass: HomeAssistant,
+    llm_context: llm.LLMContext,
+    strings: ConversationStrings,
+) -> list[llm.Tool]:
     """Return this capability's tools, in the core `llm.py` platform shape (§5.5)."""
-    return [FindEntitiesTool()]
+    return [FindEntitiesTool(strings)]
 
 
 def _entity_result(

@@ -5,10 +5,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.magic_mic.capabilities.prompt_context import (
-    ENTITY_SUMMARY_HEADER,
-    NAME_INJECTION_HEADER,
-)
 from custom_components.magic_mic.testbed.prompt import (
     EntitySummaryAssistAPI,
     PreparedLLMAPI,
@@ -29,6 +25,8 @@ from homeassistant.setup import async_setup_component
 from .streaming import create_content_block
 
 ASSISTANT = conversation.DOMAIN
+ENTITY_SUMMARY_HEADER = "Home structure below lists each area"
+NAME_INJECTION_HEADER = "Entities relevant to this request"
 
 
 class ExtraAPI(llm.API):

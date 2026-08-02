@@ -222,6 +222,12 @@ to get the valid candidate set, then apply the **same scorer + guard** as
 Consumer 1. If `name` is absent it's a pure structured list ("the kitchen lights")
 — returning `entity_id`s, which is what `GetLiveContext` can't do today.
 
+The tool is constructed per request from Magic Mic's `conversation` translation category.
+Its description and every parameter description therefore use the request language with
+HA's normal English fallback. Failures return a stable machine code (`invalid_area`,
+`invalid_floor`, or `assistant_not_configured`) plus a localized `error_text`; capability
+code never builds model-facing English errors.
+
 ### The shared primitive — scorer + ambiguity guard
 
 One function, two call sites. `score(query, candidates) -> ranked[(entity_id, score)]`

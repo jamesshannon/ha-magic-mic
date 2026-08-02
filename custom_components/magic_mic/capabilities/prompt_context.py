@@ -40,24 +40,7 @@ from ..const import (
 )
 from ..entity_candidates import Registries, build_candidate, resolve_area
 from ..fuzzy import Candidate, score, score_candidates, tokenize
-
-# Leads the summary so the model reads the counts as structure, not as an
-# actionable name list. Kept tool-agnostic on purpose: the lookup tool it points to
-# (find_entities) is offered in the tool schema, so the prose need not name it.
-ENTITY_SUMMARY_HEADER = (
-    "Home structure below lists each area and how many devices of each type it "
-    "contains. Specific device names are not included; look them up by name with "
-    "the available tools when a command needs one."
-)
-UNASSIGNED_LABEL = "Unassigned"
-
-# Leads the Tier-2 name block. Frames the names as a fast path (use directly) with the
-# lookup tool as the fallback for anything not listed, so a miss is a lookup, not a dead
-# end. Kept tool-agnostic like ENTITY_SUMMARY_HEADER.
-NAME_INJECTION_HEADER = (
-    "Entities relevant to this request, with their exact names and entity_ids. Use these "
-    "directly when they fit; look up anything else by name with the available tools."
-)
+from .localization import ConversationStrings
 
 # entity_component translations flatten to component.<domain>.entity_component.<class>.name
 # = the localized display name for a domain (class "_") or one of its device classes. We
@@ -68,7 +51,11 @@ _ENTITY_COMPONENT_NAME = re.compile(
 
 
 @callback
-def async_build_entity_summary(hass: HomeAssistant, assistant: str) -> str:
+def async_build_entity_summary(
+    hass: HomeAssistant,
+    assistant: str,
+    strings: ConversationStrings,
+) -> str:
     """Return the floor → area → domain → device-class summary with counts.
 
     One line per area, prefixed by its floor when it has one, then a trailing
@@ -94,7 +81,7 @@ def async_build_entity_summary(hass: HomeAssistant, assistant: str) -> str:
     if not counts:
         return ""
 
-    lines = [ENTITY_SUMMARY_HEADER]
+    lines = [strings.entity_summary_header]
     rows: list[tuple[tuple[int, str, str], str]] = []
     unassigned_line: str | None = None
 
@@ -103,7 +90,7 @@ def async_build_entity_summary(hass: HomeAssistant, assistant: str) -> str:
             _render_domain(domain, domain_map[domain]) for domain in sorted(domain_map)
         )
         if area_id is None:
-            unassigned_line = f"{UNASSIGNED_LABEL}: {body}"
+            unassigned_line = f"{strings.entity_summary_unassigned}: {body}"
             continue
 
         area = area_reg.async_get_area(area_id)
@@ -213,6 +200,7 @@ def select_request_names(
     ignore_whitespace: bool = False,
     keyword_map: dict[str, set[str]],
     limit: int,
+    strings: ConversationStrings,
 ) -> str | None:
     """Return the Tier-2 request-conditioned name block, or None when nothing is relevant.
 
@@ -282,7 +270,7 @@ def select_request_names(
         return None
 
     ranked.sort(key=lambda row: (-row[0], row[1]))
-    lines = [NAME_INJECTION_HEADER]
+    lines = [strings.name_injection_header]
     for _relevance, entity_id in ranked[:limit]:
         state = hass.states.get(entity_id)
         name = state.name if state else entity_id

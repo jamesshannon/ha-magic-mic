@@ -461,6 +461,12 @@ Design constraints:
 set is every exposed entity; where an entity sits sets how easily it qualifies (room scope
 is a soft prior, Refinement B below, built rather than deferred):
 
+Magic Mic's summary header, unassigned label, and request-name instructions are loaded from
+the integration's `conversation` translation category for each request language. The same
+typed string bundle builds the request's `find_entities` tool schema. This localizes only
+Magic Mic-owned additions; prompts and tool text contributed by HA core remain upstream
+concerns.
+
 - **In the requesting area** (device area inherited as HA does): admitted at
   `NAME_INJECTION_FLOOR` (55, at or below the resolution floor: a spurious inclusion wastes
   tokens, not a wrong action), with keyword widening (its domain being named floors it in

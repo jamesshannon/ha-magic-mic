@@ -7,6 +7,7 @@ from custom_components.magic_mic.capabilities.entities import (
     FindEntitiesTool,
     async_get_tools,
 )
+from custom_components.magic_mic.capabilities.localization import ConversationStrings
 from custom_components.magic_mic.identity import UNIDENTIFIED_PRINCIPAL
 from custom_components.magic_mic.session_state import MagicMicSessionState
 from custom_components.magic_mic.testbed.prompt import EntitySummaryAssistAPI
@@ -81,9 +82,14 @@ def _llm_context(assistant: str | None = ASSISTANT) -> llm.LLMContext:
     )
 
 
-async def _call(hass: HomeAssistant, args: dict, assistant: str | None = ASSISTANT):
+async def _call(
+    hass: HomeAssistant,
+    strings: ConversationStrings,
+    args: dict,
+    assistant: str | None = ASSISTANT,
+):
     """Invoke find_entities with the given tool args."""
-    tool = FindEntitiesTool()
+    tool = FindEntitiesTool(strings)
     return await tool.async_call(
         hass,
         llm.ToolInput(tool_name="find_entities", tool_args=args),
@@ -91,13 +97,15 @@ async def _call(hass: HomeAssistant, args: dict, assistant: str | None = ASSISTA
     )
 
 
-async def test_fuzzy_name_resolves_decisively(hass: HomeAssistant) -> None:
+async def test_fuzzy_name_resolves_decisively(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
     """An approximate name resolves to the one canonical entity, with a score."""
     living = ar.async_get(hass).async_create("Living Room").id
     target = _register(hass, "light.lr", "Reading Lamp", area_id=living)
     _register(hass, "fan.ceiling", "Ceiling Fan")
 
-    result = await _call(hass, {"name": "reading light"})
+    result = await _call(hass, conversation_strings, {"name": "reading light"})
 
     assert result["success"] is True
     assert "ambiguous" not in result
@@ -111,7 +119,9 @@ async def test_fuzzy_name_resolves_decisively(hass: HomeAssistant) -> None:
     assert isinstance(row["score"], float)
 
 
-async def test_area_completes_the_name(hass: HomeAssistant) -> None:
+async def test_area_completes_the_name(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
     """The area supplies the discriminating token the name lacks ("kitchen light").
 
     The entity is named only "Ceiling Light" but lives in the Kitchen; a name-only
@@ -128,19 +138,21 @@ async def test_area_completes_the_name(hass: HomeAssistant) -> None:
         area_id=ar.async_get(hass).async_create("Bedroom").id,
     )
 
-    result = await _call(hass, {"name": "kitchen light"})
+    result = await _call(hass, conversation_strings, {"name": "kitchen light"})
 
     assert result["success"] is True
     assert "ambiguous" not in result
     assert [row["entity_id"] for row in result["results"]] == [target]
 
 
-async def test_close_names_return_ambiguous_shortlist(hass: HomeAssistant) -> None:
+async def test_close_names_return_ambiguous_shortlist(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
     """Two entities matching the query equally well come back flagged ambiguous."""
     _register(hass, "light.lamp", "Bedroom Lamp")
     _register(hass, "light.ceiling", "Bedroom Light")
 
-    result = await _call(hass, {"name": "bedroom"})
+    result = await _call(hass, conversation_strings, {"name": "bedroom"})
 
     assert result["success"] is True
     assert result["ambiguous"] is True
@@ -148,16 +160,20 @@ async def test_close_names_return_ambiguous_shortlist(hass: HomeAssistant) -> No
     assert ids == {"light.lamp", "light.ceiling"}
 
 
-async def test_unmatched_name_returns_empty(hass: HomeAssistant) -> None:
+async def test_unmatched_name_returns_empty(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
     """A name that clears nothing above the floor is an empty (not failed) result."""
     _register(hass, "light.kitchen", "Kitchen Light")
 
-    result = await _call(hass, {"name": "xylophone"})
+    result = await _call(hass, conversation_strings, {"name": "xylophone"})
 
     assert result == {"success": True, "results": []}
 
 
-async def test_structured_only_lists_without_scores(hass: HomeAssistant) -> None:
+async def test_structured_only_lists_without_scores(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
     """No name given: structured filters return the matched set, scoreless."""
     kitchen = ar.async_get(hass).async_create("Kitchen").id
     _register(hass, "light.k1", "Counter Light", area_id=kitchen)
@@ -165,7 +181,9 @@ async def test_structured_only_lists_without_scores(hass: HomeAssistant) -> None
     _register(hass, "switch.kettle", "Kettle", area_id=kitchen)
     _register(hass, "light.elsewhere", "Hall Light")
 
-    result = await _call(hass, {"area": "Kitchen", "domain": "light"})
+    result = await _call(
+        hass, conversation_strings, {"area": "Kitchen", "domain": "light"}
+    )
 
     assert result["success"] is True
     ids = {row["entity_id"] for row in result["results"]}
@@ -173,19 +191,23 @@ async def test_structured_only_lists_without_scores(hass: HomeAssistant) -> None
     assert all("score" not in row for row in result["results"])
 
 
-async def test_domain_accepts_a_list(hass: HomeAssistant) -> None:
+async def test_domain_accepts_a_list(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
     """The domain filter accepts a list, unioning the domains."""
     _register(hass, "light.a", "Alpha")
     _register(hass, "switch.b", "Bravo")
     _register(hass, "sensor.c", "Charlie")
 
-    result = await _call(hass, {"domain": ["light", "switch"]})
+    result = await _call(hass, conversation_strings, {"domain": ["light", "switch"]})
 
     ids = {row["entity_id"] for row in result["results"]}
     assert ids == {"light.a", "switch.b"}
 
 
-async def test_device_class_and_floor_reported(hass: HomeAssistant) -> None:
+async def test_device_class_and_floor_reported(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
     """Device-class filtering works and the result carries the resolved floor."""
     floor = fr.async_get(hass).async_create("Upstairs")
     bedroom = ar.async_get(hass).async_create("Bedroom", floor_id=floor.floor_id).id
@@ -196,7 +218,11 @@ async def test_device_class_and_floor_reported(hass: HomeAssistant) -> None:
         hass, "cover.shade", "Bedroom Shade", area_id=bedroom, device_class="shade"
     )
 
-    result = await _call(hass, {"domain": "cover", "device_class": "blind"})
+    result = await _call(
+        hass,
+        conversation_strings,
+        {"domain": "cover", "device_class": "blind"},
+    )
 
     assert len(result["results"]) == 1
     row = result["results"][0]
@@ -204,45 +230,62 @@ async def test_device_class_and_floor_reported(hass: HomeAssistant) -> None:
     assert row["floor"] == "Upstairs"
 
 
-async def test_invalid_area_is_a_surfaced_error(hass: HomeAssistant) -> None:
+async def test_invalid_area_is_a_surfaced_error(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
     """Naming an area that does not exist is a fixable error, not an empty list."""
     _register(hass, "light.a", "Alpha")
 
-    result = await _call(hass, {"area": "Nowhere"})
+    result = await _call(hass, conversation_strings, {"area": "Nowhere"})
 
     assert result["success"] is False
-    assert "Nowhere" in result["error"]
-    assert "area" in result["error"]
+    assert result["error"] == "invalid_area"
+    assert "Nowhere" in result["error_text"]
+    assert "area" in result["error_text"]
 
 
-async def test_valid_filter_no_matches_is_empty(hass: HomeAssistant) -> None:
+async def test_valid_filter_no_matches_is_empty(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
     """A valid area with no matching entities is an empty result, not an error."""
     ar.async_get(hass).async_create("Empty Room")
     _register(hass, "light.a", "Alpha")
 
-    result = await _call(hass, {"area": "Empty Room"})
+    result = await _call(hass, conversation_strings, {"area": "Empty Room"})
 
     assert result == {"success": True, "results": []}
 
 
-async def test_limit_caps_results(hass: HomeAssistant) -> None:
+async def test_limit_caps_results(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
     """The limit bounds the number of candidates returned."""
     for i in range(4):
         _register(hass, f"light.l{i}", f"Lamp {i}")
 
-    result = await _call(hass, {"domain": "light", "limit": 2})
+    result = await _call(hass, conversation_strings, {"domain": "light", "limit": 2})
 
     assert len(result["results"]) == 2
 
 
-async def test_no_assistant_configured(hass: HomeAssistant) -> None:
+async def test_no_assistant_configured(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
     """Without an assistant in context the tool declines rather than leaking state."""
-    result = await _call(hass, {"name": "anything"}, assistant=None)
+    result = await _call(
+        hass, conversation_strings, {"name": "anything"}, assistant=None
+    )
 
-    assert result == {"success": False, "error": "No assistant configured"}
+    assert result == {
+        "success": False,
+        "error": "assistant_not_configured",
+        "error_text": conversation_strings.find_entities_error_no_assistant,
+    }
 
 
-async def test_device_area_fallback(hass: HomeAssistant) -> None:
+async def test_device_area_fallback(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
     """An entity with no area inherits its device's area in the result."""
     config_entry = MockConfigEntry(domain="test")
     config_entry.add_to_hass(hass)
@@ -258,21 +301,27 @@ async def test_device_area_fallback(hass: HomeAssistant) -> None:
     hass.states.async_set(entry.entity_id, "on", {ATTR_FRIENDLY_NAME: "Desk Lamp"})
     async_expose_entity(hass, ASSISTANT, entry.entity_id, True)
 
-    result = await _call(hass, {"name": "desk lamp"})
+    result = await _call(hass, conversation_strings, {"name": "desk lamp"})
 
     assert result["results"][0]["area"] == "Office"
 
 
-def test_async_get_tools_returns_find_entities(hass: HomeAssistant) -> None:
+def test_async_get_tools_returns_find_entities(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
     """The capability exposes find_entities in the core llm.py platform shape."""
-    tools = async_get_tools(hass, _llm_context())
+    tools = async_get_tools(hass, _llm_context(), conversation_strings)
 
     assert [tool.name for tool in tools] == ["find_entities"]
 
 
-def test_find_entities_declares_read_only_effect() -> None:
+def test_find_entities_declares_read_only_effect(
+    conversation_strings: ConversationStrings,
+) -> None:
     """The owned lookup tool cannot shadow the latest mutation as unknown."""
-    resolved = DEFAULT_TOOL_POLICY_REGISTRY.resolve(FindEntitiesTool())
+    resolved = DEFAULT_TOOL_POLICY_REGISTRY.resolve(
+        FindEntitiesTool(conversation_strings)
+    )
     session_state = MagicMicSessionState()
     context = ToolPolicyContext(
         principal=UNIDENTIFIED_PRINCIPAL,

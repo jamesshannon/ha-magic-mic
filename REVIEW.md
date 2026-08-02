@@ -341,6 +341,14 @@ Move prompt fragments and tool/error descriptions behind a language-aware transl
 or return stable structured error codes whose rendering belongs to the conversation layer.
 Tests should build prompts and tool schemas for at least one non-English language.
 
+**Resolved:** every Magic Mic-owned string listed above now comes from the integration's
+`conversation` translation category with HA's normal English fallback. The per-request
+`EntitySummaryAssistAPI` loads a typed string bundle before constructing the summary and
+`find_entities` schema; request-name injection uses the same cached translation path.
+Tool failures expose stable error codes plus localized `error_text`. A Spanish translation
+and regression test build both a non-English summary and parameter schema. This does not
+alter or claim to localize model-facing strings contributed by HA core.
+
 ### R15. Registry-controlled text is inserted into the system prompt without provenance
 
 **Severity:** High security gap while name injection is enabled by default.

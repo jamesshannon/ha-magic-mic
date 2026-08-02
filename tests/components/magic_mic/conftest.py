@@ -20,12 +20,22 @@ from anthropic.types.raw_message_delta_event import Delta
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.magic_mic.capabilities.localization import (
+    ConversationStrings,
+    async_get_conversation_strings,
+)
 from custom_components.magic_mic.const import DOMAIN
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 
 from .streaming import model_list
+
+
+@pytest.fixture
+async def conversation_strings(hass: HomeAssistant) -> ConversationStrings:
+    """Return Magic Mic's English model-facing strings through HA's loader."""
+    return await async_get_conversation_strings(hass, "en")
 
 
 @pytest.fixture(autouse=True, scope="package")

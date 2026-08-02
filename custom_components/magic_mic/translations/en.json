@@ -34,6 +34,32 @@
       }
     }
   },
+  "conversation": {
+    "entity_summary": {
+      "header": "Home structure below lists each area and how many devices of each type it contains. Specific device names are not included; look them up by name with the available tools when a command needs one.",
+      "unassigned": "Unassigned"
+    },
+    "name_injection": {
+      "header": "Entities relevant to this request, with their exact names and entity_ids. Use these directly when they fit; look up anything else by name with the available tools."
+    },
+    "find_entities": {
+      "description": "Look up Home Assistant entities and their entity_ids by fuzzy name and/or by structured filters (area, floor, domain, device class, state). Use it when you need entity_ids as data rather than to act now: authoring a reminder or automation, listing what exists in an area, or resolving an approximate name before another step. Returns scored candidates; when several are close it flags them ambiguous so you can ask which one.",
+      "fields": {
+        "name": "Approximate entity name or alias; matched fuzzily.",
+        "area": "Restrict to an area by name, id, or alias.",
+        "floor": "Restrict to a floor by name, id, or alias.",
+        "domain": "Restrict by domain (for example, 'light'); one or a list.",
+        "device_class": "Restrict by device class (for example, 'blind'); one or a list.",
+        "state": "Restrict to entities currently in this state.",
+        "limit": "Maximum candidates to return."
+      },
+      "errors": {
+        "no_assistant": "No assistant is configured.",
+        "invalid_area": "No area named {filter_value} exists.",
+        "invalid_floor": "No floor named {filter_value} exists."
+      }
+    }
+  },
   "exceptions": {
     "api_authentication_error": {
       "message": "Authentication failed talking to Claude: {message}"

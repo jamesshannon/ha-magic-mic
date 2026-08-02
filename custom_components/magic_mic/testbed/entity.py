@@ -14,6 +14,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.llm import LLMContext
 
+from ..capabilities.localization import async_get_conversation_strings
 from ..capabilities.prompt_context import (
     async_domain_keyword_map,
     language_ignores_whitespace,
@@ -161,7 +162,9 @@ class TestbedConversationEntity(ClaudeConversationEntity):
         if assistant is None:
             return
         area_id = _requesting_area_id(self.hass, user_input.device_id)
-        keyword_map = await async_domain_keyword_map(self.hass, llm_context.language)
+        language = llm_context.language
+        keyword_map = await async_domain_keyword_map(self.hass, language)
+        strings = await async_get_conversation_strings(self.hass, language)
         names = select_request_names(
             self.hass,
             assistant,
@@ -170,6 +173,7 @@ class TestbedConversationEntity(ClaudeConversationEntity):
             ignore_whitespace=language_ignores_whitespace(llm_context.language),
             keyword_map=keyword_map,
             limit=NAME_INJECTION_LIMIT,
+            strings=strings,
         )
         if names:
             chat_log.content[0] = conversation.SystemContent(

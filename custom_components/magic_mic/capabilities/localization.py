@@ -1,0 +1,74 @@
+"""Localized, model-facing strings owned by Magic Mic capabilities."""
+
+from dataclasses import dataclass
+
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.translation import async_get_translations
+
+from ..const import DOMAIN
+
+_PREFIX = f"component.{DOMAIN}.conversation."
+
+
+@dataclass(frozen=True, slots=True)
+class ConversationStrings:
+    """Request-language strings used in Magic Mic prompts and tool schemas."""
+
+    entity_summary_header: str
+    entity_summary_unassigned: str
+    find_entities_description: str
+    find_entities_error_invalid_area: str
+    find_entities_error_invalid_floor: str
+    find_entities_error_no_assistant: str
+    find_entities_field_area: str
+    find_entities_field_device_class: str
+    find_entities_field_domain: str
+    find_entities_field_floor: str
+    find_entities_field_limit: str
+    find_entities_field_name: str
+    find_entities_field_state: str
+    name_injection_header: str
+
+
+async def async_get_conversation_strings(
+    hass: HomeAssistant, language: str | None
+) -> ConversationStrings:
+    """Load Magic Mic capability strings with HA's English fallback."""
+    translations = await async_get_translations(
+        hass,
+        language or hass.config.language,
+        "conversation",
+        integrations={DOMAIN},
+    )
+
+    def translated(key: str) -> str:
+        """Return one required translation from the flattened HA resource."""
+        return translations[f"{_PREFIX}{key}"]
+
+    return ConversationStrings(
+        entity_summary_header=translated("entity_summary.header"),
+        entity_summary_unassigned=translated("entity_summary.unassigned"),
+        find_entities_description=translated("find_entities.description"),
+        find_entities_error_invalid_area=translated(
+            "find_entities.errors.invalid_area"
+        ),
+        find_entities_error_invalid_floor=translated(
+            "find_entities.errors.invalid_floor"
+        ),
+        find_entities_error_no_assistant=translated(
+            "find_entities.errors.no_assistant"
+        ),
+        find_entities_field_area=translated("find_entities.fields.area"),
+        find_entities_field_device_class=translated(
+            "find_entities.fields.device_class"
+        ),
+        find_entities_field_domain=translated("find_entities.fields.domain"),
+        find_entities_field_floor=translated("find_entities.fields.floor"),
+        find_entities_field_limit=translated("find_entities.fields.limit"),
+        find_entities_field_name=translated("find_entities.fields.name"),
+        find_entities_field_state=translated("find_entities.fields.state"),
+        name_injection_header=translated("name_injection.header"),
+    )
+
+
+__all__ = ["ConversationStrings", "async_get_conversation_strings"]

@@ -1,0 +1,28 @@
+{
+  "conversation": {
+    "entity_summary": {
+      "header": "La estructura de la casa muestra cada área y cuántos dispositivos de cada tipo contiene. No incluye nombres específicos de dispositivos; búscalos por nombre con las herramientas disponibles cuando un comando necesite uno.",
+      "unassigned": "Sin asignar"
+    },
+    "name_injection": {
+      "header": "Entidades relevantes para esta solicitud, con sus nombres exactos y entity_ids. Úsalas directamente cuando correspondan; busca cualquier otra por nombre con las herramientas disponibles."
+    },
+    "find_entities": {
+      "description": "Busca entidades de Home Assistant y sus entity_ids por nombre aproximado o mediante filtros estructurados (área, planta, dominio, clase de dispositivo y estado). Úsala cuando necesites entity_ids como datos en lugar de actuar ahora: al crear un recordatorio o una automatización, enumerar lo que existe en un área o resolver un nombre aproximado antes de otro paso. Devuelve candidatos puntuados; cuando varios son similares, los marca como ambiguos para que puedas preguntar cuál.",
+      "fields": {
+        "name": "Nombre aproximado o alias de la entidad; se compara de forma flexible.",
+        "area": "Limitar a un área por nombre, id o alias.",
+        "floor": "Limitar a una planta por nombre, id o alias.",
+        "domain": "Limitar por dominio (por ejemplo, 'light'); uno o una lista.",
+        "device_class": "Limitar por clase de dispositivo (por ejemplo, 'blind'); una o una lista.",
+        "state": "Limitar a entidades que se encuentren en este estado.",
+        "limit": "Número máximo de candidatos que se devolverán."
+      },
+      "errors": {
+        "no_assistant": "No hay ningún asistente configurado.",
+        "invalid_area": "No existe ningún área llamada {filter_value}.",
+        "invalid_floor": "No existe ninguna planta llamada {filter_value}."
+      }
+    }
+  }
+}

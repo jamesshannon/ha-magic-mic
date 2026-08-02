@@ -17,6 +17,10 @@ from homeassistant.helpers import llm
 from homeassistant.helpers.llm import AssistAPI, LLMContext, Tool
 
 from ..capabilities.entities import async_get_tools as async_get_entity_tools
+from ..capabilities.localization import (
+    ConversationStrings,
+    async_get_conversation_strings,
+)
 from ..capabilities.prompt_context import async_build_entity_summary
 
 type LLMAPIConfig = str | list[str] | llm.API | None
@@ -39,11 +43,15 @@ class EntitySummaryAssistAPI(AssistAPI):
     """
 
     _assistant: str | None = None
+    _strings: ConversationStrings | None = None
 
     @override
     async def async_get_api_instance(self, llm_context: LLMContext) -> llm.APIInstance:
         """Record the assistant id, then compose the instance as AssistAPI does."""
         self._assistant = llm_context.assistant
+        self._strings = await async_get_conversation_strings(
+            self.hass, llm_context.language
+        )
         return await super().async_get_api_instance(llm_context)
 
     @override
@@ -59,7 +67,8 @@ class EntitySummaryAssistAPI(AssistAPI):
         fuzzy fallback is the separate match-layer track.
         """
         tools = super()._async_get_tools(llm_context, exposed_entities)
-        tools.extend(async_get_entity_tools(self.hass, llm_context))
+        if self._strings is not None:
+            tools.extend(async_get_entity_tools(self.hass, llm_context, self._strings))
         return tools
 
     @callback
@@ -71,9 +80,14 @@ class EntitySummaryAssistAPI(AssistAPI):
             not exposed_entities
             or not exposed_entities["entities"]
             or self._assistant is None
+            or self._strings is None
         ):
             return []
-        summary = async_build_entity_summary(self.hass, self._assistant)
+        summary = async_build_entity_summary(
+            self.hass,
+            self._assistant,
+            self._strings,
+        )
         return [summary] if summary else []
 
 
