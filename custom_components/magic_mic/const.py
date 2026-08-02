@@ -11,15 +11,15 @@ LOGGER = logging.getLogger(__package__)
 
 # Prompt-context (docs/prompt-context.md, PRODUCT_PLAN §5.6). When enabled, the
 # testbed proxy replaces HA's full exposed-entity roster ("Static Context") with the
-# bounded taxonomy skeleton. On by default: the testbed is the product-in-progress
+# bounded entity summary. On by default: the testbed is the product-in-progress
 # surface, and the baseline agent keeps the roster for the measured comparison.
-CONF_TAXONOMY_SKELETON = "taxonomy_skeleton"
-DEFAULT_TAXONOMY_SKELETON = True
+CONF_ENTITY_SUMMARY = "entity_summary"
+DEFAULT_ENTITY_SUMMARY = True
 
 # Tier-2 request-conditioned name injection (docs/prompt-context.md "Tier 2"). On top of
-# the skeleton, inject exact names for a small, request-relevant subset so the common
-# command stays zero-lookup. Gated separately from the skeleton so the eval harness can
-# A/B skeleton-only vs skeleton+names.
+# the summary, inject exact names for a small, request-relevant subset so the common
+# command stays zero-lookup. Gated separately so the eval harness can A/B summary-only
+# vs summary+names.
 CONF_NAME_INJECTION = "name_injection"
 DEFAULT_NAME_INJECTION = True
 # Top-N names injected per request: enough to cover a room's relevant devices, small

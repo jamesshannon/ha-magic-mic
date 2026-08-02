@@ -166,7 +166,7 @@ gold-master-exact-*text* fails, but gold-master-expected-*actions* works.
 
 The token-identity argument above only holds for **output-preserving** changes
 (caching, KV reuse). **Context-reduction changes** (the §5.2 / `prompt-context.md`
-entity-injection work — full roster → skeleton + request-conditioned names) are
+entity-injection work — full roster → entity summary + request-conditioned names) are
 **not** output-preserving: they *deliberately* change the prompt tokens, so
 token-identity can't be the guard. Their guard is **task-success equality** —
 does the agent resolve the right entity / emit the right action *as often* with
@@ -174,7 +174,7 @@ the pruned context — measured on the labeled corpus (Part E), full-roster vs p
 as a CI regression gate.
 
 And their **cost metric must be end-to-end, not per-prompt.** Pruning trades prompt
-tokens for *generations* (a skeleton can add a `find_entities` round-trip). Measure
+tokens for *generations* (the summary can add a `find_entities` round-trip). Measure
 **total tokens summed across all generations in the turn** + TTFT/TTLT — not the
 static prompt in isolation — or you'll report a token "win" while adding a
 round-trip that costs both latency and tokens. (This is why Part A's per-round-trip

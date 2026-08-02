@@ -6,12 +6,13 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.magic_mic.capabilities.prompt_context import (
+    ENTITY_SUMMARY_HEADER,
     NAME_INJECTION_HEADER,
-    SKELETON_HEADER,
 )
 from custom_components.magic_mic.testbed.prompt import (
-    SkeletonAssistAPI,
-    async_skeleton_llm_api,
+    EntitySummaryAssistAPI,
+    PreparedLLMAPI,
+    async_prepare_llm_api,
 )
 from homeassistant.components import conversation
 from homeassistant.components.homeassistant.exposed_entities import async_expose_entity
@@ -28,6 +29,25 @@ from homeassistant.setup import async_setup_component
 from .streaming import create_content_block
 
 ASSISTANT = conversation.DOMAIN
+
+
+class ExtraAPI(llm.API):
+    """A second registered capability bundle for merge-composition tests."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the fixture API."""
+        super().__init__(hass=hass, id="extra", name="Extra")
+
+    async def async_get_api_instance(
+        self, llm_context: llm.LLMContext
+    ) -> llm.APIInstance:
+        """Return a distinct prompt with no tools."""
+        return llm.APIInstance(
+            api=self,
+            api_prompt="Extra API prompt",
+            llm_context=llm_context,
+            tools=[],
+        )
 
 
 def _system_text(mock_create: AsyncMock) -> str:
@@ -82,13 +102,13 @@ def _llm_context() -> llm.LLMContext:
     )
 
 
-async def test_api_prompt_carries_skeleton_not_roster(hass: HomeAssistant) -> None:
-    """The skeleton API emits the taxonomy skeleton, never the Static Context dump."""
+async def test_api_prompt_carries_summary_not_roster(hass: HomeAssistant) -> None:
+    """The summary API emits bounded counts, never the Static Context dump."""
     _expose_light(hass)
 
-    instance = await SkeletonAssistAPI(hass).async_get_api_instance(_llm_context())
+    instance = await EntitySummaryAssistAPI(hass).async_get_api_instance(_llm_context())
 
-    assert SKELETON_HEADER in instance.api_prompt
+    assert ENTITY_SUMMARY_HEADER in instance.api_prompt
     assert "Living Room: light x1" in instance.api_prompt
     # The roster marker and the specific device name must be gone.
     assert "Static Context" not in instance.api_prompt
@@ -97,34 +117,65 @@ async def test_api_prompt_carries_skeleton_not_roster(hass: HomeAssistant) -> No
 
 async def test_no_entities_prompt_preserved(hass: HomeAssistant) -> None:
     """With nothing exposed, the inherited no-entities prompt still applies."""
-    instance = await SkeletonAssistAPI(hass).async_get_api_instance(_llm_context())
+    instance = await EntitySummaryAssistAPI(hass).async_get_api_instance(_llm_context())
 
-    assert SKELETON_HEADER not in instance.api_prompt
+    assert ENTITY_SUMMARY_HEADER not in instance.api_prompt
     assert instance.api_prompt == llm.NO_ENTITIES_PROMPT
 
 
-def test_async_skeleton_llm_api_substitutes_only_assist(hass: HomeAssistant) -> None:
-    """The Assist API is swapped for the skeleton variant; others pass through."""
-    assert isinstance(
-        async_skeleton_llm_api(hass, llm.LLM_API_ASSIST), SkeletonAssistAPI
-    )
-    assert isinstance(
-        async_skeleton_llm_api(hass, [llm.LLM_API_ASSIST]), SkeletonAssistAPI
-    )
-    assert async_skeleton_llm_api(hass, "some_other_api") == "some_other_api"
-    assert async_skeleton_llm_api(hass, ["a", "b"]) == ["a", "b"]
+def test_prepare_llm_api_substitutes_only_assist(hass: HomeAssistant) -> None:
+    """The Assist contribution is summarized while unrelated selections pass through."""
+    direct = async_prepare_llm_api(hass, llm.LLM_API_ASSIST, entity_summary=True)
+    listed = async_prepare_llm_api(hass, [llm.LLM_API_ASSIST], entity_summary=True)
+    other = async_prepare_llm_api(hass, "some_other_api", entity_summary=True)
+
+    assert isinstance(direct.api, EntitySummaryAssistAPI)
+    assert direct.entity_summary_applied
+    assert isinstance(listed.api, EntitySummaryAssistAPI)
+    assert listed.entity_summary_applied
+    assert other == PreparedLLMAPI("some_other_api", entity_summary_applied=False)
 
 
-async def test_driven_testbed_turn_sends_skeleton_baseline_sends_roster(
+async def test_prepare_llm_api_summarizes_assist_inside_registered_list(
+    hass: HomeAssistant,
+) -> None:
+    """Assist is transformed before merging and another API remains unchanged."""
+    _expose_light(hass)
+    remove_extra = llm.async_register_api(hass, ExtraAPI(hass))
+    try:
+        prepared = async_prepare_llm_api(
+            hass,
+            [llm.LLM_API_ASSIST, "extra"],
+            entity_summary=True,
+        )
+        assert isinstance(prepared.api, llm.MergedAPI)
+        instance = await prepared.api.async_get_api_instance(_llm_context())
+    finally:
+        remove_extra()
+
+    assert prepared.entity_summary_applied
+    assert ENTITY_SUMMARY_HEADER in instance.api_prompt
+    assert "Static Context" not in instance.api_prompt
+    assert "Extra API prompt" in instance.api_prompt
+
+
+def test_prepare_llm_api_respects_disabled_summary(hass: HomeAssistant) -> None:
+    """A disabled request preserves Assist and reports no applied transformation."""
+    prepared = async_prepare_llm_api(hass, llm.LLM_API_ASSIST, entity_summary=False)
+
+    assert prepared == PreparedLLMAPI(llm.LLM_API_ASSIST, entity_summary_applied=False)
+
+
+async def test_driven_testbed_turn_sends_summary_baseline_sends_roster(
     hass: HomeAssistant,
     setup_integration: MockConfigEntry,
     mock_create_stream: AsyncMock,
 ) -> None:
-    """End to end: the testbed's system prompt swaps the roster for the skeleton.
+    """End to end: the testbed's system prompt swaps the roster for the summary.
 
     Drives a real turn through each agent (full `_async_handle_message`) with a light
     exposed, and inspects the system prompt actually handed to the model. The testbed
-    carries the skeleton and drops the roster; the baseline is unchanged.
+    carries the summary and drops the roster; the baseline is unchanged.
     """
     _expose_light(hass)
     entry = setup_integration
@@ -148,14 +199,14 @@ async def test_driven_testbed_turn_sends_skeleton_baseline_sends_roster(
     )
     baseline_system = _system_text(mock_create_stream)
 
-    assert SKELETON_HEADER in testbed_system
+    assert ENTITY_SUMMARY_HEADER in testbed_system
     assert "Living Room: light x1" in testbed_system
     assert "Static Context" not in testbed_system
     assert "Reading Lamp" not in testbed_system
 
     assert "Static Context" in baseline_system
     assert "Reading Lamp" in baseline_system
-    assert SKELETON_HEADER not in baseline_system
+    assert ENTITY_SUMMARY_HEADER not in baseline_system
 
 
 def _expose_named_light(
@@ -242,6 +293,34 @@ async def test_driven_turn_injects_relevant_in_room_name(
     assert "light.kc" not in system
 
 
+async def test_driven_turn_does_not_inject_names_when_summary_was_not_applied(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_create_stream: AsyncMock,
+) -> None:
+    """Tier-2 names follow the effective summary strategy, not its requested flag."""
+    device_id = await _two_room_home(hass)
+    testbed_id = _testbed_id(hass, setup_integration)
+    mock_create_stream.return_value = [create_content_block(0, ["Done."])]
+
+    with patch(
+        "custom_components.magic_mic.testbed.entity.async_prepare_llm_api",
+        return_value=PreparedLLMAPI(llm.LLM_API_ASSIST, entity_summary_applied=False),
+    ):
+        await conversation.async_converse(
+            hass,
+            "turn on the reading lamp",
+            None,
+            Context(),
+            device_id=device_id,
+            agent_id=testbed_id,
+        )
+    system = _system_text(mock_create_stream)
+
+    assert "Static Context" in system
+    assert NAME_INJECTION_HEADER not in system
+
+
 async def test_driven_turn_omits_names_when_nothing_relevant(
     hass: HomeAssistant,
     setup_integration: MockConfigEntry,
@@ -263,8 +342,8 @@ async def test_driven_turn_omits_names_when_nothing_relevant(
     system = _system_text(mock_create_stream)
 
     assert NAME_INJECTION_HEADER not in system
-    # The skeleton (Tier 1) is unaffected by the empty Tier-2 result.
-    assert SKELETON_HEADER in system
+    # The entity summary (Tier 1) is unaffected by the empty Tier-2 result.
+    assert ENTITY_SUMMARY_HEADER in system
 
 
 async def test_driven_turn_gate_off_omits_names(
@@ -292,5 +371,5 @@ async def test_driven_turn_gate_off_omits_names(
 
     assert NAME_INJECTION_HEADER not in system
     assert "Reading Lamp (light.lr)" not in system
-    # The skeleton (Tier 1) still applies; only the Tier-2 block is gated off.
-    assert SKELETON_HEADER in system
+    # The entity summary (Tier 1) still applies; only the Tier-2 block is gated off.
+    assert ENTITY_SUMMARY_HEADER in system

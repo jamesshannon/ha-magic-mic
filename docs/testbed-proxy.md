@@ -104,7 +104,7 @@ staging are specified in [`tool-policy.md`](tool-policy.md).
 | Filter tools before the model sees them | present a subset in `.tools` |
 | Replace a tool's schema | swap the `Tool` in `.tools` |
 | Redirect a tool call (`find_entities` to the fuzzy resolver) | intercept in `.async_call_tool`, fall through for the rest |
-| Replace the entity roster with a taxonomy skeleton (§5.2) | rewrite `.api_prompt` |
+| Replace Assist's entity roster with a bounded entity summary (§5.2) | prepare the selected `assist` API before prompt composition |
 | Trace every tool call and result | retain payloads in the ChatLog/conversation trace; write only classifications to the proxy debug log |
 | Enforce identity/consequence policy | omit unavailable tools in `.tools`, recheck in `.async_call_tool` |
 | Capture deterministic effects | journal private undo outcomes; barrier possible mutations with no outcome |
@@ -161,10 +161,12 @@ possibility becomes the evidence for the matching core proposal (§7).
 
 ## Boundaries and known nuances
 
-- **Prompt rewriting is not a day-one hook.** `async_provide_llm_data` may fold `api_prompt`
-  into the ChatLog's system content, so the clean roster-to-skeleton rewrite (§5.2) likely
-  wants the testbed to supply its own `llm.API` rather than post-edit an assembled string.
-  Deferred to Wave 1.
+- **Entity-summary composition is Assist-scoped.** Before `async_provide_llm_data` folds API
+  prompts into the ChatLog, the testbed replaces only the selected `assist` contribution
+  with `EntitySummaryAssistAPI`. Other registered APIs retain their prompts and tools and
+  merge normally. Preparation reports `entity_summary_applied`; Tier-2 names depend on that
+  effective result. This is the composition contract to preserve when the feature moves to
+  core, where it belongs in Assist prompt construction rather than a provider adapter.
 - **Two prompt levers, not one.** The entity roster is `api_prompt` (via the llm_api seam);
   the base system prompt is the inner agent's `CONF_PROMPT` config, reached separately.
 - **Keep `internal.claude` near upstream.** Trim only genuinely dead weight. Unused Claude

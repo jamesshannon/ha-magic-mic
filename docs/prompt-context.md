@@ -1,6 +1,6 @@
 # Prompt-Context & the LLM I/O Contract
 
-> Shared-primitive doc (PRODUCT_PLAN §5.6: "prompt-context / taxonomy skeleton +
+> Shared-primitive doc (PRODUCT_PLAN §5.6: "prompt-context / entity summary +
 > retrieval"). Two halves, both here now: **the output/interaction contract**
 > (§§ below: how the model returns speech, actions, meta-signals; the
 > generation-count economics; verbal behavior) and **the input/prompt-budget
@@ -54,17 +54,17 @@
   for a 500–1000-entity home), and it's re-prefilled **per generation**.
 - **The roster is a crutch for exact-match.** Once resolution is fuzzy
   (match-layer fallback + `find_entities`), it's redundant for correctness — the
-  **taxonomy skeleton** (floor→area→domain→device-class + counts) plus the user's
-  own words plus `find_entities` for the tail is correctness-complete. Skeleton is
+  **entity summary** (floor→area→domain→device-class + counts) plus the user's
+  own words plus `find_entities` for the tail is correctness-complete. The summary is
   bounded by home *structure*, not entity *count*.
-- **Inject a small, request-conditioned name subset** on top of the skeleton:
+- **Inject a small, request-conditioned name subset** on top of the summary:
   room-scoped (`device_id → area`; floor is too coarse) ∩ request-relevance
   (domain keywords + fuzzy-name match). This is **`find_entities` run *proactively*
   at prompt-build** — a *third consumer* of its scorer/guard primitive. Keyword +
   fuzzy, **not embeddings** (§5.3: entities are bounded/structured).
 - **Cache is a within-conversation and within-command-loop lever, not a
   cross-conversation one.** Keep a stable cached prefix (instructions + tools +
-  skeleton) with a breakpoint; the request-conditioned names + history + memories
+  entity summary) with a breakpoint; the request-conditioned names + history + memories
   live in the uncacheable tail. The **cold first utterance** is the only fully
   uncached moment and the TTFT villain → keeping it small is the win caching can't
   provide.
@@ -348,13 +348,13 @@ Once we have fuzzy resolution (the match-layer fallback + `find_entities`,
 Two things it was never needed for:
 
 - **Area/floor/domain commands need zero names** (§2.3): "turn off everything
-  downstairs" = `HassTurnOff(floor=downstairs)`. The skeleton serves these fully.
+  downstairs" = `HassTurnOff(floor=downstairs)`. The entity summary serves these fully.
 - **Named commands: the user supplies the name.** The model doesn't need the roster
-  to *know* the name — it needs the skeleton to know *there are lights in the
+  to *know* the name — it needs the summary to know *there are lights in the
   living room* (so it can `find_entities(domain=light, area="Living Room")`), which
-  the skeleton's counts provide.
+  the summary's counts provide.
 
-So **skeleton + fuzzy resolution is correctness-complete without the roster.** What
+So **entity summary + fuzzy resolution is correctness-complete without the roster.** What
 the roster buys is only the *zero-lookup fast path* (the model already had the
 exact name). We preserve that fast path selectively, below.
 
@@ -392,7 +392,7 @@ exact numbers vary by provider). Capability tool descriptions and SKILL tool-fac
 text ([`skills.md`](skills.md)) must fit; a long "when to call this" description gets
 rejected or truncated. Keep descriptions dense, not long.
 
-### Tier 1 — the always-injected taxonomy skeleton
+### Tier 1 — the always-injected entity summary
 
 Floor→area→domain→device-class tree, with counts (e.g. "Living Room: 4 lights,
 2 covers, 1 media_player"). Bounded by home **structure**, not entity count —
@@ -400,9 +400,18 @@ small and roughly constant regardless of home size. It grounds the model, anchor
 all area/floor/domain commands (no names needed), and tells the model what exists
 so it can `find_entities` the rest. This is the stable, cacheable anchor.
 
+This is an **Assist API strategy**, not a rewrite of every HA LLM API prompt. API
+preparation finds the selected `assist` contribution, replaces that member with
+`EntitySummaryAssistAPI`, and leaves every other registered API unchanged before HA merges
+them. The preparation result records whether the summary was actually applied. Tier-2 names
+and the `find_entities` pairing rely on that effective result, not merely on a configuration
+flag. An eventual core implementation should put this choice inside Assist prompt assembly;
+conversation providers such as Claude and Ollama consume the resulting provider-neutral
+`APIInstance` without owning the strategy.
+
 ### Tier 2 — request-conditioned name injection (the fast path, bounded)
 
-On top of the skeleton, inject exact names for a **small, relevant** subset so the
+On top of the summary, inject exact names for a **small, relevant** subset so the
 common case stays zero-lookup. Two filters, layered:
 
 1. **Structural prior — room scope.** Entities in the requesting area
@@ -424,7 +433,7 @@ Design constraints:
   references ("it's dark in here" → lights) and names without the domain word
   ("turn on the Christmas tree"). So: domain-keyword widens, fuzzy-name catches the
   rest, room-scope is the backstop, and **a miss degrades to one `find_entities`
-  lookup, not a failure** (the skeleton still lists what exists). Recall-oriented.
+  lookup, not a failure** (the summary still lists what exists). Recall-oriented.
 - **The keyword map must be *localized*, not hardcoded English** (PRODUCT_PLAN §5.7).
   Derive it from HA's **localized device-class / domain strings** (e.g. `cover/strings.json`
   `entity_component` names) so it's dynamic per language — a hardcoded English dict both
@@ -541,7 +550,7 @@ across conversations (bursty traffic, 5-min TTL → the next conversation is col
 
 1. **Within one command's generation loop** — gen2's prefix overlaps gen1's almost
    entirely, so gen2/gen3 re-read at cache-read rates. This *softens* the
-   ≥2-generations multiplier (and thus softens the skeleton's extra-lookup cost).
+   ≥2-generations multiplier (and thus softens the summary's extra-lookup cost).
 2. **Across turns within a conversation** — continued-conversation turns are
    seconds apart, inside the TTL; turn 1's prefix + accumulated history is warm for
    turn 2.
@@ -549,7 +558,7 @@ across conversations (bursty traffic, 5-min TTL → the next conversation is col
 So structure the prompt for that:
 
 - **Stable cached prefix** (cache breakpoint after it): instructions + tool schemas
-  + **taxonomy skeleton**. Doesn't change mid-conversation.
+  + **entity summary**. Doesn't change mid-conversation.
 - **Volatile tail** (inherently uncacheable, and that's fine): **request-conditioned
   names** (change per turn by design) + history + tool results + retrieved
   memories. Small, so re-prefilling each turn is cheap.
@@ -558,10 +567,10 @@ Two nuances:
 
 - **The cold first utterance is the only fully-uncached moment — and it's the
   TTFT villain.** Caching rescues gens 2+ and turns 2+, never the first response.
-  That's *why* keeping the cold prompt small (skeleton + filtered names, not the
-  8–20k roster) is the win caching structurally can't provide. Skeleton-first and
+  That's *why* keeping the cold prompt small (entity summary + filtered names, not the
+  8–20k roster) is the win caching structurally can't provide. Summary-first and
   intra-conversation caching point the **same** way.
-- **Mind the cache minimum** (~1024 tokens on most models). A lean skeleton + tools
+- **Mind the cache minimum** (~1024 tokens on most models). A lean summary + tools
   may sit near it; if so, the within-conversation cache value comes mostly from
   *accumulated history*, not the static prefix.
 
@@ -612,12 +621,12 @@ So on this corpus the injection buys nothing in turns while adding cache churn, 
 Tier 2's fast path is never taken. The one case that read an injected name (`set-volume`,
 names-on passed `name="Living Room Speaker"`) resolved identically to names-off, which
 passed `area=living room, domain=media_player`: the name was a second route to a target
-the skeleton and satellite room already reached, not a new capability.
+the entity summary and satellite room already reached, not a new capability.
 
 **What was and was not tested.** Three layers can carry entity data into the prompt: the
-full roster (stock Static Context, in neither arm), the taxonomy skeleton (Tier 1, in both
+full roster (stock Static Context, in neither arm), the entity summary (Tier 1, in both
 arms), and the Tier-2 names (the only thing toggled). This run measured Tier 2 and found it
-near-valueless here; it did not test removing the skeleton, and the roster was absent from
+near-valueless here; it did not test removing the summary, and the roster was absent from
 both arms. The separate Wave 0 baseline ran the full roster and also scored 21/4, hinting
 the roster's names went unused too, but under an area-less run with a different cache
 regime, so that is a lead, not a match. A stock HA Assist with the roster removed would
@@ -674,7 +683,7 @@ of evaluation.md) and revisit the aggressiveness of pruning when real numbers la
   with the cloud typed-block path?
 - **Filler policy** — encode as prompt text vs a small deterministic rule (earcon
   always at tool-fire, spoken filler gated on a tool "slow" flag we set per tool)?
-- **Input half** — taxonomy-skeleton format + real token counts (§9).
+- **Input half** — entity-summary format + real token counts (§9).
 
 ---
 

@@ -1,11 +1,11 @@
-"""Prompt-context: the taxonomy skeleton that replaces the entity roster.
+"""Prompt-context: the bounded entity summary that replaces the entity roster.
 
 The input half of the prompt-context primitive (PRODUCT_PLAN §5.6,
 `docs/prompt-context.md` "Prompt budget"). Home Assistant's Assist API injects the
 full exposed-entity roster as "Static Context" (names + aliases + domain + areas for
 every exposed entity), re-prefilled per generation and scaling linearly with entity
 count. This module builds the Tier-1 replacement: a floor → area → domain →
-device-class tree with counts, bounded by home *structure* rather than entity
+device-class summary with counts, bounded by home *structure* rather than entity
 *count*. It grounds the model in what exists and where, so area/floor/domain
 commands need no names, and tells it what to reach a lookup tool for. Tier-2
 request-conditioned name injection rides the volatile tail elsewhere; this is the
@@ -36,10 +36,10 @@ from ..const import (
 from ..entity_candidates import Registries, build_candidate, resolve_area
 from ..fuzzy import Candidate, score, score_candidates
 
-# Leads the skeleton so the model reads the counts as structure, not as an
+# Leads the summary so the model reads the counts as structure, not as an
 # actionable name list. Kept tool-agnostic on purpose: the lookup tool it points to
 # (find_entities) is offered in the tool schema, so the prose need not name it.
-SKELETON_HEADER = (
+ENTITY_SUMMARY_HEADER = (
     "Home structure below lists each area and how many devices of each type it "
     "contains. Specific device names are not included; look them up by name with "
     "the available tools when a command needs one."
@@ -48,7 +48,7 @@ UNASSIGNED_LABEL = "Unassigned"
 
 # Leads the Tier-2 name block. Frames the names as a fast path (use directly) with the
 # lookup tool as the fallback for anything not listed, so a miss is a lookup, not a dead
-# end. Kept tool-agnostic like SKELETON_HEADER.
+# end. Kept tool-agnostic like ENTITY_SUMMARY_HEADER.
 NAME_INJECTION_HEADER = (
     "Entities relevant to this request, with their exact names and entity_ids. Use these "
     "directly when they fit; look up anything else by name with the available tools."
@@ -65,8 +65,8 @@ _NON_ALNUM = re.compile(r"[^0-9a-z]+")
 
 
 @callback
-def async_build_taxonomy_skeleton(hass: HomeAssistant, assistant: str) -> str:
-    """Return the floor → area → domain → device-class skeleton with counts.
+def async_build_entity_summary(hass: HomeAssistant, assistant: str) -> str:
+    """Return the floor → area → domain → device-class summary with counts.
 
     One line per area, prefixed by its floor when it has one, then a trailing
     ``Unassigned`` line for exposed entities with no area. Empty string when
@@ -91,7 +91,7 @@ def async_build_taxonomy_skeleton(hass: HomeAssistant, assistant: str) -> str:
     if not counts:
         return ""
 
-    lines = [SKELETON_HEADER]
+    lines = [ENTITY_SUMMARY_HEADER]
     rows: list[tuple[tuple[int, str, str], str]] = []
     unassigned_line: str | None = None
 

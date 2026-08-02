@@ -80,7 +80,7 @@ Four shipping artifacts, and their concrete examples cluster hard:
 - **home-mind's most-praised "memory" isn't memory.** Its Home Layout Index and
   Device Capability Index are **deterministic config precomputed and injected** into
   the prompt. The thing that reads as "the AI remembers my home" is really good
-  context injection — i.e. the §5.2 taxonomy-skeleton work **already scoped**. A
+  context injection — i.e. the §5.2 entity-summary work **already scoped**. A
   chunk of perceived memory value is delivered by prompt-context, not by a store.
 
 ---
@@ -107,7 +107,7 @@ dumping ground (the failure mode that makes it un-landable in core, §7).
 | "remind me of my dentist appointment" | reminders / calendar ([`scheduling-model.md`](scheduling-model.md)) | it has a fire time + delivery |
 | "call the office tree 'the tree'" | **alias** on the entity | fixes exact-match at the source (§2.4), editable in UI, deterministic |
 | "use Celsius" / default room | settings / exposure | core already models it |
-| "which floor is the lamp on" | §5.2 taxonomy-skeleton injection | deterministic, per-request |
+| "which floor is the lamp on" | §5.2 entity-summary injection | deterministic, per-request |
 | "our cat's name is Fluffy" / "wifi is X" | **memory (notebook)** | genuinely unstructured, no other home |
 
 ---

@@ -236,11 +236,20 @@ reapply and review the Magic Mic delta, update its provenance version, and run t
 proxy, and eval suites together. The procedure is documented in
 [`docs/testbed-proxy.md`](docs/testbed-proxy.md#home-assistant-dependency-upgrades).
 
-### R10. Prompt optimization assumes substitution succeeded
+### R10. Prompt optimization assumes Assist substitution succeeded
 
 **Severity:** Medium latent configuration defect.
 
-The testbed computes `skeleton_on` from the option and presence of any LLM API. The
+**Resolved:** The feature is now named `entity_summary`, which describes the bounded
+floor/area/domain/device-class counts it produces. LLM API preparation examines the selected
+API contributions, replaces only `assist` with `EntitySummaryAssistAPI`, and preserves other
+registered APIs when HA merges them. It returns an explicit `entity_summary_applied` result;
+Tier-2 entity names are gated on that effective result, not on a requested option. Tests cover
+plain Assist, disabled and unrelated configurations, an Assist-plus-extra merged API, and the
+full-roster path where name injection must remain off. Current Magic Mic still selects only
+Assist, while the composition contract documents what must survive an eventual core merge.
+
+The former testbed computed `skeleton_on` from the option and presence of any LLM API. The
 substitution helper only replaces the plain Assist API; merged, custom, and already-resolved
 APIs pass through unchanged. Tier-2 name injection still runs whenever `skeleton_on` is true,
 so those configurations keep their original roster and receive the extra name block despite
@@ -281,7 +290,7 @@ which coercion would cross a scope or consequence boundary.
 ## Pass 2: entity resolution and prompt context
 
 Status: complete. Reviewed the candidate adapter, fuzzy scorer and ambiguity guard,
-`find_entities`, taxonomy skeleton, request-conditioned name injection, scorer corpus, and
+`find_entities`, entity summary, request-conditioned name injection, scorer corpus, and
 their HA matcher/exposure dependencies.
 
 ### R13. Tokenization drops or fragments non-ASCII languages
@@ -304,7 +313,7 @@ Do not tune English thresholds and assume they transfer unchanged.
 
 **Severity:** Medium localization contract violation.
 
-The skeleton header, `Unassigned` label, name-injection header, tool description, parameter
+The summary header, `Unassigned` label, name-injection header, tool description, parameter
 descriptions, and `find_entities` error strings are hardcoded English. These strings directly
 shape what the model understands and may be paraphrased to the user. The project treats
 localizability as a foundation requirement, not a later polish pass.
@@ -469,7 +478,7 @@ them to avoid derived-attribute noise.
 
 **Severity:** Foundational measurement-design defect for the Wave 1 thesis.
 
-The variant runner executes the entire skeleton-only arm and then the entire names-on arm
+The variant runner executes the entire summary-only arm and then the entire names-on arm
 once. Model sampling, provider load, prompt-cache warmth, and temporal drift are confounded
 with the feature flag. The stored `-2 generations` result may be a feature effect or ordinary
 model variance; `any_of` handles multiple acceptable outcomes but does not estimate metric

@@ -177,13 +177,13 @@ gets its own file there. Current docs:
   **Input/prompt-budget half:** today's full-entity-roster dump (~8–20k tok for a
   500–1000-entity home, re-prefilled **per generation**) is a **crutch for
   exact-match** — redundant once resolution is fuzzy. Replace with **tier-1
-  taxonomy skeleton** (bounded by structure) + **tier-2 request-conditioned name
+  entity summary** (bounded by structure) + **tier-2 request-conditioned name
   injection** (room-scoped via `device_id→area` — floor too coarse — ∩ domain-
   keyword + fuzzy-name; = `find_entities` run **proactively**, its *third
   consumer*; keyword+fuzzy not embeddings per §5.3; misses degrade to one lookup)
   + tier-3 retrieval (memory only). **Cache is within-conversation / within-
   generation-loop, not cross-conversation** → stable cached prefix (instructions +
-  tools + skeleton) + uncacheable tail (names + history + memory); the **cold first
+  tools + entity summary) + uncacheable tail (names + history + memory); the **cold first
   utterance** is the uncached TTFT villain that pruning fixes. **Measure end-to-end**
   (tokens ×generations + TTFT/TTLT at fixed task-success; quality guard = task-
   success equality, *not* token equality); cache hit rate is free from Anthropic
@@ -822,7 +822,7 @@ claim until the same outcome contract is captured around the core intent chokepo
 
 ### 5.2 Entity resolution strategy (context-window + exact-match fix)
 Three tiers instead of dumping the full roster:
-1. **Always inject a compact taxonomy skeleton** — floor→area tree + domains +
+1. **Always inject a compact entity summary** — floor→area tree + domains +
    device-classes present (+ optional counts). Small, bounded by home *structure*,
    not entity *count*. Grounds the model and anchors area/domain commands.
 2. **Detail on demand + fuzzy resolution.** Fuzzy match over names/aliases
@@ -928,7 +928,7 @@ Primitives identified so far, with their dependents:
 | **`get_resolved_user()` identity seam + explicitly scoped Store** (`"default"` = unidentified, household-only; a real person unlocks personal scope) | memory, reminders, calendar/todo scoping, personalization, speaker-ID (Phase 4) |
 | **ChatLog-centered session state** (conversation-ID sidecar for pending operations + undo; no parallel transcript) | deterministic confirmations, undo, constrained disambiguation, per-turn identity/provenance/effect trace |
 | **Execution gateway over `intent.async_handle()` + capability-tool adapter** (policy, effects, optional `UndoAction`) | hassil intents, LLM `IntentTool`s, custom tools, deferred bodies; selective demo coverage before core adoption |
-| **Prompt-context — I/O contract + taxonomy skeleton + retrieval** | entity context (TTFT, §5.2), memory injection, mic-open/meta-signals (conversation-loop), generation-count-aware output shaping. *Two halves:* output/I/O contract ([`docs/prompt-context.md`](docs/prompt-context.md), done) + input taxonomy/retrieval (§5.2, pending). |
+| **Prompt-context — I/O contract + entity summary + retrieval** | entity context (TTFT, §5.2), memory injection, mic-open/meta-signals (conversation-loop), generation-count-aware output shaping. *Two halves:* output/I/O contract ([`docs/prompt-context.md`](docs/prompt-context.md), done) + input taxonomy/retrieval (§5.2, pending). |
 | **Undo journal** (latest mutation records no-op, typed inverse, or explicit barrier; deterministic single-use replay) | device control (snapshot/restore), memory/alias writes, reminder/calendar/todo creates, calendar delete, ephemeral automations — and it underwrites only the *instrumented* optimistic paths + [`security.md`](docs/security.md)'s bounded reversibility ([`docs/undo.md`](docs/undo.md)) |
 | **Offer / learning engine** (detect friction → offer a durable fix → confirm → persist; `FrictionResolver` registry gated via `async_get_tools` §2.5) | entity aliases, **command aliases**, annotations, threshold edits, todo-default resolution — storage is per-sink (registry / YAML / FTS), only the *offer flow* is shared ([`docs/learning.md`](docs/learning.md)) |
 | **Dynamic prompt assembly + capability selection** — one `SelectionPlan` budgets **tools, context data, and instructions** through availability filtering, Tool RAG, dependency expansion, and fallback | tool gating, tier-2 context injection, the offer engine, multi-provider APIs, and the SKILL registry ([`docs/capability-selection.md`](docs/capability-selection.md), [`docs/skills.md`](docs/skills.md)) |
@@ -1209,7 +1209,7 @@ publishing **+** this selection mechanism, never publishing alone.
 - Component name (placeholder `<name>` throughout).
 - `find_entities`: exact signature, scoring (rapidfuzz token-set vs alternatives),
   ranking, area/domain filtering, ambiguity threshold, return shape.
-- Taxonomy skeleton: exact format + real token counts on a large-home scenario;
+- Entity summary: exact format + real token counts on a large-home scenario;
   which entities (if any) to prune from tier-1 while keeping tool-reachable.
 - Memory: data model (what *is* a memory), retention/expiry, retrieval method
   (embeddings vs keyword at HA scale), prompt-injection budget, per-user keying.

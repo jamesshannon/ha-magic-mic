@@ -149,7 +149,7 @@ the user's words. So the real levers are about the *static prompt*:
 **1. Make the prompt smaller — the biggest, most universal win.** Every token cut
 from the entity context and tool defs cuts prefill for *every* request, cloud and
 local, first utterance included (caching doesn't help a cold prompt). This is
-exactly the taxonomy-skeleton + `find_entities` work in PRODUCT_PLAN §5.2. So our
+exactly the entity-summary + `find_entities` work in PRODUCT_PLAN §5.2. So our
 own context-reduction design **is** the performance contribution to core — it's
 not just a token-cost thing, it's a TTFT thing, and it has the broadest benefit.
 

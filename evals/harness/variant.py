@@ -1,7 +1,7 @@
-"""Measure the Tier-2 name-injection variant: skeleton-only vs skeleton+names.
+"""Measure the Tier-2 name-injection variant: summary-only vs summary+names.
 
 The one comparison that isolates request-conditioned name injection (prompt-context
-Tier 2). Both arms drive the **testbed** agent with the taxonomy skeleton on and the
+Tier 2). Both arms drive the **testbed** agent with the entity summary on and the
 voice satellite placed in one room, so the only thing that differs between them is
 whether the request-conditioned name block is injected. Room placement, model, and tool
 config are held equal, so they cancel in the delta and what is left is Tier 2's effect:
@@ -142,7 +142,7 @@ async def run_arm(
     satellite's device_id so injection resolves "here". Names are toggled by patching the
     proxy's gate default, so the control arm exercises the same code path with Tier 2 off.
     """
-    label = "skeleton+names" if names_on else "skeleton-only"
+    label = "summary+names" if names_on else "summary-only"
     gate = nullcontext() if names_on else patch(_NAME_INJECTION_FLAG, False)
     results = []
     with gate:
@@ -192,8 +192,8 @@ def build_variant_artifact(
             "cases": on.total,
         },
         "arms": {
-            "skeleton_only": _arm_dict(off),
-            "skeleton_names": _arm_dict(on),
+            "summary_only": _arm_dict(off),
+            "summary_names": _arm_dict(on),
         },
         "delta": _delta(off.totals, on.totals),
     }
@@ -221,7 +221,7 @@ def _render_delta(off: Scorecard, on: Scorecard) -> str:
 def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="python -m evals.harness.variant",
-        description="Measure the Tier-2 name-injection variant (skeleton-only vs +names).",
+        description="Measure the Tier-2 name-injection variant (summary-only vs +names).",
     )
     parser.add_argument(
         "--case",
@@ -305,8 +305,8 @@ async def main(argv: Sequence[str] | None = None) -> None:
                 names_on=True,
             )
 
-    print("\nskeleton-only\n" + off.render())
-    print("\nskeleton+names\n" + on.render())
+    print("\nsummary-only\n" + off.render())
+    print("\nsummary+names\n" + on.render())
     print("\n" + _render_delta(off, on))
 
     if subset and not args.out:

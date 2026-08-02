@@ -87,7 +87,7 @@ they are not reasons to block unrelated Wave 1 work or invent more shared founda
 
 | Metric | Instrumented at | Moved by |
 |---|---|---|
-| **Tokens** (+ cache_read/creation) | `entity.py` `usage` — already emitted | prompt-context §5.2 (roster dump → skeleton + conditioned names) |
+| **Tokens** (+ cache_read/creation) | `entity.py` `usage` — already emitted | prompt-context §5.2 (roster dump → entity summary + conditioned names) |
 | **Generations / request** | the chat loop (count tool_use round-trips) | `terminal_intent` field, server-side web_search, fewer disambig loops |
 | **Turns / task** | task-level trace | `find_entities`, learning (aliases remove clarification) |
 | **Hassil-intervention rate** (% resolved locally) | pipeline / `prefer_local` path | `prefer_local` ON, contributed intents, aliases, command aliases |
@@ -167,7 +167,7 @@ absorb LLM non-determinism. The stored baseline was captured with `web_search` a
 This freezes the identity/scope contract, ChatLog session-state seam, and two-stage tool policy
 before more capabilities depend on the earlier placeholder interfaces.
 
-- **[C]** **prompt-context §5.2** — taxonomy skeleton + request-conditioned name injection,
+- **[C]** **prompt-context §5.2** — entity summary + request-conditioned name injection,
   retire the roster dump ([`prompt-context.md`](prompt-context.md)). → measure **Δtokens / TTFT**.
 - **[C]** **Capability-selection shadow mode** — build the provider-neutral catalog,
   deterministic availability filter, relevance retriever, dependency/budget assembler, and

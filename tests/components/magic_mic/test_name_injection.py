@@ -174,7 +174,7 @@ async def test_select_no_area_fallback_uses_fuzzy(hass: HomeAssistant) -> None:
 
 
 async def test_select_returns_none_when_nothing_relevant(hass: HomeAssistant) -> None:
-    """No fuzzy match and no keyword hit yields None (skeleton stands alone)."""
+    """No fuzzy match and no keyword hit yields None (the summary stands alone)."""
     kitchen = ar.async_get(hass).async_create("Kitchen").id
     _register(hass, "light.k_ceiling", "Ceiling Light", area_id=kitchen)
 

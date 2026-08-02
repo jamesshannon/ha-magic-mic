@@ -1,7 +1,7 @@
 """The Testbed Proxy conversation agent.
 
 Reuses the Claude adapter's model loop but interposes at three seams before the loop
-runs: the system prompt (swapping HA's entity roster for the taxonomy skeleton at
+runs: the system prompt (swapping HA's entity roster for the entity summary at
 prompt-composition time, prompt-context Tier 1), Tier-2 request-conditioned name
 injection (appending a small, relevant name subset to the composed system prompt), and
 `chat_log.llm_api` (the tool-call trace/interception wrapper, still pass-through for tool
@@ -17,10 +17,10 @@ from homeassistant.helpers.llm import LLMContext
 from ..capabilities.prompt_context import async_domain_keyword_map, select_request_names
 from ..chat_log import MagicMicChatLog, upgrade_chat_log
 from ..const import (
+    CONF_ENTITY_SUMMARY,
     CONF_NAME_INJECTION,
-    CONF_TAXONOMY_SKELETON,
+    DEFAULT_ENTITY_SUMMARY,
     DEFAULT_NAME_INJECTION,
-    DEFAULT_TAXONOMY_SKELETON,
     DOMAIN,
     LOGGER,
     NAME_INJECTION_LIMIT,
@@ -35,7 +35,7 @@ from ..identity import (
 from ..internal.claude.agent import ClaudeConversationEntity
 from ..tool_policy import ToolPolicyContext
 from .api import TestbedAPI
-from .prompt import async_skeleton_llm_api
+from .prompt import async_prepare_llm_api
 
 
 class TestbedConversationEntity(ClaudeConversationEntity):
@@ -83,23 +83,23 @@ class TestbedConversationEntity(ClaudeConversationEntity):
             principal.user_id,
         )
 
-        # Prompt-context Tier 1: hand async_provide_llm_data a skeleton-substituted
-        # Assist API so the composed system prompt carries the bounded taxonomy
-        # skeleton instead of HA's full entity roster (docs/prompt-context.md). The
-        # roster is built into api_prompt here, before the llm_api-wrap seam below,
-        # so this substitution must happen at prompt-composition time, not at wrap.
+        # Prompt-context Tier 1: replace only the selected Assist API contribution
+        # with its entity-summary variant. Other HA LLM APIs keep their own prompts
+        # and tools, then merge normally. The roster is built into api_prompt here,
+        # before the llm_api-wrap seam below, so this must happen before composition.
         llm_context = user_input.as_llm_context(DOMAIN)
-        llm_hass_api = self._options.get(CONF_LLM_HASS_API)
-        skeleton_on = bool(llm_hass_api) and self._options.get(
-            CONF_TAXONOMY_SKELETON, DEFAULT_TAXONOMY_SKELETON
+        prepared_api = async_prepare_llm_api(
+            self.hass,
+            self._options.get(CONF_LLM_HASS_API),
+            entity_summary=self._options.get(
+                CONF_ENTITY_SUMMARY, DEFAULT_ENTITY_SUMMARY
+            ),
         )
-        if skeleton_on:
-            llm_hass_api = async_skeleton_llm_api(self.hass, llm_hass_api)
 
         try:
             await magic_chat_log.async_provide_llm_data(
                 llm_context,
-                llm_hass_api,
+                prepared_api.api,
                 self._options.get(CONF_PROMPT),
                 user_input.extra_system_prompt,
             )
@@ -107,10 +107,10 @@ class TestbedConversationEntity(ClaudeConversationEntity):
             return err.as_conversation_result()
 
         # Prompt-context Tier 2: append the request-conditioned name block to the
-        # composed system prompt (docs/prompt-context.md "Tier 2"). Gated on the
-        # skeleton being on: names supply the exact ids the skeleton drops, so
-        # names-without-skeleton would duplicate a roster that is still present.
-        if skeleton_on and self._options.get(
+        # composed system prompt (docs/prompt-context.md "Tier 2"). Names supply
+        # exact ids removed by the entity summary, so gate them on the transformation
+        # that actually happened rather than the requested configuration.
+        if prepared_api.entity_summary_applied and self._options.get(
             CONF_NAME_INJECTION, DEFAULT_NAME_INJECTION
         ):
             await self._async_inject_request_names(
@@ -143,7 +143,7 @@ class TestbedConversationEntity(ClaudeConversationEntity):
     ) -> None:
         """Append the Tier-2 name block to the composed system prompt, in place.
 
-        The names ride the same single system block as the skeleton (Option 1): they
+        The names ride the same single system block as the entity summary (Option 1): they
         change per turn, so the block re-caches across turns, but the within-command
         loop (gen2/gen3 share this turn's names) still hits the cache. A second,
         cache-isolated system block is the follow-on only if the eval shows the

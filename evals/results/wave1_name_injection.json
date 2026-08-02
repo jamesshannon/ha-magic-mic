@@ -1,6 +1,6 @@
 {
   "arms": {
-    "skeleton_names": {
+    "summary_names": {
       "buckets": {
         "resolved after clarification": 0,
         "resolved by LLM, correct": 21,
@@ -641,7 +641,7 @@
         "output_tokens": 5070
       }
     },
-    "skeleton_only": {
+    "summary_only": {
       "buckets": {
         "resolved after clarification": 0,
         "resolved by LLM, correct": 21,

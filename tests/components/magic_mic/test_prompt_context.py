@@ -1,12 +1,12 @@
-"""Tests for the taxonomy skeleton (prompt-context Tier 1)."""
+"""Tests for the bounded entity summary (prompt-context Tier 1)."""
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.magic_mic.capabilities.prompt_context import (
-    SKELETON_HEADER,
+    ENTITY_SUMMARY_HEADER,
     UNASSIGNED_LABEL,
-    async_build_taxonomy_skeleton,
+    async_build_entity_summary,
 )
 from homeassistant.components import conversation
 from homeassistant.components.homeassistant.exposed_entities import async_expose_entity
@@ -55,8 +55,8 @@ def _register(
 
 
 async def test_empty_when_nothing_exposed(hass: HomeAssistant) -> None:
-    """No exposed entities yields an empty skeleton (caller falls back)."""
-    assert async_build_taxonomy_skeleton(hass, ASSISTANT) == ""
+    """No exposed entities yields an empty summary (caller falls back)."""
+    assert async_build_entity_summary(hass, ASSISTANT) == ""
 
 
 async def test_groups_by_floor_area_domain_with_counts(hass: HomeAssistant) -> None:
@@ -78,10 +78,10 @@ async def test_groups_by_floor_area_domain_with_counts(hass: HomeAssistant) -> N
     _register(hass, "switch.kitchen_kettle", area_id=kitchen.id)
     _register(hass, "light.bedroom_1", area_id=bedroom.id)
 
-    skeleton = async_build_taxonomy_skeleton(hass, ASSISTANT)
+    summary = async_build_entity_summary(hass, ASSISTANT)
 
-    assert skeleton.startswith(SKELETON_HEADER)
-    lines = skeleton.splitlines()[1:]
+    assert summary.startswith(ENTITY_SUMMARY_HEADER)
+    lines = summary.splitlines()[1:]
     # Ground Floor areas sort before Upstairs; areas alphabetical within a floor.
     assert lines == [
         "Ground Floor / Kitchen: light x1, switch x1",
@@ -102,7 +102,7 @@ async def test_floorless_area_and_unassigned_bucket(hass: HomeAssistant) -> None
     _register(hass, "sensor.roaming_1")
     _register(hass, "sensor.roaming_2")
 
-    lines = async_build_taxonomy_skeleton(hass, ASSISTANT).splitlines()[1:]
+    lines = async_build_entity_summary(hass, ASSISTANT).splitlines()[1:]
 
     # Floorless areas sort after floored ones; Unassigned is always last.
     assert lines == [
@@ -128,6 +128,6 @@ async def test_device_area_fallback_and_exposure_filter(hass: HomeAssistant) -> 
     _register(hass, "light.office_lamp", device_id=device.id)
     _register(hass, "light.hidden", area_id=office.id, expose=False)
 
-    lines = async_build_taxonomy_skeleton(hass, ASSISTANT).splitlines()[1:]
+    lines = async_build_entity_summary(hass, ASSISTANT).splitlines()[1:]
 
     assert lines == ["Office: light x1"]

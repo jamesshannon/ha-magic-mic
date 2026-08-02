@@ -9,7 +9,7 @@ from custom_components.magic_mic.capabilities.entities import (
 )
 from custom_components.magic_mic.identity import UNIDENTIFIED_PRINCIPAL
 from custom_components.magic_mic.session_state import MagicMicSessionState
-from custom_components.magic_mic.testbed.prompt import SkeletonAssistAPI
+from custom_components.magic_mic.testbed.prompt import EntitySummaryAssistAPI
 from custom_components.magic_mic.tool_policy import (
     DEFAULT_TOOL_POLICY_REGISTRY,
     EffectClass,
@@ -287,13 +287,13 @@ def test_find_entities_declares_read_only_effect() -> None:
 
 
 async def test_testbed_roster_includes_find_entities(hass: HomeAssistant) -> None:
-    """The skeleton API adds find_entities; the stock Assist API does not carry it."""
+    """The summary API adds find_entities; the stock Assist API does not carry it."""
     _register(
         hass, "light.a", "Alpha", area_id=ar.async_get(hass).async_create("Den").id
     )
 
-    skeleton = await SkeletonAssistAPI(hass).async_get_api_instance(_llm_context())
+    summary = await EntitySummaryAssistAPI(hass).async_get_api_instance(_llm_context())
     stock = await llm.AssistAPI(hass).async_get_api_instance(_llm_context())
 
-    assert "find_entities" in {tool.name for tool in skeleton.tools}
+    assert "find_entities" in {tool.name for tool in summary.tools}
     assert "find_entities" not in {tool.name for tool in stock.tools}
