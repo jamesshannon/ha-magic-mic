@@ -16,8 +16,10 @@ from evals.harness.corpus import (
     World,
     load_corpus,
 )
+from homeassistant.components import conversation
+from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import area_registry as ar, entity_registry as er
 
 from .streaming import create_content_block, create_tool_use_block
 
@@ -262,7 +264,7 @@ async def test_corpus_world_matches_state_scored_assumptions(
     volume, an open cover's position 100), not the corpus YAML, so guard them here rather
     than discover a silent mis-score in the keyed baseline.
     """
-    await build_executable_world(hass, load_corpus().world)
+    world = await build_executable_world(hass, load_corpus().world)
 
     speaker = hass.states.get("media_player.living_room")
     assert speaker.state == "playing"
@@ -275,3 +277,59 @@ async def test_corpus_world_matches_state_scored_assumptions(
     assert hass.states.get("light.living_room").state == "on"
     assert hass.states.get("cover.garage_door").state == "open"
     assert hass.states.get("fan.bedroom").state == "off"
+
+    weather = hass.states.get("weather.home")
+    assert weather.state == "sunny"
+    assert weather.attributes["friendly_name"] == "Home"
+    assert weather.attributes["temperature"] == 22
+    weather_entry = er.async_get(hass).async_get("weather.home")
+    assert weather_entry is not None
+    assert weather_entry.original_name == "Home"
+    assert async_should_expose(hass, conversation.DOMAIN, "weather.home")
+
+    hass.states.async_set("weather.home", "rainy", {"temperature": 10})
+    await world.reset(hass)
+
+    restored_weather = hass.states.get("weather.home")
+    assert restored_weather.state == "sunny"
+    assert restored_weather.attributes["friendly_name"] == "Home"
+    assert restored_weather.attributes["temperature"] == 22
+
+
+async def test_state_only_entity_preserves_area_and_device_class(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+) -> None:
+    """The generic fallback retains every registry and state metadata field."""
+    world = await build_executable_world(
+        hass,
+        World(
+            areas=("patio",),
+            entities=(
+                Entity(
+                    entity_id="sensor.patio_temperature",
+                    name="Patio Temperature",
+                    area="patio",
+                    device_class="temperature",
+                    state="18",
+                    attributes={"unit_of_measurement": "°C"},
+                ),
+            ),
+        ),
+    )
+
+    state = hass.states.get("sensor.patio_temperature")
+    assert state.state == "18"
+    assert state.attributes == {
+        "device_class": "temperature",
+        "friendly_name": "Patio Temperature",
+        "unit_of_measurement": "°C",
+    }
+    entry = er.async_get(hass).async_get("sensor.patio_temperature")
+    assert entry is not None
+    assert ar.async_get(hass).async_get_area(entry.area_id).name == "patio"
+    assert async_should_expose(hass, conversation.DOMAIN, entry.entity_id)
+
+    hass.states.async_set(entry.entity_id, "99")
+    await world.reset(hass)
+    assert hass.states.get(entry.entity_id).attributes["device_class"] == "temperature"

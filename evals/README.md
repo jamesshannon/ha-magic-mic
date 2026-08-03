@@ -248,7 +248,9 @@ Findings the keyless routing measurement surfaced:
 - Executable fixture: done (`harness/backing.py`). The live baseline registers each corpus
   entity on its real domain platform (`light`, `switch`, `fan`, `cover`, `climate`,
   `media_player`, `todo`), so the domain's services and Assist intents both load and the full
-  tool roster is exposed and executes. Without it, tool calls hit missing services, the model
+  tool roster is exposed and executes. State-only fallback domains such as `weather` still
+  receive registry identity, corpus attributes, area and device-class metadata, Assist
+  exposure, and complete reset behavior. Without it, tool calls hit missing services, the model
   retried, and per-turn generation counts were inflated. Timers are device-scoped, not
   entity-scoped: `register_satellite` stands up the voice satellite (a registry-backed device
   the turn carries) with a no-op timer handler so `HassStartTimer` is exposed and runs. Being
@@ -268,24 +270,26 @@ Findings the keyless routing measurement surfaced:
 ### Wave 0 exit gate (blocks Wave 1): done
 
 Ran the live baseline keyed from a project-root `.env`: stock full-roster prompt,
-`prefer_local` OFF, model `claude-haiku-4-5`, 25 cases. Rescored result: 18
-resolved-by-LLM-correct, 3 wrong-action, 4 unjudged, 0 unresolved; routing agreement 8/25
+`prefer_local` OFF, model `claude-haiku-4-5`, 25 cases. Rescored result through R22: 17
+resolved-by-LLM-correct, 4 wrong-action, 4 unjudged, 0 unresolved; routing agreement 8/25
 (every case routes to the LLM with
 `prefer_local` OFF, so only the 8 `llm`-labelled cases agree); 44 generations. Wave 1 reports
 Δtokens / Δturns / Δhassil-rate against this artifact.
 
 > **Refreshed under state scoring (keyed re-run, `claude-haiku-4-5`).** After nine
 > device-control cases moved to `expect_changes`, the keyed baseline was re-run so its
-> scoring basis matches. R20 later rescored the stored observations as 18 LLM-correct / 3
-> wrong-action / 4 unjudged / 0 unresolved, still 44 generations. State scoring agrees with
+> scoring basis matches. R20 and R22 later rescored the stored observations as 17
+> LLM-correct / 4 wrong-action / 4 unjudged / 0 unresolved, still 44 generations. State
+> scoring agrees with
 > the reconciled tool expectations on this corpus while being robust to tool variance (the
 > device cases pass whichever equally-valid tool the model picks). The three wrong cases are
 > model behavior, not harness faults: `turn-off-all-lights` and `implicit-too-dark` ask which
 > entity instead of acting (the world does not change, so state scoring marks them wrong for
-> the right reason); `implicit-cold` reads the thermostat then asks how warm. The three
-> unbuilt VISION cases have no success predicate and cannot raise task success. `nevermind`
-> is also unjudged on the LLM path because a plain acknowledgement has no deterministic
-> success predicate.
+> the right reason); `implicit-cold` reads the thermostat then asks how warm. The fourth
+> stored wrong result, `weather`, came from the R22 fixture defect and needs a keyed rerun.
+> The three unbuilt VISION cases have no success predicate and cannot raise task success.
+> `nevermind` is also unjudged on the LLM path because a plain acknowledgement has no
+> deterministic success predicate.
 
 This is the **pre-magic roster**. Cases without `provider_options` run with `web_search` and
 `web_fetch` off. A search-specific case can enable either provider tool without changing the
@@ -302,9 +306,11 @@ has location-sensitive cases ("what's open near me"), where the point is to meas
 attaching location improves the answer enough to justify the privacy cost, a decision the
 eval informs precisely because it is more than a mirror of defaults.
 
-The 3 wrong-action cases are model behavior worth recording, not harness faults:
+Three wrong-action cases are model behavior worth recording:
 `turn-off-all-lights` and `implicit-too-dark` ask which entity instead of acting;
-`implicit-cold` reads the thermostat then asks how warm. `conditional-reminder`,
+`implicit-cold` reads the thermostat then asks how warm. The fourth stored wrong result,
+`weather`, is the historical R22 fixture failure and needs a keyed rerun.
+`conditional-reminder`,
 `remember-fact`, and `undo-last` are unbuilt VISION features
 (`resolves_at_wave0: false`), so their stored responses are unjudged. The earlier run's
 `nevermind` acknowledgement is the fourth unjudged response. The earlier run's other five

@@ -251,6 +251,8 @@ cases:
       # Assist drops HassGetWeather; the prompt routes weather to GetLiveContext.
       tools:
         - name: GetLiveContext
+      answer:
+        contains: ["sunny", "22"]
     template: "<what_is> [the] weather [like]"
 
   - id: set-volume

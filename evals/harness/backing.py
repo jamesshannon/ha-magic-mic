@@ -1,8 +1,9 @@
 """Back the fixture world with real, executable entities for the live baseline.
 
 The keyless routing measurement only needs entities to *recognize* (HASSIL matching a
-template), so `world.build_world` sets bare states. The live LLM baseline needs them to
-*execute*: when the model calls ``HassTurnOn`` the service must exist, and capability
+template), so `world.build_world` creates registry-backed exposed states. The live LLM
+baseline also needs them to *execute*: when the model calls ``HassTurnOn`` the service must
+exist, and capability
 tools (set brightness, set volume, add a list item) are only exposed when a real entity
 advertises the feature. Registering each corpus entity through its real domain platform
 gets both at once, since ``async_setup_component(hass, <domain>, ...)`` registers the
@@ -10,7 +11,8 @@ domain's services *and* its Assist intents.
 
 This mirrors HA core's own test pattern (`setup_test_component_platform` plus
 `async_setup_component(domain, {domain: {"platform": "test"}})`). Domains without an
-executable surface in the corpus (``weather``) stay state-only.
+executable surface in the corpus (``weather``) stay state-only, but retain the same
+registry, metadata, area, and Assist-exposure shape.
 
 Timers are device-scoped rather than entity-scoped: HA strips the timer intents from the
 roster unless the turn carries a timer-capable ``device_id`` (`helpers/llm.py`). A voice
@@ -57,6 +59,8 @@ from homeassistant.components.todo import (
     TodoListEntityFeature,
 )
 from homeassistant.const import (
+    ATTR_DEVICE_CLASS,
+    ATTR_FRIENDLY_NAME,
     ATTR_TEMPERATURE,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
@@ -343,6 +347,17 @@ _ENTITY_TYPES: dict[str, type[_BackedEntity]] = {
 }
 
 
+def _state_only_attributes(entity: CorpusEntity) -> dict[str, object]:
+    """Return the corpus metadata for a state-only fixture entity."""
+    attributes: dict[str, object] = {
+        ATTR_FRIENDLY_NAME: entity.name,
+        **entity.attributes,
+    }
+    if entity.device_class:
+        attributes[ATTR_DEVICE_CLASS] = entity.device_class
+    return attributes
+
+
 @dataclass
 class ExecutableWorld:
     """A built fixture world, with a handle to reset it between cases.
@@ -354,19 +369,23 @@ class ExecutableWorld:
 
     resolved: dict[str, str]
     _entities: list[_BackedEntity] = field(default_factory=list)
-    _bare: dict[str, str] = field(default_factory=dict)
+    _state_only: dict[str, CorpusEntity] = field(default_factory=dict)
 
     async def reset(self, hass: HomeAssistant) -> None:
         """Restore every fixture entity to its baseline state."""
         for entity in self._entities:
             entity.reset()
             entity.async_write_ha_state()
-        for entity_id, state in self._bare.items():
-            hass.states.async_set(entity_id, state)
+        for entity_id, entity in self._state_only.items():
+            hass.states.async_set(
+                entity_id,
+                entity.state or "on",
+                _state_only_attributes(entity),
+            )
         await hass.async_block_till_done()
         _assert_world_healthy(
             hass,
-            [entity.entity_id for entity in self._entities] + list(self._bare),
+            [entity.entity_id for entity in self._entities] + list(self._state_only),
         )
 
 
@@ -374,8 +393,8 @@ async def build_executable_world(hass: HomeAssistant, world: World) -> Executabl
     """Register the fixture entities on real platforms and expose them.
 
     Returns an :class:`ExecutableWorld` handle (id map plus a ``reset``). Domains in
-    ``_ENTITY_TYPES`` come up as executable entities; any other entity falls back to a
-    bare state so queries still have something to read.
+    ``_ENTITY_TYPES`` come up as executable entities; any other entity becomes a registered,
+    exposed state-only entity so queries still have the complete fixture.
     """
     area_reg = ar.async_get(hass)
     ent_reg = er.async_get(hass)
@@ -388,16 +407,29 @@ async def build_executable_world(hass: HomeAssistant, world: World) -> Executabl
 
     by_domain: dict[str, list[_BackedEntity]] = defaultdict(list)
     instances: list[_BackedEntity] = []
-    bare: dict[str, str] = {}
+    state_only: dict[str, CorpusEntity] = {}
     resolved: dict[str, str] = {}
     for entity in world.entities:
         domain = entity.entity_id.partition(".")[0]
         entity_type = _ENTITY_TYPES.get(domain)
         if entity_type is None:
-            # No executable surface needed (e.g. weather): a bare state suffices.
-            bare[entity.entity_id] = entity.state or "on"
-            hass.states.async_set(entity.entity_id, bare[entity.entity_id])
-            resolved[entity.entity_id] = entity.entity_id
+            # No executable surface needed (e.g. weather), but the state must still be a
+            # normal registered and exposed entity with all corpus metadata.
+            _, _, object_id = entity.entity_id.partition(".")
+            entry = ent_reg.async_get_or_create(
+                domain,
+                "eval",
+                entity.entity_id,
+                suggested_object_id=object_id,
+                original_name=entity.name,
+            )
+            state_only[entry.entity_id] = entity
+            hass.states.async_set(
+                entry.entity_id,
+                entity.state or "on",
+                _state_only_attributes(entity),
+            )
+            resolved[entity.entity_id] = entry.entity_id
             continue
         instance = entity_type(entity)
         by_domain[domain].append(instance)
@@ -410,18 +442,25 @@ async def build_executable_world(hass: HomeAssistant, world: World) -> Executabl
 
     # Assign areas and expose every registered entity to the conversation agent.
     for entity in world.entities:
-        if entity.entity_id not in ent_reg.entities:
+        entity_id = resolved.get(entity.entity_id, entity.entity_id)
+        if entity_id not in ent_reg.entities:
             resolved.setdefault(entity.entity_id, entity.entity_id)
             continue
         if entity.area:
             ent_reg.async_update_entity(
-                entity.entity_id,
+                entity_id,
                 area_id=area_ids.get(entity.area)
                 or area_reg.async_get_or_create(entity.area.replace("_", " ")).id,
             )
-        async_expose_entity(hass, conversation.DOMAIN, entity.entity_id, True)
-        resolved[entity.entity_id] = entity.entity_id
+        async_expose_entity(hass, conversation.DOMAIN, entity_id, True)
+        resolved[entity.entity_id] = entity_id
 
     await hass.async_block_till_done()
-    _assert_world_healthy(hass, [entity.entity_id for entity in instances] + list(bare))
-    return ExecutableWorld(resolved=resolved, _entities=instances, _bare=bare)
+    _assert_world_healthy(
+        hass, [entity.entity_id for entity in instances] + list(state_only)
+    )
+    return ExecutableWorld(
+        resolved=resolved,
+        _entities=instances,
+        _state_only=state_only,
+    )

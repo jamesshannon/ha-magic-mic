@@ -3,11 +3,11 @@
     "summary_names": {
       "buckets": {
         "resolved after clarification": 0,
-        "resolved by LLM, correct": 18,
+        "resolved by LLM, correct": 17,
         "resolved locally (hassil)": 0,
         "unjudged (no success predicate)": 4,
         "unresolved / \"I don't understand\"": 0,
-        "wrong action": 3
+        "wrong action": 4
       },
       "cases": [
         {
@@ -273,11 +273,11 @@
           "utterance": "what's the temperature in the living room?"
         },
         {
-          "bucket": "resolved by LLM, correct",
+          "bucket": "wrong action",
           "cache_creation_tokens": 0,
           "cache_read_tokens": 10546,
           "category": "query",
-          "correct": true,
+          "correct": false,
           "generations": 2,
           "id": "weather",
           "input_tokens": 874,
@@ -645,11 +645,11 @@
     "summary_only": {
       "buckets": {
         "resolved after clarification": 0,
-        "resolved by LLM, correct": 18,
+        "resolved by LLM, correct": 17,
         "resolved locally (hassil)": 0,
         "unjudged (no success predicate)": 4,
         "unresolved / \"I don't understand\"": 0,
-        "wrong action": 3
+        "wrong action": 4
       },
       "cases": [
         {
@@ -921,11 +921,11 @@
           "utterance": "what's the temperature in the living room?"
         },
         {
-          "bucket": "resolved by LLM, correct",
+          "bucket": "wrong action",
           "cache_creation_tokens": 0,
           "cache_read_tokens": 10546,
           "category": "query",
-          "correct": true,
+          "correct": false,
           "generations": 2,
           "id": "weather",
           "input_tokens": 888,

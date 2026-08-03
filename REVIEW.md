@@ -491,8 +491,9 @@ and a `false` case cannot declare a tool, answer, or state success predicate. A 
 no checkable predicate lands in the new `UNJUDGED` bucket before routing or clarification
 can place it in a success bucket; an actual error still lands in `UNRESOLVED`. The three
 unbuilt cases no longer carry loose answer predicates. Stored baseline and variant
-observations were rescored as 18 correct, 3 wrong, 4 unjudged, and 0 unresolved per arm;
-cost and routing measurements are unchanged.
+observations are currently scored as 17 correct, 4 wrong, 4 unjudged, and 0 unresolved per
+arm after R22 also made the historical weather failure judgeable. Cost and routing
+measurements are unchanged.
 
 ### R21. Tool scoring permits dangerous extra calls and substring argument matches
 
@@ -525,9 +526,15 @@ entities.
 
 The baseline artifact shows the consequence: the weather case is marked correct for calling
 `GetLiveContext`, while the spoken answer says no weather integration is configured even
-though the corpus defines `weather.home`. Build state-only entities with the same registry,
-attributes, area, and exposure semantics as `world.build_world`, and require an answer
-predicate that proves the requested fact was returned.
+though the corpus defines `weather.home`.
+
+**Resolved:** State-only entities now use the same registry identity, friendly name,
+attributes, device class, area assignment, and Assist exposure as `world.build_world`.
+`ExecutableWorld.reset()` restores their complete corpus state rather than erasing metadata.
+The fixture test covers creation, exposure, and reset for `weather.home`. The LLM weather
+expectation now requires both `sunny` and `22`, so the three stored responses that deny the
+entity exists score wrong instead of passing on the lookup call alone. A new keyed run should
+replace those historical observations now that the fixture is valid.
 
 ### R23. State-diff scoring misses several classes of unintended side effect
 
