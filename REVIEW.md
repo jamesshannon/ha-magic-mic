@@ -825,6 +825,16 @@ Move call tracing to a boundary that every executor crosses, exactly once. Add a
 custom-executor test that checks the conversation trace and scorer observation, while
 ensuring ordinary base executors do not produce duplicate events.
 
+**Resolution:** Fixed at the available proxy seam. HA's base executor remains the trace
+owner for ordinary delegation. The proxy now emits the event for calls it intercepts
+(undeclared, denied, or confirmation-staged) and before delegating to a custom executor
+override that would bypass HA's base implementation. Focused trace tests cover custom and
+staged calls; driven evaluator tests prove both the normal base executor and an untraced
+custom executor produce one observed call and score correctly. Custom executors beneath this
+proof-of-concept proxy must not emit a second event. The core-shaped destination is a single
+ChatLog-level trace owner before policy/executor dispatch, as documented in
+`docs/testbed-proxy.md`.
+
 ### R35. A state-scored case can pass without performing an action
 
 **Severity:** Medium evaluation-validity defect.
@@ -877,7 +887,7 @@ means the data contracts exist, not that their safety properties are active end 
 ## Verification evidence
 
 - `.venv/bin/python -m pytest tests evals/harness -q --cov=custom_components.magic_mic
-  --cov=evals.harness --cov-report=term-missing`: 317 passed, 80% combined statement
+  --cov=evals.harness --cov-report=term-missing`: 318 passed, 80% combined statement
   coverage. The near-upstream provider copy and the interactive/live-key harness account for
   most uncovered lines; deterministic foundation modules are predominantly 89% to 100%.
 - Installed HA `MergedAPI.async_get_api_instance()` wraps every member in
@@ -885,16 +895,16 @@ means the data contracts exist, not that their safety properties are active end 
   execution retains the external namespaced identity (R27).
 - Installed HA `Store` passes its default `private=False` to a writer that applies mode
   `0644`, and catches serialization/write errors inside `async_save()` (R30 and R32).
-- Installed HA's base `APIInstance.async_call_tool()` owns the payload-bearing `TOOL_CALL`
-  trace event; a custom override is not required to invoke it (R34).
+- Installed HA's base `APIInstance.async_call_tool()` owns ordinary `TOOL_CALL` events; the
+  proxy now owns intercepted and untraced-custom paths, with driven exactly-once coverage
+  (R34).
 - The retained provider code references six exception keys absent from Magic Mic's source
   string catalog but present in the release-matched Anthropic catalog (R33).
 
 ## Recommended remediation order
 
-R1 through R33 are fixed, accepted, or converted into an explicit build gate. For the
+R1 through R34 are fixed, accepted, or converted into an explicit build gate. For the
 remaining contract-audit findings:
 
-1. R34 before evaluating or claiming complete traces for a custom LLM API executor.
-2. R35 and R36 before materially expanding the corpus or using new state-scored cases for a
+1. R35 and R36 before materially expanding the corpus or using new state-scored cases for a
    Wave 1 acceptance decision.

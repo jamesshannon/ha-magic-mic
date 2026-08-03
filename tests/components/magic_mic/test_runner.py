@@ -1,9 +1,11 @@
 """Runner tests: drive the testbed agent with a mocked stream and score the turn."""
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.magic_mic.testbed import entity as testbed_entity
+from custom_components.magic_mic.tool_policy import ToolPolicyContext
 from evals.harness import Bucket, ObservedEffect, run_case
 from evals.harness.backing import (
     ExecutableWorld,
@@ -24,9 +26,34 @@ from evals.harness.corpus import (
 from homeassistant.components import conversation
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import area_registry as ar, entity_registry as er
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import area_registry as ar, entity_registry as er, llm
+from homeassistant.util.json import JsonObjectType
 
 from .streaming import create_content_block, create_tool_use_block
+
+
+class UntracedAPIInstance(llm.APIInstance):
+    """Custom executor fixture that intentionally bypasses HA's base tracer."""
+
+    def __init__(self, inner: llm.APIInstance) -> None:
+        """Copy the API surface while retaining the advertised tool objects."""
+        super().__init__(
+            api=inner.api,
+            api_prompt=inner.api_prompt,
+            custom_serializer=inner.custom_serializer,
+            llm_context=inner.llm_context,
+            tools=inner.tools,
+        )
+
+    async def async_call_tool(self, tool_input: llm.ToolInput) -> JsonObjectType:
+        """Execute directly without invoking the trace-owning base implementation."""
+        for tool in self.tools:
+            if tool.name == tool_input.tool_name:
+                return await tool.async_call(
+                    self.api.hass, tool_input, self.llm_context
+                )
+        raise HomeAssistantError(f'Tool "{tool_input.tool_name}" not found')
 
 
 def _testbed_agent_id(hass: HomeAssistant, entry: MockConfigEntry) -> str:
@@ -120,6 +147,39 @@ async def test_run_device_case_captures_tool_and_counts_generations(
     assert [tool.name for tool in result.observed.tools] == ["HassTurnOff"]
     assert result.observed.tools[0].args == {"name": "Kitchen Light"}
     assert result.observed.generations == 2
+    assert result.correct is True
+    assert result.bucket is Bucket.LLM_CORRECT
+
+
+async def test_custom_executor_call_is_observed_and_scored_once(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_create_stream: AsyncMock,
+) -> None:
+    """The proxy supplies the trace event omitted by a custom API executor."""
+    agent_id = _testbed_agent_id(hass, setup_integration)
+    mock_create_stream.return_value = [
+        create_tool_use_block(
+            0, "toolu_1", "HassTurnOff", ['{"name": "Kitchen Light"}']
+        ),
+        create_content_block(0, ["Done."]),
+    ]
+    original_wrap = testbed_entity.TestbedAPI.wrap
+
+    def wrap_custom_executor(
+        inner: llm.APIInstance, context: ToolPolicyContext
+    ) -> testbed_entity.TestbedAPI:
+        return original_wrap(UntracedAPIInstance(inner), context)
+
+    with patch.object(
+        testbed_entity.TestbedAPI,
+        "wrap",
+        side_effect=wrap_custom_executor,
+    ):
+        result = await run_case(hass, agent_id, _device_case(), llm=True)
+
+    assert [tool.name for tool in result.observed.tools] == ["HassTurnOff"]
+    assert result.observed.tools[0].args == {"name": "Kitchen Light"}
     assert result.correct is True
     assert result.bucket is Bucket.LLM_CORRECT
 

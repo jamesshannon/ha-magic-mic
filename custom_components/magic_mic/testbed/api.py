@@ -15,6 +15,10 @@ import asyncio
 from datetime import timedelta
 from typing import Any
 
+from homeassistant.components.conversation import (
+    ConversationTraceEventType,
+    async_conversation_trace_append,
+)
 from homeassistant.helpers import llm
 from homeassistant.util.json import JsonObjectType
 
@@ -114,6 +118,7 @@ class TestbedAPI(llm.APIInstance):
         LOGGER.debug("[testbed] tool_call %s", tool_input.tool_name)
         tool = self._find_inner_tool(tool_input.tool_name)
         if tool is None:
+            self._trace_tool_call(tool_input)
             self._record_trace(
                 allowed=False,
                 consequence=None,
@@ -157,9 +162,11 @@ class TestbedAPI(llm.APIInstance):
             decision.consequence,
         )
         if not allowed:
+            self._trace_tool_call(normalized_input)
             raise ToolPolicyDeniedError(tool.name)
 
         if decision.requires_confirmation:
+            self._trace_tool_call(normalized_input)
             operation = PendingOperation.create(
                 arguments=normalized_input.tool_args,
                 consequence=decision.consequence,
@@ -193,6 +200,12 @@ class TestbedAPI(llm.APIInstance):
                 "tool_name": tool.name,
             }
 
+        # HA's base implementation traces for itself. A custom override may bypass it,
+        # so the proof-of-concept proxy owns that path; wrapped overrides must not add a
+        # second TOOL_CALL. Core should move this ownership above every executor.
+        if type(self._inner).async_call_tool is not llm.APIInstance.async_call_tool:
+            self._trace_tool_call(normalized_input)
+
         try:
             result = await self._inner.async_call_tool(normalized_input)
         except asyncio.CancelledError:
@@ -222,6 +235,17 @@ class TestbedAPI(llm.APIInstance):
             type(disposition).__name__ if disposition is not None else "missing",
         )
         return public_tool_result(result)
+
+    @staticmethod
+    def _trace_tool_call(tool_input: llm.ToolInput) -> None:
+        """Record a call when execution will not cross HA's base API method."""
+        async_conversation_trace_append(
+            ConversationTraceEventType.TOOL_CALL,
+            {
+                "tool_args": dict(tool_input.tool_args),
+                "tool_name": tool_input.tool_name,
+            },
+        )
 
     def _record_effect(
         self,

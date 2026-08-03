@@ -126,6 +126,20 @@ has hidden it and verifies execution-time denial, no device effect, and a follow
 that receives the structured error. This test protects the ChatLog task and serialization
 lifecycle around the neutral seam.
 
+Tool-call trace ownership is split at this proof-of-concept seam. HA's base
+`APIInstance.async_call_tool()` records ordinary delegated calls. `TestbedAPI` records calls
+that stop at policy or confirmation, plus calls delegated to a custom executor override that
+does not cross the base implementation. This produces one payload-bearing `TOOL_CALL` event
+for every model-requested call without duplicating the normal Assist path. A custom executor
+wrapped by `TestbedAPI` therefore owns execution but must not append another `TOOL_CALL` event
+itself. The driven evaluator tests cover both the base and untraced-custom shapes.
+
+That ownership convention is intentionally a compatibility seam, not the desired core
+contract. When this work moves into core, the ChatLog boundary that receives the completed
+model tool request should record the event before policy or executor dispatch. All base,
+custom, denied, and confirmation-staged paths would then cross one trace owner, and executors
+would have no tracing responsibility.
+
 That task lifecycle also has an abnormal-exit invariant. HA's `ChatLog` eagerly creates a
 task when a streamed tool call becomes complete, but the installed core release does not
 cancel and join all such tasks when the model stream fails before normal result collection.

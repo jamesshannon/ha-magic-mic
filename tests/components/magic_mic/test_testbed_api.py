@@ -244,16 +244,25 @@ def test_wrap_preserves_api_fields_and_unfiltered_tool_list() -> None:
 
 
 async def test_unclassified_call_delegates_to_inner_override() -> None:
-    """Pass-through calls preserve arbitrary custom APIInstance execution."""
+    """Pass-through calls preserve and trace a custom APIInstance execution."""
     inner = RecordingAPIInstance([FixtureTool("unclassified")])
     context = _context()
     wrapped = testbed_api.TestbedAPI.wrap(inner, context)
     tool_input = llm.ToolInput(tool_name="unclassified", tool_args={"value": 1})
 
-    result = await wrapped.async_call_tool(tool_input)
+    with conversation.trace.async_conversation_trace() as trace:
+        result = await wrapped.async_call_tool(tool_input)
 
     assert result == {"executor": "inner", "tool_name": "unclassified"}
     assert inner.calls == [tool_input]
+    tool_events = [
+        event
+        for event in trace.as_dict()["events"]
+        if event["event_type"] is conversation.ConversationTraceEventType.TOOL_CALL
+    ]
+    assert [event["data"] for event in tool_events] == [
+        {"tool_args": {"value": 1}, "tool_name": "unclassified"}
+    ]
     barrier = context.session_state.undo_journal[-1]
     assert isinstance(barrier.disposition, UndoUnavailable)
     assert barrier.disposition.reason is UndoUnavailableReason.NOT_SUPPORTED
@@ -574,7 +583,7 @@ def test_personal_tool_is_exposed_for_identified_principal() -> None:
 
 
 async def test_direct_call_to_filtered_tool_is_rejected() -> None:
-    """A stale or constructed hidden call cannot bypass exposure filtering."""
+    """A stale hidden call is traced but cannot bypass exposure filtering."""
     inner = RecordingAPIInstance([FixtureTool("personal")])
     registry = ToolPolicyRegistry()
     registry.register_exact(
@@ -584,21 +593,35 @@ async def test_direct_call_to_filtered_tool_is_rejected() -> None:
     )
     wrapped = testbed_api.TestbedAPI.wrap(inner, _context(), registry)
 
-    with pytest.raises(ToolPolicyDeniedError) as err:
+    with (
+        conversation.trace.async_conversation_trace() as trace,
+        pytest.raises(ToolPolicyDeniedError) as err,
+    ):
         await wrapped.async_call_tool(llm.ToolInput(tool_name="personal", tool_args={}))
 
     assert err.value.translation_domain == "magic_mic"
     assert err.value.translation_key == "tool_not_available"
     assert inner.calls == []
+    tool_events = [
+        event
+        for event in trace.as_dict()["events"]
+        if event["event_type"] is conversation.ConversationTraceEventType.TOOL_CALL
+    ]
+    assert [event["data"] for event in tool_events] == [
+        {"tool_args": {}, "tool_name": "personal"}
+    ]
 
 
 async def test_undeclared_tool_cannot_reach_dynamic_inner_executor() -> None:
-    """A call absent from the advertised API is rejected before delegation."""
+    """An undeclared call is traced but rejected before delegation."""
     inner = RecordingAPIInstance([FixtureTool("declared")])
     context = _context()
     wrapped = testbed_api.TestbedAPI.wrap(inner, context)
 
-    with pytest.raises(ToolPolicyDeniedError) as err:
+    with (
+        conversation.trace.async_conversation_trace() as conversation_trace,
+        pytest.raises(ToolPolicyDeniedError) as err,
+    ):
         await wrapped.async_call_tool(
             llm.ToolInput(tool_name="dynamically_accepted", tool_args={})
         )
@@ -611,6 +634,14 @@ async def test_undeclared_tool_cannot_reach_dynamic_inner_executor() -> None:
     assert trace.policy_source == "undeclared"
     assert trace.stage == "execution"
     assert trace.tool_name == "dynamically_accepted"
+    tool_events = [
+        event
+        for event in conversation_trace.as_dict()["events"]
+        if event["event_type"] is conversation.ConversationTraceEventType.TOOL_CALL
+    ]
+    assert [event["data"] for event in tool_events] == [
+        {"tool_args": {}, "tool_name": "dynamically_accepted"}
+    ]
 
 
 async def test_argument_dependent_scope_is_rechecked() -> None:
@@ -750,7 +781,7 @@ async def test_confirm_on_continuation_stages_exact_operation() -> None:
 
 
 async def test_always_confirm_stages_on_an_ordinary_turn() -> None:
-    """The strongest implemented consequence always takes the pending path."""
+    """The strongest consequence stages and traces the unexecuted requested call."""
     inner = RecordingAPIInstance([FixtureTool("always")])
     registry = ToolPolicyRegistry()
     registry.register_exact(
@@ -761,12 +792,21 @@ async def test_always_confirm_stages_on_an_ordinary_turn() -> None:
     context = _context()
     wrapped = testbed_api.TestbedAPI.wrap(inner, context, registry)
 
-    await wrapped.async_call_tool(
-        llm.ToolInput(tool_name="always", tool_args={"value": 1})
-    )
+    with conversation.trace.async_conversation_trace() as trace:
+        await wrapped.async_call_tool(
+            llm.ToolInput(tool_name="always", tool_args={"value": 1})
+        )
 
     assert inner.calls == []
     assert context.session_state.pending_operation is not None
+    tool_events = [
+        event
+        for event in trace.as_dict()["events"]
+        if event["event_type"] is conversation.ConversationTraceEventType.TOOL_CALL
+    ]
+    assert [event["data"] for event in tool_events] == [
+        {"tool_args": {"value": 1}, "tool_name": "always"}
+    ]
 
 
 async def test_multiple_confirmation_calls_keep_first_without_aborting(
