@@ -187,7 +187,8 @@ possibility becomes the evidence for the matching core proposal (§7).
   the base system prompt is the inner agent's `CONF_PROMPT` config, reached separately.
 - **Keep `internal.claude` near upstream.** Trim only genuinely dead weight. Unused Claude
   features (extended thinking, citations, server-side code-execution tools, files) cost
-  nothing at runtime, and keeping them preserves clean upstream diffs.
+  nothing at runtime, and keeping them preserves reviewable upstream diffs. Near-upstream
+  applies to provider behavior, not to Anthropic's integration setup or its test suite.
 - **Provider swap.** Replacing Claude means adding `magic_mic.internal.<provider>` and
   pointing the testbed at it; the proxy, the seam, and the capabilities don't move. The one
   provider-specific hook outside the inner agent is the instrumented client for raw I/O.
@@ -231,9 +232,9 @@ A Home Assistant package upgrade and provider refresh are one coherent maintenan
 1. Upgrade the Home Assistant dependency intentionally and record the resolved release
    version. Do not let an incidental refresh of test dependencies silently choose the
    provider baseline.
-2. Compare every copied Anthropic module with the same released version. Use the installed
-   package for runtime source and a matching release checkout when upstream tests or history
-   are needed.
+2. Run `python scripts/review_internal_claude.py`. It compares every derived module with the
+   installed release and rejects a baseline or module inventory that has not been reviewed.
+   Use a matching release checkout when upstream tests or history are needed.
 3. Refresh the internal copy, then reapply and review only Magic Mic's deliberate changes:
    local config-entry adaptation, generation-record instrumentation, testbed delegation
    hooks, and explicitly documented provider options.
@@ -241,6 +242,39 @@ A Home Assistant package upgrade and provider refresh are one coherent maintenan
    A mechanical provider diff is insufficient when the release changes a shared core seam.
 5. Run the provider and proxy unit tests, the full project suite, and the fixed eval corpus.
    Update this section's baseline version in the same commit.
+
+### Provider-copy and test ownership
+
+`internal.claude` is a vendor copy of provider behavior, not a second complete Anthropic
+integration. The installed released component defines the starting point. Magic Mic keeps
+only the modules needed to run its conversation agents, then applies these intentional
+deltas:
+
+- Magic Mic owns setup, config flow, diagnostics, repairs, translations, and integration
+  metadata. The adapter therefore omits Anthropic's corresponding modules and reduces its
+  `__init__.py` to a package marker.
+- `conversation.py` becomes `agent.py`. Magic Mic constructs baseline and testbed agents
+  itself, passes each agent's identity and options directly, and uses the Magic Mic domain.
+- Coordinator and entity class names follow their Magic Mic role. Provider model discovery
+  and request behavior otherwise stay aligned with the released component.
+- The streaming adapter writes Anthropic usage into `GenerationRecord`, and the generation
+  chokepoint upgrades the HA `ChatLog` so the proxy can retain those records.
+- Web search and fetch remain provider options surfaced by Magic Mic. The local location
+  handling sends only explicitly configured, non-empty fields.
+
+The comparison script is the mechanical review aid. `--check` verifies the exact HA baseline
+and both sides of the Python-module inventory; without `--check` it also prints the complete
+line diff for the mapped source files. The diff is expected to be non-empty and still requires
+review. Non-Python integration assets are intentionally owned by Magic Mic and are outside
+the vendor mapping.
+
+Do not copy Anthropic's complete upstream test suite. Upstream owns unchanged provider
+behavior, and copying those tests would create another vendor fork to synchronize. Local
+tests own each deliberate delta above: agent construction and delegation, provider option
+plumbing, generation records, and any future change to an HA/provider seam. During an HA
+upgrade, review upstream source and test changes together. Port or adapt an upstream
+regression test only when a Magic Mic delta touches that path or the fork reproduced the
+regression. Coverage percentage over the copied provider body is not a parity metric.
 
 This cadence accepts that the fork will sometimes lag unreleased provider fixes. A fix may be
 backported deliberately when it affects Magic Mic, but that is a reviewed compatibility

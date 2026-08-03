@@ -445,20 +445,24 @@ line. There is no checked-in CI workflow or pinned HA test dependency yet, so th
 the dependency is upgraded, the HACS minimum must move to the `.0` release of the earliest
 line exercised there; older-line support requires an explicit version matrix.
 
-### R19. Provider parity is not guarded by upstream-derived tests
+### R19. Provider parity needs an explicit vendor-delta discipline
 
-**Severity:** Medium maintenance defect that has already produced R9.
+**Severity:** Medium maintenance defect.
 
-The provider module retains 61% statement coverage in the local suite. Core's Anthropic tests
-cover streaming block variants, attachments, whitespace-only content, server-tool results,
-API failures, reauth, and option combinations; almost none are carried into this project.
-Because the adapter is copied rather than imported, upstream fixes do not arrive through a
-dependency update.
+`internal.claude` is intended to match the Anthropic provider shipped by the pinned Home
+Assistant release except for targeted Magic Mic seams. Local statement coverage over that
+copy is not a useful parity measure: unchanged behavior and its tests belong upstream, while
+copying the upstream suite would create a second body of vendored code that can drift.
+Because the provider is copied rather than imported, however, dependency installation alone
+does not refresh it or reveal a newly added provider module.
 
-Define which upstream tests are copied with the adapter and make syncing them part of the
-documented update procedure. A compact parity suite should at least cover every locally
-changed method and every content-block family the fork claims to support. Otherwise
-"near-upstream" is a comment, not a maintained property.
+**Resolved:** `docs/testbed-proxy.md` now defines the intentional source delta and test
+ownership. `scripts/review_internal_claude.py` validates the pinned HA baseline and module
+inventory, then produces the complete mapped source diff for upgrade review. Local tests
+cover only the intentional adaptations, including agent construction, provider-option
+plumbing, testbed delegation, and generation instrumentation. Each dependency upgrade must
+also review the matching upstream tests; a regression test is ported only when a local delta
+touches that behavior or reproduced the defect.
 
 ## Pass 4: evaluation validity and cross-cutting behavior
 

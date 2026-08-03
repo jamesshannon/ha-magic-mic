@@ -168,8 +168,11 @@ Concrete rules (the HA specifics that override or sharpen Google's):
   `PRODUCT_PLAN.md` or a `docs/` file, update that doc in the same change.
 - **Treat a Home Assistant dependency bump as a coordinated upgrade.** Refresh
   `internal.claude` from the matching released Anthropic component in the same chunk, reapply
-  the documented provider delta, and run provider, proxy, and eval tests before committing.
-  Do not update the provider fork against unreleased `references/core` independently.
+  the documented provider delta, run `python scripts/review_internal_claude.py`, and review
+  the matching upstream test changes before committing. Add local tests for intentional
+  Magic Mic deltas; do not copy tests for unchanged upstream behavior. Then run provider,
+  proxy, and eval tests. Do not update the provider fork against unreleased
+  `references/core` independently.
 
 ## Writing prose
 
