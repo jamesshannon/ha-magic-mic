@@ -1,6 +1,8 @@
 """Tests for the user-keyed store."""
 
+from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -11,6 +13,16 @@ from custom_components.magic_mic.identity import (
 )
 from custom_components.magic_mic.store import UserKeyedStore
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.storage import Store
+
+# The standard fixture mocks disk writes; retain HA's writer for the mode test.
+_REAL_ASYNC_WRITE_DATA = Store._async_write_data  # noqa: SLF001
+
+
+@pytest.fixture
+def hass_config_dir(tmp_path: Path) -> str:
+    """Give filesystem storage tests an isolated HA configuration directory."""
+    return str(tmp_path)
 
 
 async def test_per_user_isolation_and_persistence(
@@ -48,6 +60,22 @@ async def test_household_scope_is_shared_by_every_principal(
     assert store.get(UNIDENTIFIED_PRINCIPAL, DataScope.HOUSEHOLD) == {
         "door_code": "1234"
     }
+
+
+async def test_store_file_is_private(hass: HomeAssistant) -> None:
+    """Sensitive scoped data is written with owner-only filesystem access."""
+    store = UserKeyedStore(hass, "private_test")
+    await store.async_load()
+
+    with patch.object(Store, "_async_write_data", _REAL_ASYNC_WRITE_DATA):
+        await store.async_set(
+            UNIDENTIFIED_PRINCIPAL,
+            DataScope.HOUSEHOLD,
+            {"door_code": "1234"},
+        )
+
+    path = Path(hass.config.path(".storage", "magic_mic.private_test"))
+    assert path.stat().st_mode & 0o777 == 0o600
 
 
 async def test_unidentified_principal_cannot_access_personal_scope(

@@ -717,6 +717,12 @@ then receives `UndoPreviouslyFailed`, not `UndoInProgress`.
 **Severity:** High local privacy defect. Fix before the shared store contains personal or
 sensitive household data.
 
+**Resolved in the shared store:** `UserKeyedStore` now constructs HA `Store` with
+`private=True`. A regression test bypasses the suite's in-memory storage mock for one write
+to an isolated HA configuration directory and verifies that the resulting storage file has
+mode `0600`. The docs retain the boundary: this is filesystem access control, not encryption
+or protection from HA administrators, root, backups, or same-account processes.
+
 `UserKeyedStore` constructs HA's `Store` with the default `private=False`. In the installed
 HA release, that path explicitly writes the storage file with mode `0644`; `private=True`
 retains the temporary file's restrictive `0600` mode. The store is designed for personal
@@ -848,7 +854,7 @@ means the data contracts exist, not that their safety properties are active end 
 ## Verification evidence
 
 - `.venv/bin/python -m pytest tests evals/harness -q --cov=custom_components.magic_mic
-  --cov=evals.harness --cov-report=term-missing`: 299 passed, 80% combined statement
+  --cov=evals.harness --cov-report=term-missing`: 300 passed, 80% combined statement
   coverage. The near-upstream provider copy and the interactive/live-key harness account for
   most uncovered lines; deterministic foundation modules are predominantly 89% to 100%.
 - Installed HA `MergedAPI.async_get_api_instance()` wraps every member in
@@ -863,10 +869,10 @@ means the data contracts exist, not that their safety properties are active end 
 
 ## Recommended remediation order
 
-R1 through R29 are fixed, accepted, or converted into an explicit build gate. For the
+R1 through R30 are fixed, accepted, or converted into an explicit build gate. For the
 remaining contract-audit findings:
 
-1. R30 and R31 before the shared store receives its first durable capability data.
+1. R31 before the shared store receives its first durable capability data.
 2. R32 in the same first-consumer storage chunk, so persistence starts with a validated
    schema rather than acquiring one after data exists.
 3. R33 before treating all retained provider errors as normally renderable.

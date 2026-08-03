@@ -246,6 +246,18 @@ untrusted content (web/calendar) is actually enabled.
 - **Don't construct fetch URLs or search queries from private context** without a gate —
   the exfiltration channel. Prefer allowlists for `web_fetch` where feasible.
 
+## Durable capability storage
+
+The shared household/personal store uses HA's private `Store` mode, so its JSON file is
+written with owner-only `0600` permissions. This prevents unrelated local OS accounts from
+reading memory, reminder, or household data through a world-readable storage file. A
+capability that selects another backend, such as SQLite FTS for memory, must choose and test
+equivalent filesystem permissions itself.
+
+Private file mode is not encryption at rest. It does not protect data from the Home
+Assistant process, an HA administrator, root, backups, or another process running under the
+same OS account. Encryption and backup-key lifecycle remain separate deployment decisions.
+
 ## Diagnostic trace privacy
 
 Conversation and evaluation traces carry payloads by design. Diagnosing and scoring an

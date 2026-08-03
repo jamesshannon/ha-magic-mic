@@ -4,8 +4,9 @@ A thin wrapper over HA's `Store` that derives its namespace from an explicit pri
 scope (§5.1). Household data retains the stable `"default"` key; personal data uses a real
 HA user ID and has no unidentified fallback. Empty in Wave 0 (no capability consumes it
 yet); it exists so later capabilities (memory, reminders, annotations) never need a
-multi-user migration. The backing store is HA's JSON `Store`; a capability that needs
-full-text search may use its own backend (for example, SQLite FTS for the memory notebook).
+multi-user migration. The backing store is HA's private JSON `Store`, written with owner-only
+filesystem permissions. A capability that needs full-text search may use its own backend
+(for example, SQLite FTS for the memory notebook) and must make the same privacy decision.
 """
 
 from copy import deepcopy
@@ -26,7 +27,10 @@ class UserKeyedStore:
     def __init__(self, hass: HomeAssistant, name: str) -> None:
         """Create a store backed by `.storage/<domain>.<name>`."""
         self._store = Store[dict[str, dict[str, Any]]](
-            hass, STORAGE_VERSION, f"{DOMAIN}.{name}"
+            hass,
+            STORAGE_VERSION,
+            f"{DOMAIN}.{name}",
+            private=True,
         )
         self._data: dict[str, dict[str, Any]] = {}
 
