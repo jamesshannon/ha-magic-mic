@@ -697,6 +697,11 @@ mutation definitely occurred.
 
 **Severity:** Medium state-machine defect; required before undo is user-reachable.
 
+**Resolved in the undo state machine:** `async_replay_latest()` now catches
+`asyncio.CancelledError` after claiming an entry, marks the entry `failed`, and re-raises the
+original cancellation. A blocking-executor test proves that a later replay raises
+`UndoPreviouslyFailed` and does not invoke the inverse a second time.
+
 `async_replay_latest()` claims an entry by setting `UndoStatus.EXECUTING`, then converts an
 executor's `Exception` into the terminal `FAILED` state. Cancellation again falls outside
 that handler. Cancelling the request while an inverse awaits leaves the session entry in
@@ -843,7 +848,7 @@ means the data contracts exist, not that their safety properties are active end 
 ## Verification evidence
 
 - `.venv/bin/python -m pytest tests evals/harness -q --cov=custom_components.magic_mic
-  --cov=evals.harness --cov-report=term-missing`: 298 passed, 80% combined statement
+  --cov=evals.harness --cov-report=term-missing`: 299 passed, 80% combined statement
   coverage. The near-upstream provider copy and the interactive/live-key harness account for
   most uncovered lines; deterministic foundation modules are predominantly 89% to 100%.
 - Installed HA `MergedAPI.async_get_api_instance()` wraps every member in
@@ -858,14 +863,13 @@ means the data contracts exist, not that their safety properties are active end 
 
 ## Recommended remediation order
 
-R1 through R28 are fixed, accepted, or converted into an explicit build gate. For the
+R1 through R29 are fixed, accepted, or converted into an explicit build gate. For the
 remaining contract-audit findings:
 
 1. R30 and R31 before the shared store receives its first durable capability data.
 2. R32 in the same first-consumer storage chunk, so persistence starts with a validated
    schema rather than acquiring one after data exists.
-3. R29 before adding the user-facing undo intent or tool.
-4. R33 before treating all retained provider errors as normally renderable.
-5. R34 before evaluating or claiming complete traces for a custom LLM API executor.
-6. R35 and R36 before materially expanding the corpus or using new state-scored cases for a
+3. R33 before treating all retained provider errors as normally renderable.
+4. R34 before evaluating or claiming complete traces for a custom LLM API executor.
+5. R35 and R36 before materially expanding the corpus or using new state-scored cases for a
    Wave 1 acceptance decision.

@@ -1,5 +1,6 @@
 """Provider-neutral undo descriptors, journal transitions, and replay dispatch."""
 
+import asyncio
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -425,6 +426,9 @@ async def async_replay_latest(
     entry.status = UndoStatus.EXECUTING
     try:
         await executor(inverse.mutable_arguments(), execution_context)
+    except asyncio.CancelledError:
+        entry.status = UndoStatus.FAILED
+        raise
     except Exception as err:
         entry.status = UndoStatus.FAILED
         raise UndoExecutionFailed from err

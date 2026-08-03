@@ -139,8 +139,10 @@ The pre-Wave-1 foundation now provides:
   exception or cancellation.
 
 Replay claims an entry before execution. Success and failure both prevent a second replay;
-an authorization denial does not consume it. Repeating the original live command remains
-valid because the gateway performs no semantic deduplication.
+an authorization denial does not consume it. Cancellation after the claim marks the entry
+`failed` and then propagates unchanged, since the inverse may have partially completed and
+cannot be retried safely. Repeating the original live command remains valid because the
+gateway performs no semantic deduplication.
 
 This is the seam, not the complete user feature. There is not yet a `HassUndo` sentence
 intent or LLM fallback tool, no production Magic Mic mutating capability yet consumes the

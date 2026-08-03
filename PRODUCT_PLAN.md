@@ -826,6 +826,9 @@ inverse `intent.async_handle()` call and opt-in entity-state snapshot/reproducti
 the gateway nor the model infers an opposite action. Inverse arguments cross the same
 runtime-validated immutable JSON boundary as pending operations. Replay uses resolved
 identity for personal scope and preserves HA's separate `Context` for actual authorization.
+Once replay claims an entry, an executor exception or request cancellation leaves it
+terminally failed because compensation may have partially completed. Cancellation propagates
+unchanged, and a later replay is rejected instead of retrying an ambiguous inverse.
 
 The v1 referent is the latest individual mutation, not the last supported entry or all
 effects in a turn. Unsupported, prohibited, and impossible actions are barriers. Locally

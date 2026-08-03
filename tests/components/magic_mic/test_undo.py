@@ -300,6 +300,36 @@ async def test_failed_inverse_is_consumed_without_unsafe_retry() -> None:
     assert executor.await_count == 1
 
 
+async def test_cancelled_inverse_is_consumed_without_unsafe_retry() -> None:
+    """Cancellation leaves terminal ambiguity instead of an orphaned claim."""
+    state = MagicMicSessionState()
+    entry = async_record_undo(state, _action(), "turn-1", now=NOW)
+    started = asyncio.Event()
+    calls = 0
+
+    async def execute(arguments: object, context: object) -> None:
+        nonlocal calls
+        calls += 1
+        started.set()
+        await asyncio.Event().wait()
+
+    registry = UndoExecutorRegistry()
+    registry.register("fixture.restore", execute)  # type: ignore[arg-type]
+    replay = asyncio.create_task(
+        async_replay_latest(state, _execution_context(), registry, now=NOW)
+    )
+    await started.wait()
+
+    replay.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await replay
+
+    assert entry is not None and entry.status is UndoStatus.FAILED
+    with pytest.raises(UndoPreviouslyFailed):
+        await async_replay_latest(state, _execution_context(), registry, now=NOW)
+    assert calls == 1
+
+
 async def test_concurrent_replay_sees_claimed_entry() -> None:
     """The status transition occurs before awaiting the inverse executor."""
     state = MagicMicSessionState()
