@@ -23,6 +23,7 @@ from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers import intent
 
 from .corpus import Case, StateChange
+from .effects import effect_cursor, effects_since
 from .scoring import CaseResult, ObservedTurn, ToolCall, score_case
 from .statediff import snapshot, unexpected_changes
 
@@ -57,6 +58,7 @@ async def observe_turn(
     ``device_id`` is the requesting device. It gates device-scoped tools: timer intents
     are only exposed when the turn carries a timer-capable device (see `helpers/llm.py`).
     """
+    cursor = effect_cursor(hass)
     result = await conversation.async_converse(
         hass, utterance, None, Context(), agent_id=agent_id, device_id=device_id
     )
@@ -69,6 +71,7 @@ async def observe_turn(
     return ObservedTurn(
         speech=speech,
         tools=tools,
+        effects=effects_since(hass, cursor),
         routed_locally=routed_locally,
         resolved=response.response_type is not intent.IntentResponseType.ERROR,
         generations=len(generations),

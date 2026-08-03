@@ -292,6 +292,9 @@ cases:
       tools:
         - name: HassStartTimer
           args: {minutes: 10}
+      effects:
+        - kind: timer.started
+          data: {seconds: 600}
     template: "<timer_set> [a|an|the|my] timer for {timer_minutes:minutes} minute[s]"
 
   - id: add-shopping-item
@@ -306,6 +309,9 @@ cases:
       tools:
         - name: HassListAddItem
           args: {item: milk}
+      effects:
+        - kind: todo.item_created
+          data: {entity_id: todo.shopping_list, summary: milk}
     template: "add {shopping_list_item:item} to [my|the] [shopping] list"
 
   - id: nevermind

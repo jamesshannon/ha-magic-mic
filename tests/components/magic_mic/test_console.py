@@ -1,6 +1,7 @@
-"""Tests for the live eval console configuration."""
+"""Tests for the live eval console configuration and rendering."""
 
-from evals.harness.console import _parse_args
+from evals.harness.console import TurnResult, _parse_args, _Style, render_turn
+from evals.harness.effects import ObservedEffect
 
 
 def test_console_web_tools_default_off() -> None:
@@ -20,3 +21,29 @@ def test_console_web_tools_can_be_enabled_independently() -> None:
     assert search.web_fetch is False
     assert fetch.web_search is False
     assert fetch.web_fetch is True
+
+
+def test_console_renders_durable_effects() -> None:
+    """Effects outside HA state remain visible during interactive evaluation."""
+    result = TurnResult(
+        local=None,
+        handled_locally=False,
+        requests=(),
+        tools=(),
+        generations=[],
+        speech="Timer started.",
+        error=None,
+        conversation_id="conversation-id",
+        effects=(
+            ObservedEffect(
+                kind="timer.started",
+                data={"name": "pasta", "seconds": 600},
+            ),
+        ),
+    )
+
+    rendered = render_turn(result, _Style(enabled=False), verbose=False)
+
+    assert "DURABLE EFFECTS" in rendered
+    assert "timer.started" in rendered
+    assert '"seconds": 600' in rendered

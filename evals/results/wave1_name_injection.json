@@ -3,9 +3,9 @@
     "summary_names": {
       "buckets": {
         "resolved after clarification": 0,
-        "resolved by LLM, correct": 17,
+        "resolved by LLM, correct": 15,
         "resolved locally (hassil)": 0,
-        "unjudged (no success predicate)": 4,
+        "unjudged (no success predicate)": 6,
         "unresolved / \"I don't understand\"": 0,
         "wrong action": 4
       },
@@ -352,11 +352,11 @@
           "utterance": "pause the music"
         },
         {
-          "bucket": "resolved by LLM, correct",
+          "bucket": "unjudged (no success predicate)",
           "cache_creation_tokens": 0,
           "cache_read_tokens": 10546,
           "category": "timer",
-          "correct": true,
+          "correct": null,
           "generations": 2,
           "id": "start-timer",
           "input_tokens": 916,
@@ -377,11 +377,11 @@
           "utterance": "set a timer for 10 minutes"
         },
         {
-          "bucket": "resolved by LLM, correct",
+          "bucket": "unjudged (no success predicate)",
           "cache_creation_tokens": 5318,
           "cache_read_tokens": 5318,
           "category": "list",
-          "correct": true,
+          "correct": null,
           "generations": 2,
           "id": "add-shopping-item",
           "input_tokens": 943,
@@ -645,9 +645,9 @@
     "summary_only": {
       "buckets": {
         "resolved after clarification": 0,
-        "resolved by LLM, correct": 17,
+        "resolved by LLM, correct": 15,
         "resolved locally (hassil)": 0,
-        "unjudged (no success predicate)": 4,
+        "unjudged (no success predicate)": 6,
         "unresolved / \"I don't understand\"": 0,
         "wrong action": 4
       },
@@ -1003,11 +1003,11 @@
           "utterance": "pause the music"
         },
         {
-          "bucket": "resolved by LLM, correct",
+          "bucket": "unjudged (no success predicate)",
           "cache_creation_tokens": 0,
           "cache_read_tokens": 10546,
           "category": "timer",
-          "correct": true,
+          "correct": null,
           "generations": 2,
           "id": "start-timer",
           "input_tokens": 951,
@@ -1028,11 +1028,11 @@
           "utterance": "set a timer for 10 minutes"
         },
         {
-          "bucket": "resolved by LLM, correct",
+          "bucket": "unjudged (no success predicate)",
           "cache_creation_tokens": 0,
           "cache_read_tokens": 10546,
           "category": "list",
-          "correct": true,
+          "correct": null,
           "generations": 2,
           "id": "add-shopping-item",
           "input_tokens": 926,
@@ -1322,6 +1322,7 @@
     "area": "living_room",
     "cases": 25,
     "corpus": "wave0_golden_set.yaml",
+    "effect_telemetry": false,
     "kind": "wave1-name-injection",
     "model": "claude-haiku-4-5",
     "prefer_local": false,

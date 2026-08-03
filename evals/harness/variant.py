@@ -188,6 +188,7 @@ def build_variant_artifact(
             "area": area,
             "prefer_local": False,
             "provider_options": "per-case",
+            "effect_telemetry": True,
             "corpus": corpus_name,
             "cases": on.total,
         },

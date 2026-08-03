@@ -11,6 +11,7 @@ from evals.harness import (
     Entity,
     Expected,
     ExpectedAnswer,
+    ExpectedEffect,
     ExpectedTool,
     ProviderOptions,
     StateChange,
@@ -51,6 +52,10 @@ def test_wave0_golden_set_loads_and_validates() -> None:
         case for case in corpus.cases if case.id == "turn-on-kitchen-light"
     )
     assert ExpectedTool("HassTurnOn") in state_case.permitted_tools
+    timer_case = next(case for case in corpus.cases if case.id == "start-timer")
+    assert timer_case.expected_for(llm=True)[0].effects == (
+        ExpectedEffect("timer.started", {"seconds": 600}),
+    )
 
 
 def test_load_corpus_default_path() -> None:

@@ -76,6 +76,7 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.setup import async_setup_component
 
 from .corpus import Entity as CorpusEntity, World
+from .effects import ObservedEffect, record_effect
 
 
 class _BackedEntity(Entity):
@@ -242,6 +243,13 @@ class _TodoList(_BackedEntity, TodoListEntity):
     async def async_create_todo_item(self, item: TodoItem) -> None:
         item.status = item.status or TodoItemStatus.NEEDS_ACTION
         self._attr_todo_items.append(item)
+        record_effect(
+            self.hass,
+            ObservedEffect(
+                "todo.item_created",
+                {"entity_id": self.entity_id, "summary": item.summary},
+            ),
+        )
         self.async_write_ha_state()
 
 
@@ -329,7 +337,18 @@ def register_satellite(hass: HomeAssistant, *, area_id: str | None = None) -> Sa
 
     @callback
     def _handle(event_type: TimerEventType, timer: TimerInfo) -> None:
-        """Record nothing; the timer running is all the eval needs."""
+        """Record timer lifecycle effects outside the HA state machine."""
+        record_effect(
+            hass,
+            ObservedEffect(
+                f"timer.{event_type}",
+                {
+                    "device_id": timer.device_id,
+                    "name": timer.name,
+                    "seconds": timer.seconds,
+                },
+            ),
+        )
 
     async_register_timer_handler(hass, device.id, _handle)
     return satellite

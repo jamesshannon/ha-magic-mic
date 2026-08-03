@@ -632,7 +632,7 @@ anything leaving the box needs explicit opt-in).
 
 `evals/harness/variant.py` ran the 25-case golden set through the testbed agent twice,
 satellite in the living room, names off then on, model `claude-haiku-4-5`. Task-success
-was equal (rescored through R22: 17 LLM-correct, 4 wrong, 4 unjudged in both arms).
+was equal (rescored through R23: 15 LLM-correct, 4 wrong, 6 unjudged in both arms).
 Generations moved by −2 (47 → 45), but
 `find_entities` was called zero times in either arm, and the two cases that shifted
 (`implicit-cold`, `conditional-reminder`) sit outside the requesting room and carry no

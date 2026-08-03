@@ -234,6 +234,14 @@ def _result_to_dict(result: CaseResult) -> dict:
         "routed_locally": observed.routed_locally,
         "speech": observed.speech,
         "tools": [{"name": tool.name, "args": tool.args} for tool in observed.tools],
+        "effects": (
+            None
+            if observed.effects is None
+            else [
+                {"kind": effect.kind, "data": effect.data}
+                for effect in observed.effects
+            ]
+        ),
         "generations": observed.generations,
         "input_tokens": observed.input_tokens,
         "output_tokens": observed.output_tokens,
@@ -252,6 +260,7 @@ def build_artifact(scorecard: Scorecard, model: str, *, subset: bool) -> dict:
             "model": model,
             "prefer_local": False,
             "provider_options": "per-case",
+            "effect_telemetry": True,
             "corpus": WAVE0_GOLDEN_SET.name,
             "cases": scorecard.total,
             "subset": subset,

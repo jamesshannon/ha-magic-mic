@@ -4,13 +4,18 @@ from unittest.mock import AsyncMock
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from evals.harness import Bucket, run_case
-from evals.harness.backing import ExecutableWorld, build_executable_world
+from evals.harness import Bucket, ObservedEffect, run_case
+from evals.harness.backing import (
+    ExecutableWorld,
+    build_executable_world,
+    register_satellite,
+)
 from evals.harness.corpus import (
     Case,
     Entity,
     Expected,
     ExpectedAnswer,
+    ExpectedEffect,
     ExpectedTool,
     StateChange,
     World,
@@ -138,6 +143,93 @@ async def test_run_device_case_wrong_tool_scores_wrong_action(
     assert [tool.name for tool in result.observed.tools] == ["HassTurnOn"]
     assert result.correct is False
     assert result.bucket is Bucket.WRONG_ACTION
+
+
+async def test_run_timer_case_records_durable_effect(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_create_stream: AsyncMock,
+) -> None:
+    """The satellite boundary records timer creation independently of the tool trace."""
+    satellite = register_satellite(hass)
+    agent_id = _testbed_agent_id(hass, setup_integration)
+    case = Case(
+        id="timer",
+        utterance="set a timer for 10 minutes",
+        category="timer",
+        routing_truth="local",
+        resolves_at_wave0=True,
+        expected=Expected(
+            tools=(ExpectedTool("HassStartTimer", {"minutes": 10}),),
+            effects=(ExpectedEffect("timer.started", {"seconds": 600}),),
+        ),
+    )
+    mock_create_stream.return_value = [
+        create_tool_use_block(0, "toolu_1", "HassStartTimer", ['{"minutes": 10}']),
+        create_content_block(0, ["Done."]),
+    ]
+
+    result = await run_case(
+        hass, agent_id, case, llm=True, device_id=satellite.device_id
+    )
+
+    assert result.correct is True
+    assert [
+        (effect.kind, effect.data["seconds"]) for effect in result.observed.effects
+    ] == [("timer.started", 600)]
+
+
+async def test_run_todo_case_records_durable_effect(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_create_stream: AsyncMock,
+) -> None:
+    """The executable todo boundary records the row created by the intent."""
+    await build_executable_world(
+        hass,
+        World(
+            areas=(),
+            entities=(
+                Entity(entity_id="todo.shopping_list", name="Shopping List", state="0"),
+            ),
+        ),
+    )
+    agent_id = _testbed_agent_id(hass, setup_integration)
+    case = Case(
+        id="todo",
+        utterance="add milk to the shopping list",
+        category="list",
+        routing_truth="local",
+        resolves_at_wave0=True,
+        expected=Expected(
+            tools=(ExpectedTool("HassListAddItem", {"item": "milk"}),),
+            effects=(
+                ExpectedEffect(
+                    "todo.item_created",
+                    {"entity_id": "todo.shopping_list", "summary": "milk"},
+                ),
+            ),
+        ),
+    )
+    mock_create_stream.return_value = [
+        create_tool_use_block(
+            0,
+            "toolu_1",
+            "HassListAddItem",
+            ['{"item": "milk", "name": "Shopping List"}'],
+        ),
+        create_content_block(0, ["Done."]),
+    ]
+
+    result = await run_case(hass, agent_id, case, llm=True)
+
+    assert result.correct is True
+    assert result.observed.effects == (
+        ObservedEffect(
+            "todo.item_created",
+            {"entity_id": "todo.shopping_list", "summary": "Milk"},
+        ),
+    )
 
 
 async def _build_cover(hass: HomeAssistant) -> ExecutableWorld:

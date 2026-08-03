@@ -233,7 +233,9 @@ Two independent knobs frame the whole harness — set per run:
     conservative text normalization, and undeclared extra calls fail. Read-only setup calls
     are allowed only when the outcome declares them as supporting tools. State-scored cases
     likewise declare a permitted-tool roster, so reaching the right state cannot hide an
-    unrelated call.
+    unrelated call. A separate fixture effect ledger records durable or external results
+    that do not appear in entity state (currently timers and todo rows); those effects are
+    explicit outcome predicates and undeclared effects fail.
     Tool-name matching is brittle when several tools reach the same outcome (the Wave 0
     baseline scored four cases "wrong" for using `HassLightSet` over the guessed tool while
     acting correctly). For device-control cases, prefer **state-diff scoring** as a

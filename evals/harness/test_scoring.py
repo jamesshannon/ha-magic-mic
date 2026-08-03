@@ -5,7 +5,9 @@ from evals.harness import (
     Case,
     Expected,
     ExpectedAnswer,
+    ExpectedEffect,
     ExpectedTool,
+    ObservedEffect,
     ObservedTurn,
     ToolCall,
     build_scorecard,
@@ -167,6 +169,59 @@ def test_undeclared_extra_tool_is_wrong() -> None:
     )
 
     assert case_correct(case, observed) is False
+
+
+def test_durable_effect_must_match_exactly() -> None:
+    """A successful tool call does not substitute for evidence of its durable effect."""
+    case = _case(
+        expected=Expected(
+            tools=(ExpectedTool("HassStartTimer", {"minutes": 10}),),
+            effects=(ExpectedEffect("timer.started", {"seconds": 600}),),
+        )
+    )
+    tool = (ToolCall("HassStartTimer", {"minutes": 10}),)
+
+    assert (
+        case_correct(
+            case,
+            ObservedTurn(
+                speech="Done",
+                tools=tool,
+                effects=(ObservedEffect("timer.started", {"seconds": 600}),),
+            ),
+        )
+        is True
+    )
+    assert case_correct(case, ObservedTurn(speech="Done", tools=tool)) is False
+    assert (
+        case_correct(
+            case,
+            ObservedTurn(
+                speech="Done",
+                tools=tool,
+                effects=(ObservedEffect("timer.started", {"seconds": 60}),),
+            ),
+        )
+        is False
+    )
+
+
+def test_legacy_artifact_without_effect_telemetry_is_unjudgeable() -> None:
+    """Missing historical telemetry cannot count as either proof or a failed effect."""
+    case = _case(
+        expected=Expected(
+            tools=(ExpectedTool("HassStartTimer"),),
+            effects=(ExpectedEffect("timer.started"),),
+        )
+    )
+    observed = ObservedTurn(
+        speech="Done",
+        tools=(ToolCall("HassStartTimer"),),
+        effects=None,
+    )
+
+    assert case_correct(case, observed) is None
+    assert classify(case, observed) is Bucket.UNJUDGED
 
 
 def test_state_scoring_rejects_tool_outside_permitted_roster() -> None:

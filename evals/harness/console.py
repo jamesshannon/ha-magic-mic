@@ -7,7 +7,7 @@ the evals use, then lets you type utterances and watch what happens:
 
 - the **HASSIL** probe (the local, keyless path) and whether it handled the turn, or
 - the **LLM** turn: every model round's request, the tools sent, the tool calls made, the
-  token/cache cost, and the spoken answer.
+  durable effects, token/cache cost, and the spoken answer.
 
 Two knobs, both live-toggleable, mirroring `docs/evaluation.md` Part E:
 
@@ -82,6 +82,7 @@ from .backing import (  # noqa: E402
     register_satellite,
 )
 from .corpus import World, load_corpus  # noqa: E402
+from .effects import ObservedEffect, effect_cursor, effects_since  # noqa: E402
 from .routing import LocalOutcome  # noqa: E402
 from .runner import _observe_from_trace  # noqa: E402
 from .scoring import ToolCall  # noqa: E402
@@ -409,6 +410,7 @@ class TurnResult:
     conversation_id: str | None
     hassil_ms: float | None = None
     service_failures: tuple[str, ...] = ()
+    effects: tuple[ObservedEffect, ...] = ()
 
 
 async def _probe_local(
@@ -481,6 +483,7 @@ async def drive_turn(
     local: LocalOutcome | None = None
     current_id = conversation_id
     hassil_ms: float | None = None
+    effects_at_start = effect_cursor(session.hass)
     # A handled service failure on either path (the thermostat rejecting climate.turn_off) is
     # logged with a traceback deep in HA; capture it as a concise note for the whole turn.
     with capture_service_failures() as failures:
@@ -502,6 +505,7 @@ async def drive_turn(
                     conversation_id=current_id,
                     hassil_ms=hassil_ms,
                     service_failures=tuple(failures),
+                    effects=effects_since(session.hass, effects_at_start),
                 )
 
         error: str | None = None
@@ -542,6 +546,7 @@ async def drive_turn(
             conversation_id=current_id,
             hassil_ms=hassil_ms,
             service_failures=tuple(failures),
+            effects=effects_since(session.hass, effects_at_start),
         )
 
 
@@ -758,6 +763,13 @@ def render_turn(result: TurnResult, style: _Style, *, verbose: bool) -> str:
             f"  {style.yellow('→ ' + call.name)} {_clip(str(call.args))}"
             for call in result.tools
         )
+
+    if result.effects:
+        out.append("")
+        out.append(style.bold("DURABLE EFFECTS"))
+        for effect in result.effects:
+            out.append(f"  {style.yellow('→ ' + effect.kind)}")
+            out.extend(_render_kv("data", effect.data, style))
 
     if result.generations:
         totals = {

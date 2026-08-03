@@ -46,8 +46,9 @@ Each case is a single-turn `(utterance [, context] -> expected action(s) / answe
 | `provider_options` | Optional provider setup for this case. `web_search` and `web_fetch` are independent booleans and both default off when omitted. The live runner applies changes through the Magic Mic config entry before the turn and records the effective values in the artifact. |
 | `expected.tools` | Ordered list of required `{name, args}` calls. Named argument values match exactly after Unicode, case, and whitespace normalization; unspecified observed arguments are allowed. Every undeclared extra call fails. |
 | `expected.supporting_tools` | Optional call patterns that may appear around the required calls without being required themselves. Use for a deliberate read-before-answer step such as `GetLiveContext`, not as a broad tool allowlist. |
+| `expected.effects` | Ordered durable or external effects that must be observed in addition to the tool call, written as `{kind, data}`. Named data values use the same exact normalized matching as tool arguments; extra effects fail. |
 | `expected.answer` | Optional predicate over the spoken response: `{contains: [...]}` or `{regex: ...}`. |
-| `expect_changes` | `entity_id -> {state, attributes}` the turn must leave the world in. When present, the case is **state-scored**: correctness is the resulting state, not the tool called (`harness/statediff.py`), so it needs no `expected_llm` or `any_of`. Declared entities are checked on state plus each named attribute; every other exposed entity on state alone (catches a wrong-target side effect). Requires the executable world (`backing.py`). |
+| `expect_changes` | `entity_id -> {state, attributes}` the turn must leave the world in. When present, the case is **state-scored**: correctness is the resulting state, not the tool called (`harness/statediff.py`), so it needs no `expected_llm` or `any_of`. Declared entities are checked on state plus each named attribute; other exposed entities are checked on state plus a small domain-specific set of reproducible action attributes. Undeclared new entities and removed exposed entities fail. Requires the executable world (`backing.py`). |
 | `permitted_tools` | Required for a state-scored case. Lists every call pattern allowed during the turn, including alternate mutation tools and deliberate supporting reads. A correct final state still fails if any observed call falls outside this roster. |
 | `setup` | `entity_id -> {state, attributes}` to stage **before** the turn, so a change is real (turn on a light that starts on, open a garage that starts open). Same shape as `expect_changes`. |
 | `ignore_changes` | `entity_id -> [attribute, ...]` checks to suppress; the literal `state` drops that entity's state check, for a genuinely non-deterministic outcome. |
@@ -149,10 +150,11 @@ from the environment or a project-root `.env`, same as `baseline.py`).
 Each turn shows, per model round, the **durable** system prompt (the `cache_control`-marked
 block, printed once since it is cached and unchanged across rounds) and the **volatile**
 message list as it grows, plus the tools sent, the tool calls made (with full inputs and
-results), the token/cache cost, and the spoken answer. Every round is timed (including the
-HASSIL probe), so you can see where a turn spends its latency. The composed prompt is not on
-the conversation trace, so the console captures it harness-side by wrapping the provider
-client's `messages.create` for the turn; nothing in `custom_components/` changes.
+results), durable fixture effects, the token/cache cost, and the spoken answer. Every round
+is timed (including the HASSIL probe), so you can see where a turn spends its latency. The
+composed prompt is not on the conversation trace, so the console captures it harness-side by
+wrapping the provider client's `messages.create` for the turn; nothing in
+`custom_components/` changes.
 
 The turn is issued from a voice **satellite** placed in a room (default the living room), so a
 bare "turn on the lights" resolves to that room the way a real satellite would: HASSIL injects
@@ -263,23 +265,23 @@ Findings the keyless routing measurement surfaced:
   key.
 - Interactive console: done (`harness/console.py`). Hand-drive utterances against the fixture
   world and inspect the turn (durable/volatile prompt split, tools, tool calls with full
-  results, per-round timing, cost, answer), with live HASSIL/agent toggles, a room-placed
-  satellite (`:here`) for area-context testing, and multi-turn conversation continuity. See
-  "Interactive console" above.
+  results, durable effects, per-round timing, cost, answer), with live HASSIL/agent toggles,
+  a room-placed satellite (`:here`) for area-context testing, and multi-turn conversation
+  continuity. See "Interactive console" above.
 
 ### Wave 0 exit gate (blocks Wave 1): done
 
 Ran the live baseline keyed from a project-root `.env`: stock full-roster prompt,
-`prefer_local` OFF, model `claude-haiku-4-5`, 25 cases. Rescored result through R22: 17
-resolved-by-LLM-correct, 4 wrong-action, 4 unjudged, 0 unresolved; routing agreement 8/25
+`prefer_local` OFF, model `claude-haiku-4-5`, 25 cases. Rescored result through R23: 15
+resolved-by-LLM-correct, 4 wrong-action, 6 unjudged, 0 unresolved; routing agreement 8/25
 (every case routes to the LLM with
 `prefer_local` OFF, so only the 8 `llm`-labelled cases agree); 44 generations. Wave 1 reports
 Δtokens / Δturns / Δhassil-rate against this artifact.
 
 > **Refreshed under state scoring (keyed re-run, `claude-haiku-4-5`).** After nine
 > device-control cases moved to `expect_changes`, the keyed baseline was re-run so its
-> scoring basis matches. R20 and R22 later rescored the stored observations as 17
-> LLM-correct / 4 wrong-action / 4 unjudged / 0 unresolved, still 44 generations. State
+> scoring basis matches. R20 through R23 later rescored the stored observations as 15
+> LLM-correct / 4 wrong-action / 6 unjudged / 0 unresolved, still 44 generations. State
 > scoring agrees with
 > the reconciled tool expectations on this corpus while being robust to tool variance (the
 > device cases pass whichever equally-valid tool the model picks). The three wrong cases are
@@ -289,7 +291,9 @@ resolved-by-LLM-correct, 4 wrong-action, 4 unjudged, 0 unresolved; routing agree
 > stored wrong result, `weather`, came from the R22 fixture defect and needs a keyed rerun.
 > The three unbuilt VISION cases have no success predicate and cannot raise task success.
 > `nevermind` is also unjudged on the LLM path because a plain acknowledgement has no
-> deterministic success predicate.
+> deterministic success predicate. `start-timer` and `add-shopping-item` are unjudged only
+> because this historical artifact predates durable-effect telemetry; a keyed rerun can
+> prove their effects.
 
 This is the **pre-magic roster**. Cases without `provider_options` run with `web_search` and
 `web_fetch` off. A search-specific case can enable either provider tool without changing the

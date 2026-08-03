@@ -19,9 +19,11 @@ from .corpus import (
     Case,
     Expected,
     ExpectedAnswer,
+    ExpectedEffect,
     ExpectedTool,
     as_alternatives,
 )
+from .effects import ObservedEffect
 
 
 class Bucket(Enum):
@@ -49,6 +51,8 @@ class ObservedTurn:
 
     speech: str
     tools: tuple[ToolCall, ...] = ()
+    # ``None`` means a historical artifact predates effect instrumentation.
+    effects: tuple[ObservedEffect, ...] | None = ()
     # Did the deterministic local (HASSIL) path handle it, no LLM involved.
     routed_locally: bool = False
     # Did the turn produce a useful outcome (vs. "I don't understand" / error).
@@ -143,11 +147,34 @@ def _answer_matches(answer: ExpectedAnswer | None, speech: str) -> bool:
     return answer.regex is None or re.search(answer.regex, speech) is not None
 
 
-def _outcome_matches(outcome: Expected, observed: ObservedTurn) -> bool:
+def _effect_matches(expected: ExpectedEffect, actual: ObservedEffect) -> bool:
+    """Match one effect by kind and exact named data values."""
+    return expected.kind == actual.kind and all(
+        key in actual.data and _arg_matches(value, actual.data[key])
+        for key, value in expected.data.items()
+    )
+
+
+def _effects_match(
+    expected: tuple[ExpectedEffect, ...],
+    actual: tuple[ObservedEffect, ...] | None,
+) -> bool | None:
+    """Require an exact effect sequence, or return unknown for legacy telemetry."""
+    if actual is None:
+        return None if expected else True
+    return len(expected) == len(actual) and all(
+        _effect_matches(want, got) for want, got in zip(expected, actual, strict=True)
+    )
+
+
+def _outcome_matches(outcome: Expected, observed: ObservedTurn) -> bool | None:
     """Whether one acceptable outcome matches the observed turn."""
-    return _tools_match(
+    ordinary_matches = _tools_match(
         outcome.tools, outcome.supporting_tools, observed.tools
     ) and _answer_matches(outcome.answer, observed.speech)
+    if not ordinary_matches:
+        return False
+    return _effects_match(outcome.effects, observed.effects)
 
 
 def case_correct(
@@ -172,8 +199,10 @@ def case_correct(
     if case.state_scored:
         if observed.unexpected_changes is None:
             return None
-        return not observed.unexpected_changes and _only_permitted_tools(
-            case.permitted_tools, observed.tools
+        return (
+            not observed.unexpected_changes
+            and _only_permitted_tools(case.permitted_tools, observed.tools)
+            and not observed.effects
         )
 
     alternatives = (
@@ -184,11 +213,16 @@ def case_correct(
     judgeable = [
         outcome
         for outcome in alternatives
-        if outcome.tools or outcome.answer is not None
+        if outcome.tools or outcome.effects or outcome.answer is not None
     ]
     if not judgeable:
         return None
-    return any(_outcome_matches(outcome, observed) for outcome in judgeable)
+    matches = [_outcome_matches(outcome, observed) for outcome in judgeable]
+    if any(match is True for match in matches):
+        return True
+    if any(match is None for match in matches):
+        return None
+    return False
 
 
 def classify(

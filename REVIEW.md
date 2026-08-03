@@ -491,9 +491,9 @@ and a `false` case cannot declare a tool, answer, or state success predicate. A 
 no checkable predicate lands in the new `UNJUDGED` bucket before routing or clarification
 can place it in a success bucket; an actual error still lands in `UNRESOLVED`. The three
 unbuilt cases no longer carry loose answer predicates. Stored baseline and variant
-observations are currently scored as 17 correct, 4 wrong, 4 unjudged, and 0 unresolved per
-arm after R22 also made the historical weather failure judgeable. Cost and routing
-measurements are unchanged.
+observations are currently scored as 15 correct, 4 wrong, 6 unjudged, and 0 unresolved per
+arm after R22 made weather judgeable and R23 exposed missing historical effect telemetry.
+Cost and routing measurements are unchanged.
 
 ### R21. Tool scoring permits dangerous extra calls and substring argument matches
 
@@ -546,10 +546,17 @@ the state remains unchanged. Entities created during a turn are ignored unless t
 declares them. Timers, todo rows, calendar records, notifications, broadcasts, and external
 effects are not part of the snapshot at all.
 
-Keep state-diff scoring, but pair it with an execution/effect ledger. Every mutating call or
-created durable record must be either expected or forbidden. For entity attributes, define a
-small domain-aware set of meaningful reproducible attributes rather than ignoring all of
-them to avoid derived-attribute noise.
+**Resolved:** State snapshots now cover all entity ids, reject newly created or removed
+entities, and compare a small reproducible attribute set for lights, covers, climate, and
+media players. Existing unexposed infrastructure state remains outside ordinary diffs.
+R21's tool roster supplies the execution-call ledger. R23 adds an independent durable-effect
+ledger with cursors around each turn; the executable timer and todo boundaries record timer
+creation and todo-row creation, and their corpus outcomes require those effects. Extra
+effects fail, just like extra tool calls. New artifacts serialize effect records and declare
+`effect_telemetry: true`. The older artifacts lack that evidence, so their timer and shopping
+rows are now unjudged rather than counted as successful; a keyed rerun will replace them.
+Future fixture boundaries for calendars, notifications, broadcasts, or external writes must
+record their effects through the same seam.
 
 ### R24. The live A/B delta is a single fixed-order sample
 

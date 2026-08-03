@@ -12,6 +12,7 @@ from .corpus import (
     Entity,
     Expected,
     ExpectedAnswer,
+    ExpectedEffect,
     ExpectedTool,
     ProviderOptions,
     StateChange,
@@ -19,6 +20,7 @@ from .corpus import (
     load_corpus,
     validate_corpus,
 )
+from .effects import ObservedEffect
 from .runner import observe_turn, run_case
 from .scoring import (
     Bucket,
@@ -42,7 +44,9 @@ __all__ = [
     "Entity",
     "Expected",
     "ExpectedAnswer",
+    "ExpectedEffect",
     "ExpectedTool",
+    "ObservedEffect",
     "ObservedTurn",
     "ProviderOptions",
     "Scorecard",

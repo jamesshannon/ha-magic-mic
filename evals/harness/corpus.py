@@ -71,6 +71,14 @@ class ExpectedTool:
 
 
 @dataclass(frozen=True)
+class ExpectedEffect:
+    """A durable or external effect the correct outcome must create."""
+
+    kind: str
+    data: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class ExpectedAnswer:
     """A predicate over the spoken response. Empty predicate matches anything."""
 
@@ -84,6 +92,7 @@ class Expected:
 
     tools: tuple[ExpectedTool, ...] = ()
     supporting_tools: tuple[ExpectedTool, ...] = ()
+    effects: tuple[ExpectedEffect, ...] = ()
     answer: ExpectedAnswer | None = None
 
 
@@ -207,6 +216,14 @@ def _parse_tools(raw: list[dict[str, Any]] | None) -> tuple[ExpectedTool, ...]:
     )
 
 
+def _parse_effects(raw: list[dict[str, Any]] | None) -> tuple[ExpectedEffect, ...]:
+    """Parse durable-effect predicates from an outcome."""
+    return tuple(
+        ExpectedEffect(kind=effect["kind"], data=dict(effect.get("data") or {}))
+        for effect in raw or ()
+    )
+
+
 def _parse_one(raw: dict[str, Any]) -> Expected:
     """Parse one acceptable outcome (tools and/or an answer predicate)."""
     answer_raw = raw.get("answer")
@@ -221,6 +238,7 @@ def _parse_one(raw: dict[str, Any]) -> Expected:
     return Expected(
         tools=_parse_tools(raw.get("tools")),
         supporting_tools=_parse_tools(raw.get("supporting_tools")),
+        effects=_parse_effects(raw.get("effects")),
         answer=answer,
     )
 

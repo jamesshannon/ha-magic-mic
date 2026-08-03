@@ -91,9 +91,46 @@ def test_undeclared_side_effect_caught_by_state() -> None:
 def test_derived_attribute_change_ignored() -> None:
     """A light's color_mode following its state off does not trip an undeclared entity."""
     before = _snap(light__bedroom=ObservedState("on", {"color_mode": "brightness"}))
-    # Same state, only the derived attribute moved; state-only check on an undeclared entity.
-    after = _snap(light__bedroom=ObservedState("on", {"color_mode": "brightness"}))
+    after = _snap(light__bedroom=ObservedState("on", {"color_mode": None}))
     assert unexpected_changes(before, after, {}, {}) == {}
+
+
+def test_undeclared_meaningful_attribute_change_is_caught() -> None:
+    """Changing another entity's volume fails even when its state is unchanged."""
+    before = _snap(
+        media_player__speaker=ObservedState("playing", {"volume_level": 0.5})
+    )
+    after = _snap(media_player__speaker=ObservedState("playing", {"volume_level": 0.9}))
+
+    assert unexpected_changes(before, after, {}, {}) == {
+        "media_player.speaker": {"volume_level": {"expected": 0.5, "got": 0.9}}
+    }
+
+
+def test_new_entity_is_forbidden_even_when_not_exposed() -> None:
+    """A state created during a turn cannot disappear outside the fixture diff."""
+    after = _snap(sensor__surprise=ObservedState("on", {}, exposed=False))
+
+    assert unexpected_changes({}, after, {}, {}) == {
+        "sensor.surprise": {"created": {"expected": None, "got": "on"}}
+    }
+
+
+def test_existing_unexposed_infrastructure_is_ignored() -> None:
+    """Normal internal state churn does not pollute the assistant-facing diff."""
+    before = _snap(sensor__internal=ObservedState("1", {}, exposed=False))
+    after = _snap(sensor__internal=ObservedState("2", {}, exposed=False))
+
+    assert unexpected_changes(before, after, {}, {}) == {}
+
+
+def test_removed_exposed_entity_is_caught() -> None:
+    """Deleting an entity is a side effect even though there is no after-state."""
+    before = _snap(light__kitchen=ObservedState("on", {}))
+
+    assert unexpected_changes(before, {}, {}, {}) == {
+        "light.kitchen": {"removed": {"expected": "on", "got": None}}
+    }
 
 
 def test_ignore_changes_suppresses_state_check() -> None:
