@@ -11,7 +11,9 @@ tool list to the model, but keeps the inner instance and its complete list for t
 authoritative execution-time recheck.
 """
 
+import asyncio
 from datetime import timedelta
+from typing import Any
 
 from homeassistant.helpers import llm
 from homeassistant.util.json import JsonObjectType
@@ -61,6 +63,7 @@ class TestbedAPI(llm.APIInstance):
         self._inner = inner
         self._policy_context = policy_context
         self._policy_registry = policy_registry
+        self._tool_call_tasks: set[asyncio.Task[Any]] = set()
         exposed_tools = [
             tool for tool in inner.tools if self._is_exposed(tool, record_trace=True)
         ]
@@ -84,6 +87,29 @@ class TestbedAPI(llm.APIInstance):
         return cls(inner, policy_context, policy_registry)
 
     async def async_call_tool(self, tool_input: llm.ToolInput) -> JsonObjectType:
+        """Track the HA-owned task, then execute through policy."""
+        if task := asyncio.current_task():
+            # ChatLog creates one task per streamed tool call. Retain completed tasks too:
+            # an abnormal stream can stop before ChatLog awaits their result, and the
+            # request boundary must retrieve any exception before identity is cleared.
+            self._tool_call_tasks.add(task)
+        return await self._async_call_tool(tool_input)
+
+    async def async_cancel_and_drain_tool_calls(self) -> None:
+        """Cancel unfinished tool calls and retrieve every tracked task result."""
+        # ChatLog may have scheduled a task immediately before its stream failed, without
+        # giving that task a timeslice to enter async_call_tool and register itself here.
+        await asyncio.sleep(0)
+        current = asyncio.current_task()
+        tasks = tuple(task for task in self._tool_call_tasks if task is not current)
+        self._tool_call_tasks.clear()
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def _async_call_tool(self, tool_input: llm.ToolInput) -> JsonObjectType:
         """Recheck policy, stage confirmation, or delegate the exact call."""
         LOGGER.debug("[testbed] tool_call %s", tool_input.tool_name)
         tool = self._find_inner_tool(tool_input.tool_name)

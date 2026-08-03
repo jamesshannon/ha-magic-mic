@@ -63,7 +63,13 @@ class TestbedConversationEntity(ClaudeConversationEntity):
         try:
             return await self._async_handle_resolved_message(user_input, chat_log)
         finally:
-            clear_resolved_user(self.hass, user_input.context)
+            try:
+                if isinstance(chat_log.llm_api, TestbedAPI):
+                    await chat_log.llm_api.async_cancel_and_drain_tool_calls()
+            finally:
+                # Tool cancellation and cleanup may still consult request identity. The
+                # registry entry is removed only after every tracked call has stopped.
+                clear_resolved_user(self.hass, user_input.context)
 
     async def _async_handle_resolved_message(
         self,

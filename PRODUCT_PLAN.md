@@ -684,7 +684,9 @@ with AI, streaming TTS).
     [`docs/ephemeral-automations.md`](docs/ephemeral-automations.md).
 
   Both populators share one **"resolve and establish principal → run → clear"** lifecycle.
-  The accessor performs only the middle read.
+  The accessor performs only the middle read. "Run" includes cancelling and joining every
+  tool task started for the request: asynchronous tool cleanup may still read the principal,
+  and the registry entry must not be cleared while a tool can resume or record a late effect.
 - **The handoff is a side channel keyed by request identity, not a `Context` attribute.**
   `Context` is slotted (`__slots__`; no arbitrary fields) and its `user_id` is HA's **auth**
   identity, which must not be overwritten with a speaker (**personalization-not-auth**,
@@ -737,6 +739,12 @@ and cleaned up with the HA chat session. This is storage behind the existing obj
 second interaction model. Turn metadata inside that sidecar is keyed by turn ID, and each
 request carries its exact metadata object into asynchronous policy and effect recording;
 there is no mutable conversation-wide "current turn" pointer.
+
+The request also owns the lifetime of every streamed tool task. An abnormal model-stream exit
+or cancellation must cancel and join those tasks before turn identity is cleared or the turn
+is considered finished. Magic Mic enforces this at the proxy request boundary for the
+installed HA release; the core-shaped destination is cleanup in `ChatLog`, where the tasks
+are created.
 
 Policy is enforced in code at two points:
 

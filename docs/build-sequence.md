@@ -193,7 +193,10 @@ before more capabilities depend on the earlier placeholder interfaces.
   of a hidden tool, and provider follow-up after both success and denial. Keep this boundary
   test when adding tool replacement or routing such as `find_entities`; unit seam tests around
   `TestbedAPI` do not cover the ChatLog/provider lifecycle. See
-  [`testbed-proxy.md`](testbed-proxy.md).
+  [`testbed-proxy.md`](testbed-proxy.md). Fault-injection cases also require that a tool
+  scheduled immediately before provider failure, a tool already blocked when the stream
+  fails, and a tool running when the outer request is cancelled are all cancelled and joined
+  before resolved identity is cleared, with no late effect.
 - **[C] Testing gate (live comparisons):** use one paired pass over affected cases during
   development, with alternating arm order and per-case deltas. Escalate changed or
   decision-relevant cases to three trials. Run the full corpus for broad behavior changes

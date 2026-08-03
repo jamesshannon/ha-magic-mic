@@ -153,6 +153,14 @@ as one until every executable tool is classified or unknown tools default unavai
 registry, migration path, and current HA provenance limitation are detailed in
 [`tool-policy.md`](tool-policy.md).
 
+Execution policy also depends on a strict request-lifetime boundary. A streamed tool may
+already be running when the provider stream fails or the caller cancels the turn. The request
+must cancel and join every such task before removing its resolved-principal entry; otherwise
+the task can resume as the unidentified fallback, mutate state without a returned result, or
+record an effect after the turn ended. The testbed enforces this around its provider-neutral
+API wrapper and fault-injects both failure and cancellation. The eventual core implementation
+belongs in `ChatLog`, which creates the tool tasks.
+
 The first consequence policy is intentionally small and ordinal, not a pretend-calibrated
 probability. An action may be low-risk, require confirmation on a wake-word-free continuation,
 or always require confirmation. Continuation origin, protected-data provenance, and a

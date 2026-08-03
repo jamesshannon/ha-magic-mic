@@ -126,6 +126,20 @@ has hidden it and verifies execution-time denial, no device effect, and a follow
 that receives the structured error. This test protects the ChatLog task and serialization
 lifecycle around the neutral seam.
 
+That task lifecycle also has an abnormal-exit invariant. HA's `ChatLog` eagerly creates a
+task when a streamed tool call becomes complete, but the installed core release does not
+cancel and join all such tasks when the model stream fails before normal result collection.
+The per-request `TestbedAPI` therefore retains the task that enters each intercepted call.
+Before clearing request identity, the testbed request boundary yields once so a just-scheduled
+call can register, cancels unfinished calls, and gathers every retained task. This ordering
+keeps the resolved principal available to tool cleanup and prevents a tool or effect from
+outliving its failed or cancelled turn. Tests cover a blocked call, failure immediately after
+task scheduling, and cancellation of the outer request.
+
+This is intentionally provider-neutral and does not belong in `internal.claude`. When the
+behavior graduates to HA core, `ChatLog` should cancel and gather the tasks it creates in its
+own `finally`; that gives the actual task owner a complete set without proxy observation.
+
 Token, generation, and turn counts for the value dashboard come from inspecting the ChatLog
 at the neutral layer. For raw model I/O (exact request and response bytes, token usage) the
 testbed injects an instrumented Anthropic client into the inner agent, so the loop code stays

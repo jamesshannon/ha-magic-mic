@@ -603,17 +603,28 @@ claim until the corresponding driver exists.
 **Severity:** High cross-cutting failure-path risk; validate before personal tools perform
 I/O.
 
-HA's streaming ChatLog starts tool tasks as soon as tool-call deltas arrive. That upstream
-code has no local `finally` that cancels and joins all started tasks if the stream fails
-before normal tool-result collection. The testbed clears the request's resolved principal in
-its outer `finally` as soon as the provider loop exits. A surviving tool task can therefore
-resume after an await and see the unidentified fallback from `get_resolved_user()`, record an
-effect after the turn ended, or mutate state without a returned tool result.
+HA's streaming ChatLog starts tool tasks as soon as tool-call deltas arrive. The installed
+upstream code has no local `finally` that cancels and joins all started tasks if the stream
+fails before normal tool-result collection. Previously, the testbed cleared the request's
+resolved principal in its outer `finally` as soon as the provider loop exited. A surviving
+tool task could therefore resume after an await and see the unidentified fallback from
+`get_resolved_user()`, record an effect after the turn ended, or mutate state without a
+returned tool result.
 
-Add a fault-injection test that starts a blocking personal tool, fails or cancels the model
-stream, and observes task cancellation, identity lifetime, and effect recording. Either own
-and drain tool tasks at the provider/request boundary or make execution carry an immutable
-request context that does not depend on a cleared global lookup while in flight.
+**Resolved in the proxy:** the per-request `TestbedAPI` records every ChatLog task that enters
+tool execution. At the outer request boundary it first yields to admit a tool task that
+ChatLog scheduled immediately before stream failure, then cancels and gathers all recorded
+tasks. Only after that drain completes does the testbed clear the resolved-principal registry
+entry. Gathering also retrieves an exception from a task that completed just before the
+stream failed.
+
+Driven fault-injection coverage exercises a provider failure after a tool has blocked, a
+provider failure immediately after scheduling the tool, and cancellation of the whole
+request. In every case the tool is cancelled, its cleanup still sees the identified
+principal, no late effect is recorded, and the registry is empty after request cleanup. The
+provider fork remains unchanged. In HA core, the stronger and more direct destination is a
+`finally` in `ChatLog`, which owns creation of these tasks; proxy-side tracking is the POC
+seam for the installed release.
 
 ## Declared limitations confirmed by the trace
 
