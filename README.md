@@ -15,25 +15,30 @@ does and how it differs.
 
 ---
 
-## Status
+## For home users
 
-**Walking skeleton: a working LLM voice agent; the differentiated capabilities land next.**
-Wave 0 is complete. With a Claude API key, Magic Mic installs and runs as an LLM-backed Home
-Assistant conversation agent: it controls devices through Assist and can search the web, at
-parity with the stock Anthropic integration, wrapped in a neutral "testbed" proxy that adds
-the tracing and tool-interception seams the later work builds on. It also ships an offline
-evaluation harness with a locked baseline, so every later change is a measured delta.
+Magic Mic installs as a Home Assistant conversation agent: add it, point your Assist
+pipeline at it, and enter your Claude API key. It's beta, and it updates itself as
+capabilities land.
 
-What it does **not** have yet is the differentiated part: the reminders, long-term memory,
-learned phrasing, and one-sentence automations from [`VISION.md`](VISION.md). Those are
-Wave 1 and beyond. Install it now to follow along and get features automatically as they land.
+**Working today**
 
-To evaluate the *ideas*, read the docs below. To **install it today** and get updates as
-they're committed, see **[Install](#install-hacs)**.
+- Conversational device control through Assist. Back-and-forth instead of one command per
+  press; target things by room, floor, or name.
+- Web search, answered inline in the same conversation.
+- A compact summary of your home replaces the full device list sent to the model each
+  turn, so token cost scales with your layout (floors, areas, domains) rather than your
+  device count. A 200-device home stops re-sending 200 names on every turn.
+- Automatic updates. HACS tracks `main`, so new capabilities appear as they're committed,
+  no reinstall.
 
-The end state is a Home Assistant **custom component** (on cloud Claude to start), with
-every capability shaped so it can graduate into Home Assistant **core** and reach everyone.
-The shell is disposable on purpose; the capabilities are the point.
+**Coming soon**
+
+- Memory: tell it a fact ("the wifi password is hunter2-galaxy"), ask for it back later.
+- Reminders that find you in whatever room you're in, including conditional ones ("remind
+  me in an hour if I haven't closed the garage").
+
+As each capability ships it moves from "Coming soon" up into "Working today."
 
 ---
 
@@ -138,8 +143,9 @@ See `PRODUCT_PLAN.md` §5 (principles), §7 (path-to-core), and §8 (roadmap) fo
 
 ## Contributing / running
 
-Very early: the integration loads but has no features, so there's nothing to *run* yet. The
-most useful contributions right now:
+Early days: it installs and runs as an LLM voice agent (see [For home
+users](#for-home-users)), but the differentiated capabilities are still landing. The most
+useful contributions right now:
 
 - **Read a design doc above and poke holes in it.** The architecture is meant to be argued with.
 - **File an [issue](https://github.com/jamesshannon/ha-magic-mic/issues)** with feedback, use
