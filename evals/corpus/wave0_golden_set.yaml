@@ -117,6 +117,9 @@ cases:
     expect_changes:
       light.kitchen: {state: "off"}
       light.living_room: {state: "off"}
+    permitted_tools:
+      - name: HassTurnOff
+      - name: GetLiveContext
     template: "<turn> (off|out) [<all>] [<the>] {area} <light>"
     note: Bare "the lights" targets all exposed lights.
 
@@ -131,6 +134,9 @@ cases:
       light.kitchen: {state: "off"}
     expect_changes:
       light.kitchen: {state: "on"}
+    permitted_tools:
+      - name: HassTurnOn
+      - name: GetLiveContext
     template: "[<the>] {area} <light> on"
 
   - id: turn-off-living-room-lamp
@@ -141,6 +147,9 @@ cases:
     requires: [light.living_room]
     expect_changes:
       light.living_room: {state: "off"}
+    permitted_tools:
+      - name: HassTurnOff
+      - name: GetLiveContext
 
   - id: set-bedroom-brightness
     utterance: set the bedroom light to 30%
@@ -171,6 +180,9 @@ cases:
       cover.garage_door: {state: "closed"}
     expect_changes:
       cover.garage_door: {state: "open"}
+    permitted_tools:
+      - name: HassTurnOn
+      - name: GetLiveContext
     template: "<open> [<the>] {cover_classes:device_class} ..."
     note: Opening a cover maps onto HassTurnOn in the intent set.
 
@@ -185,6 +197,10 @@ cases:
     # scorer needed, made unnecessary by judging the world.
     expect_changes:
       cover.living_room_blinds: {state: "closed"}
+    permitted_tools:
+      - name: HassTurnOff
+      - name: HassSetPosition
+      - name: GetLiveContext
 
   - id: set-blinds-position
     utterance: set the living room blinds to 50%
@@ -197,6 +213,9 @@ cases:
     # the per-case world reset, not from staging against the previous case.)
     expect_changes:
       cover.living_room_blinds: {attributes: {current_position: 50}}
+    permitted_tools:
+      - name: HassSetPosition
+      - name: GetLiveContext
     template: "(<numeric_value_set>...) [<the>] {name} [position] to {position} percent"
 
   - id: room-temperature
@@ -244,6 +263,9 @@ cases:
     # area-vs-name grounding that split the tool expectation no longer matters.
     expect_changes:
       media_player.living_room: {attributes: {volume_level: 0.4}}
+    permitted_tools:
+      - name: HassSetVolume
+      - name: GetLiveContext
     template: "<numeric_value_set> [<the>] {area} volume to {volume:volume_level} percent"
 
   - id: pause-music
@@ -254,6 +276,9 @@ cases:
     requires: [media_player.living_room]
     expect_changes:
       media_player.living_room: {state: "paused"}
+    permitted_tools:
+      - name: HassMediaPause
+      - name: GetLiveContext
     template: "pause [[the|my] (music|...)] [in] [<the>] {area}"
 
   - id: start-timer
@@ -336,6 +361,9 @@ cases:
     expect_changes:
       light.kitchen: {state: "off"}
       fan.bedroom: {state: "off"}
+    permitted_tools:
+      - name: HassTurnOff
+      - name: GetLiveContext
     note: >
       Each half is a supported single intent, but the conjunction is not one HASSIL
       template. A clean LLM-only routing case with fully supported actions.
@@ -349,7 +377,9 @@ cases:
     expected:
       tools:
         - name: HassClimateSetTemperature
-          args: {area: living_room}
+          args: {area: living room}
+      supporting_tools:
+        - name: GetLiveContext
     note: >
       No template matches; the model infers "raise the thermostat". Expected action is
       loose (a setpoint increase), a candidate for helpfulness judging later.
@@ -373,6 +403,8 @@ cases:
     resolves_at_wave0: true
     requires: [cover.garage_door]
     expected:
+      supporting_tools:
+        - name: GetLiveContext
       answer:
         contains: ["open"]
     note: >

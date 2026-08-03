@@ -132,7 +132,7 @@ something demonstrable. Tags: **[C]** component · **[core]** needs a core chang
 
 **Status: complete.** Every bullet below landed. The locked baseline is
 `evals/results/wave0_baseline.json` (`claude-haiku-4-5`, `prefer_local` OFF, pre-magic
-roster), rescored after R20: **19 correct / 3 wrong / 3 unjudged / 0 unresolved**, 44
+roster), rescored after R20: **18 correct / 3 wrong / 4 unjudged / 0 unresolved**, 44
 generations. Delivered beyond the plan:
 the eval's fixture home is backed by executable entities plus a mocked satellite (so timers
 and the full tool roster run headless), and the scorer takes `any_of` acceptable outcomes to

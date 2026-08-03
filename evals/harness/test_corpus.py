@@ -11,7 +11,9 @@ from evals.harness import (
     Entity,
     Expected,
     ExpectedAnswer,
+    ExpectedTool,
     ProviderOptions,
+    StateChange,
     World,
     load_corpus,
     validate_corpus,
@@ -39,6 +41,16 @@ def test_wave0_golden_set_loads_and_validates() -> None:
     assert corpus.cases, "corpus should not be empty"
     assert corpus.world.areas
     assert {"light.kitchen", "cover.garage_door"} <= corpus.world.entity_ids()
+    reasoning = next(
+        case for case in corpus.cases if case.id == "reasoning-did-i-leave-garage"
+    )
+    assert reasoning.expected_for(llm=True)[0].supporting_tools == (
+        ExpectedTool("GetLiveContext"),
+    )
+    state_case = next(
+        case for case in corpus.cases if case.id == "turn-on-kitchen-light"
+    )
+    assert ExpectedTool("HassTurnOn") in state_case.permitted_tools
 
 
 def test_load_corpus_default_path() -> None:
@@ -140,6 +152,41 @@ def test_unsupported_case_cannot_declare_success_predicate() -> None:
     )
 
     with pytest.raises(CorpusError, match="cannot declare a success predicate"):
+        validate_corpus(corpus)
+
+
+def test_state_scored_case_requires_permitted_tool_roster() -> None:
+    """State correctness must not leave observed calls unconstrained."""
+    corpus = Corpus(
+        world=World(
+            areas=(), entities=(Entity(entity_id="light.kitchen", name="Light"),)
+        ),
+        cases=(
+            _case(
+                expect_changes={"light.kitchen": StateChange(state="off")},
+            ),
+        ),
+    )
+
+    with pytest.raises(CorpusError, match="must declare permitted_tools"):
+        validate_corpus(corpus)
+
+
+def test_mutating_tool_cannot_be_declared_as_supporting() -> None:
+    """Supporting calls are restricted to the scorer's read-only inventory."""
+    corpus = Corpus(
+        world=World(areas=(), entities=()),
+        cases=(
+            _case(
+                expected=Expected(
+                    tools=(ExpectedTool("GetLiveContext"),),
+                    supporting_tools=(ExpectedTool("HassTurnOff"),),
+                )
+            ),
+        ),
+    )
+
+    with pytest.raises(CorpusError, match="not classified read-only"):
         validate_corpus(corpus)
 
 

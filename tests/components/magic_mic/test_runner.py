@@ -165,6 +165,7 @@ def _close_blinds_state_case() -> Case:
         category="device-control",
         routing_truth="local",
         resolves_at_wave0=True,
+        permitted_tools=(ExpectedTool("HassSetPosition"),),
         expect_changes={"cover.blinds": StateChange(state="closed")},
     )
 

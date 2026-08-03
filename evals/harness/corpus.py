@@ -18,6 +18,7 @@ ROUTING_LOCAL = "local"
 ROUTING_LLM = "llm"
 _ROUTING_VALUES = frozenset({ROUTING_LOCAL, ROUTING_LLM})
 _PROVIDER_OPTION_KEYS = frozenset({"web_fetch", "web_search"})
+_READ_ONLY_SUPPORTING_TOOLS = frozenset({"GetDateTime", "GetLiveContext"})
 
 
 class CorpusError(ValueError):
@@ -63,7 +64,7 @@ class StateChange:
 
 @dataclass(frozen=True)
 class ExpectedTool:
-    """An action the correct outcome invokes. ``args`` are partial hints, not exact."""
+    """A tool call pattern. Named args require exact normalized values."""
 
     name: str
     args: dict[str, Any] = field(default_factory=dict)
@@ -82,6 +83,7 @@ class Expected:
     """The correct outcome for a case: some tools, an answer predicate, or both."""
 
     tools: tuple[ExpectedTool, ...] = ()
+    supporting_tools: tuple[ExpectedTool, ...] = ()
     answer: ExpectedAnswer | None = None
 
 
@@ -114,7 +116,8 @@ class Case:
     Each is a tuple of acceptable outcomes (``any_of`` in the corpus, one-element for the
     single-outcome shorthand). A turn is correct when it matches any of them, so genuine
     ties (close a cover by ``HassTurnOff`` or by ``HassSetPosition: 0``) do not flip-flop
-    pass/fail on model non-determinism.
+    pass/fail on model non-determinism. ``supporting_tools`` declares optional calls that
+    may accompany an outcome; every other extra call fails it.
 
     ``expect_changes`` scores the case by the state it leaves the world in, rather than by
     the tool the model called (see ``statediff.py``). It is scope-invariant: the world ends
@@ -122,6 +125,8 @@ class Case:
     a case scored this way needs no ``expected_llm`` or ``any_of`` tool gymnastics.
     ``setup`` stages a known pre-turn state; ``ignore_changes`` suppresses a per-entity state
     check (list ``state``) where the outcome is genuinely non-deterministic.
+    ``permitted_tools`` is the corresponding allowlist for a state-scored case: state proves
+    success, while the allowlist prevents an unrelated call from riding along.
     """
 
     id: str
@@ -133,6 +138,7 @@ class Case:
     provider_options: ProviderOptions = field(default_factory=ProviderOptions)
     expected: Expected | tuple[Expected, ...] = ()
     expected_llm: Expected | tuple[Expected, ...] | None = None
+    permitted_tools: tuple[ExpectedTool, ...] = ()
     setup: dict[str, StateChange] = field(default_factory=dict)
     expect_changes: dict[str, StateChange] = field(default_factory=dict)
     ignore_changes: dict[str, tuple[str, ...]] = field(default_factory=dict)
@@ -193,12 +199,16 @@ def as_alternatives(
     return tuple(value)
 
 
+def _parse_tools(raw: list[dict[str, Any]] | None) -> tuple[ExpectedTool, ...]:
+    """Parse tool call patterns from an expectation or state-scored allowlist."""
+    return tuple(
+        ExpectedTool(name=tool["name"], args=dict(tool.get("args") or {}))
+        for tool in raw or ()
+    )
+
+
 def _parse_one(raw: dict[str, Any]) -> Expected:
     """Parse one acceptable outcome (tools and/or an answer predicate)."""
-    tools = tuple(
-        ExpectedTool(name=tool["name"], args=dict(tool.get("args") or {}))
-        for tool in raw.get("tools") or ()
-    )
     answer_raw = raw.get("answer")
     answer = (
         ExpectedAnswer(
@@ -208,7 +218,11 @@ def _parse_one(raw: dict[str, Any]) -> Expected:
         if answer_raw
         else None
     )
-    return Expected(tools=tools, answer=answer)
+    return Expected(
+        tools=_parse_tools(raw.get("tools")),
+        supporting_tools=_parse_tools(raw.get("supporting_tools")),
+        answer=answer,
+    )
 
 
 def _parse_expectation(raw: dict[str, Any] | None) -> tuple[Expected, ...]:
@@ -296,6 +310,7 @@ def _parse_case(raw: dict[str, Any]) -> Case:
         expected_llm=(
             _parse_expectation(raw["expected_llm"]) if "expected_llm" in raw else None
         ),
+        permitted_tools=_parse_tools(raw.get("permitted_tools")),
         setup=_parse_state_map(raw.get("setup")),
         expect_changes=_parse_state_map(raw.get("expect_changes")),
         ignore_changes=_parse_ignore_changes(raw.get("ignore_changes")),
@@ -343,10 +358,28 @@ def validate_corpus(corpus: Corpus) -> None:
             as_alternatives(case.expected)
             or case.expected_llm is not None
             or case.state_scored
+            or case.permitted_tools
         ):
             problems.append(
                 f"{case.id}: a Wave 0 unsupported case cannot declare a success "
                 "predicate"
+            )
+        if case.state_scored and not case.permitted_tools:
+            problems.append(
+                f"{case.id}: a state-scored case must declare permitted_tools"
+            )
+        if not case.state_scored and case.permitted_tools:
+            problems.append(
+                f"{case.id}: permitted_tools is only valid for a state-scored case"
+            )
+        for outcome in (
+            *as_alternatives(case.expected),
+            *as_alternatives(case.expected_llm),
+        ):
+            problems.extend(
+                f"{case.id}: supporting tool {tool.name!r} is not classified read-only"
+                for tool in outcome.supporting_tools
+                if tool.name not in _READ_ONLY_SUPPORTING_TOOLS
             )
 
     world_ids = corpus.world.entity_ids()

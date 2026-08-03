@@ -44,9 +44,11 @@ Each case is a single-turn `(utterance [, context] -> expected action(s) / answe
 | `resolves_at_wave0` | Whether Wave 0 (pass-through proxy, no capabilities yet) can produce a judgeable successful outcome. A `false` case is a VISION feature not built yet and cannot declare a success predicate. An error lands in `unresolved`; any successful-looking response lands in `unjudged`, never in a success bucket. |
 | `requires` | Fixture entities/features the case depends on (documents the context assumption; the runner must expose these). |
 | `provider_options` | Optional provider setup for this case. `web_search` and `web_fetch` are independent booleans and both default off when omitted. The live runner applies changes through the Magic Mic config entry before the turn and records the effective values in the artifact. |
-| `expected.tools` | Ordered list of `{name, args}` the correct outcome invokes. `args` are partial hints, not an exact-match contract. Omit for answer-only cases. |
+| `expected.tools` | Ordered list of required `{name, args}` calls. Named argument values match exactly after Unicode, case, and whitespace normalization; unspecified observed arguments are allowed. Every undeclared extra call fails. |
+| `expected.supporting_tools` | Optional call patterns that may appear around the required calls without being required themselves. Use for a deliberate read-before-answer step such as `GetLiveContext`, not as a broad tool allowlist. |
 | `expected.answer` | Optional predicate over the spoken response: `{contains: [...]}` or `{regex: ...}`. |
 | `expect_changes` | `entity_id -> {state, attributes}` the turn must leave the world in. When present, the case is **state-scored**: correctness is the resulting state, not the tool called (`harness/statediff.py`), so it needs no `expected_llm` or `any_of`. Declared entities are checked on state plus each named attribute; every other exposed entity on state alone (catches a wrong-target side effect). Requires the executable world (`backing.py`). |
+| `permitted_tools` | Required for a state-scored case. Lists every call pattern allowed during the turn, including alternate mutation tools and deliberate supporting reads. A correct final state still fails if any observed call falls outside this roster. |
 | `setup` | `entity_id -> {state, attributes}` to stage **before** the turn, so a change is real (turn on a light that starts on, open a garage that starts open). Same shape as `expect_changes`. |
 | `ignore_changes` | `entity_id -> [attribute, ...]` checks to suppress; the literal `state` drops that entity's state check, for a genuinely non-deterministic outcome. |
 | `any_of` | Either `expected` or `expected_llm` may be `{any_of: [<outcome>, ...]}` instead of a single `{tools, answer}` block. The case is correct when the turn matches **any** listed outcome. This is for genuine ties the model picks between run to run (close a cover by `HassTurnOff` or by `HassSetPosition: 0`), so non-determinism does not flip-flop pass/fail. Only for equally-valid outcomes, never accepted failures. **For device-control ties, prefer `expect_changes`**: judging the state absorbs the tie without enumerating tools. |
@@ -266,22 +268,24 @@ Findings the keyless routing measurement surfaced:
 ### Wave 0 exit gate (blocks Wave 1): done
 
 Ran the live baseline keyed from a project-root `.env`: stock full-roster prompt,
-`prefer_local` OFF, model `claude-haiku-4-5`, 25 cases. Rescored result: 19
-resolved-by-LLM-correct, 3 wrong-action, 3 unjudged, 0 unresolved; routing agreement 8/25
+`prefer_local` OFF, model `claude-haiku-4-5`, 25 cases. Rescored result: 18
+resolved-by-LLM-correct, 3 wrong-action, 4 unjudged, 0 unresolved; routing agreement 8/25
 (every case routes to the LLM with
 `prefer_local` OFF, so only the 8 `llm`-labelled cases agree); 44 generations. Wave 1 reports
 Δtokens / Δturns / Δhassil-rate against this artifact.
 
 > **Refreshed under state scoring (keyed re-run, `claude-haiku-4-5`).** After nine
 > device-control cases moved to `expect_changes`, the keyed baseline was re-run so its
-> scoring basis matches. R20 later rescored the stored observations as 19 LLM-correct / 3
-> wrong-action / 3 unjudged / 0 unresolved, still 44 generations. State scoring agrees with
+> scoring basis matches. R20 later rescored the stored observations as 18 LLM-correct / 3
+> wrong-action / 4 unjudged / 0 unresolved, still 44 generations. State scoring agrees with
 > the reconciled tool expectations on this corpus while being robust to tool variance (the
 > device cases pass whichever equally-valid tool the model picks). The three wrong cases are
 > model behavior, not harness faults: `turn-off-all-lights` and `implicit-too-dark` ask which
 > entity instead of acting (the world does not change, so state scoring marks them wrong for
 > the right reason); `implicit-cold` reads the thermostat then asks how warm. The three
-> unbuilt VISION cases have no success predicate and cannot raise task success.
+> unbuilt VISION cases have no success predicate and cannot raise task success. `nevermind`
+> is also unjudged on the LLM path because a plain acknowledgement has no deterministic
+> success predicate.
 
 This is the **pre-magic roster**. Cases without `provider_options` run with `web_search` and
 `web_fetch` off. A search-specific case can enable either provider tool without changing the
@@ -303,8 +307,9 @@ The 3 wrong-action cases are model behavior worth recording, not harness faults:
 `implicit-cold` reads the thermostat then asks how warm. `conditional-reminder`,
 `remember-fact`, and `undo-last` are unbuilt VISION features
 (`resolves_at_wave0: false`), so their stored responses are unjudged. The earlier run's
-other five wrong-action cases were the timer gap (now backed) and the four reconciled
-predictions, all correct here.
+`nevermind` acknowledgement is the fourth unjudged response. The earlier run's other five
+wrong-action cases were the timer gap (now backed) and the four reconciled predictions, all
+correct here.
 
 Token counts depend on prompt-cache behavior, which varies run to run: this run read
 214,656 cached tokens against 20,708 uncached input, where an earlier uncached run showed

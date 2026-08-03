@@ -491,7 +491,7 @@ and a `false` case cannot declare a tool, answer, or state success predicate. A 
 no checkable predicate lands in the new `UNJUDGED` bucket before routing or clarification
 can place it in a success bucket; an actual error still lands in `UNRESOLVED`. The three
 unbuilt cases no longer carry loose answer predicates. Stored baseline and variant
-observations were rescored as 19 correct, 3 wrong, 3 unjudged, and 0 unresolved per arm;
+observations were rescored as 18 correct, 3 wrong, 4 unjudged, and 0 unresolved per arm;
 cost and routing measurements are unchanged.
 
 ### R21. Tool scoring permits dangerous extra calls and substring argument matches
@@ -504,10 +504,14 @@ case-insensitive substring matching, so an expected entity or value may match a 
 different target. A turn can perform the expected read plus an unrelated mutation and still
 pass.
 
-Make exact normalized matching the default, with explicit per-field match modes for the few
-arguments that need containment or tolerance. Classify observed calls as expected,
-permitted-supporting, or forbidden-extra; mutating extras should always fail. The effect
-journal can eventually provide an independent mutation signal.
+**Resolved:** Named argument values now match exactly after Unicode, case, and whitespace
+normalization; no corpus field currently needs a weaker match mode. Required calls must
+appear in order. Each outcome may explicitly declare optional `supporting_tools`, and every
+other extra call fails. State-scored cases now require their own `permitted_tools` roster,
+so a correct final state does not excuse an unrelated observed call. The corpus allows
+`GetLiveContext` only where a read-before-action or read-before-answer step is legitimate.
+The effect journal can later provide an independent mutation signal for effects that tool
+tracing and state snapshots cannot see (R23).
 
 ### R22. The executable fixture drops state-only entity metadata and exposure setup
 

@@ -13,6 +13,7 @@ from evals.harness import (
     classify,
     score_case,
 )
+from evals.harness.corpus import StateChange
 
 
 def _case(
@@ -36,8 +37,8 @@ def _case(
 # --- correctness matching -----------------------------------------------------------
 
 
-def test_tool_and_args_partial_match() -> None:
-    """Expected args are a subset check; extra observed args do not break a match."""
+def test_expected_arg_keys_are_subset_but_values_are_exact() -> None:
+    """Unspecified observed args are allowed without weakening named values."""
     case = _case(
         expected=Expected(
             tools=(ExpectedTool("HassTurnOff", {"name": "Kitchen Light"}),)
@@ -46,6 +47,36 @@ def test_tool_and_args_partial_match() -> None:
     observed = ObservedTurn(
         speech="Done",
         tools=(ToolCall("HassTurnOff", {"name": "Kitchen Light", "brightness": 0}),),
+    )
+
+    assert case_correct(case, observed) is True
+
+
+def test_string_arg_does_not_match_longer_value() -> None:
+    """A target name cannot pass by being a substring of another target."""
+    case = _case(
+        expected=Expected(tools=(ExpectedTool("HassTurnOff", {"name": "Lamp"}),))
+    )
+    observed = ObservedTurn(
+        speech="Done",
+        tools=(ToolCall("HassTurnOff", {"name": "Bedroom Lamp"}),),
+    )
+
+    assert case_correct(case, observed) is False
+
+
+def test_string_args_normalize_unicode_case_and_whitespace() -> None:
+    """Conservative text normalization does not create false mismatches."""
+    case = _case(
+        expected=Expected(
+            tools=(ExpectedTool("HassTurnOff", {"name": " CAFÉ  Lamp "}),)
+        )
+    )
+    observed = ObservedTurn(
+        speech="Done",
+        tools=(
+            ToolCall("HassTurnOff", {"name": "Cafe\N{COMBINING ACUTE ACCENT} lamp"}),
+        ),
     )
 
     assert case_correct(case, observed) is True
@@ -101,14 +132,15 @@ def test_missing_tool_is_wrong() -> None:
     assert case_correct(case, observed) is False
 
 
-def test_compound_tools_matched_as_ordered_subsequence() -> None:
-    """Expected tools match when present in order, interleaved calls allowed."""
+def test_declared_supporting_tool_can_interleave_expected_calls() -> None:
+    """Only an explicitly declared supporting call may appear between required calls."""
     case = _case(
         expected=Expected(
             tools=(
                 ExpectedTool("HassTurnOff", {"name": "Kitchen Light"}),
                 ExpectedTool("HassTurnOff", {"name": "Bedroom Fan"}),
-            )
+            ),
+            supporting_tools=(ExpectedTool("GetLiveContext"),),
         )
     )
     observed = ObservedTurn(
@@ -121,6 +153,39 @@ def test_compound_tools_matched_as_ordered_subsequence() -> None:
     )
 
     assert case_correct(case, observed) is True
+
+
+def test_undeclared_extra_tool_is_wrong() -> None:
+    """An extra call fails even when all expected calls appear in order."""
+    case = _case(expected=Expected(tools=(ExpectedTool("GetLiveContext"),)))
+    observed = ObservedTurn(
+        speech="The garage is open.",
+        tools=(
+            ToolCall("GetLiveContext", {"name": "Garage Door"}),
+            ToolCall("HassTurnOff", {"name": "Kitchen Light"}),
+        ),
+    )
+
+    assert case_correct(case, observed) is False
+
+
+def test_state_scoring_rejects_tool_outside_permitted_roster() -> None:
+    """Correct final state does not excuse an unrelated tool call."""
+    case = _case(
+        expected=None,
+        expect_changes={"light.kitchen": StateChange(state="off")},
+        permitted_tools=(ExpectedTool("HassTurnOff"),),
+    )
+    observed = ObservedTurn(
+        speech="Done",
+        tools=(
+            ToolCall("HassTurnOff", {"name": "Kitchen Light"}),
+            ToolCall("HassStartTimer", {"minutes": 10}),
+        ),
+        unexpected_changes={},
+    )
+
+    assert case_correct(case, observed) is False
 
 
 def test_answer_contains_case_insensitive() -> None:

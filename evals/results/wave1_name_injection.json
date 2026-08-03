@@ -3,9 +3,9 @@
     "summary_names": {
       "buckets": {
         "resolved after clarification": 0,
-        "resolved by LLM, correct": 19,
+        "resolved by LLM, correct": 18,
         "resolved locally (hassil)": 0,
-        "unjudged (no success predicate)": 3,
+        "unjudged (no success predicate)": 4,
         "unresolved / \"I don't understand\"": 0,
         "wrong action": 3
       },
@@ -403,7 +403,7 @@
           "utterance": "add milk to the shopping list"
         },
         {
-          "bucket": "resolved by LLM, correct",
+          "bucket": "unjudged (no success predicate)",
           "cache_creation_tokens": 0,
           "cache_read_tokens": 5273,
           "category": "small-talk",
@@ -645,9 +645,9 @@
     "summary_only": {
       "buckets": {
         "resolved after clarification": 0,
-        "resolved by LLM, correct": 19,
+        "resolved by LLM, correct": 18,
         "resolved locally (hassil)": 0,
-        "unjudged (no success predicate)": 3,
+        "unjudged (no success predicate)": 4,
         "unresolved / \"I don't understand\"": 0,
         "wrong action": 3
       },
@@ -1054,7 +1054,7 @@
           "utterance": "add milk to the shopping list"
         },
         {
-          "bucket": "resolved by LLM, correct",
+          "bucket": "unjudged (no success predicate)",
           "cache_creation_tokens": 0,
           "cache_read_tokens": 5273,
           "category": "small-talk",

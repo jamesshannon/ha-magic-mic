@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import re
 from typing import Any
+import unicodedata
 
 from .corpus import (
     ROUTING_LOCAL,
@@ -76,10 +77,24 @@ class CaseResult:
 
 
 def _arg_matches(expected: Any, actual: Any) -> bool:
-    """Partial match for one arg. Strings match case-insensitively by substring."""
+    """Match one argument by exact value after conservative normalization."""
     if isinstance(expected, str) and isinstance(actual, str):
-        return expected.casefold() in actual.casefold()
+        return _normalize_string(expected) == _normalize_string(actual)
+    if isinstance(expected, list) and isinstance(actual, list):
+        return len(expected) == len(actual) and all(
+            _arg_matches(expected_item, actual_item)
+            for expected_item, actual_item in zip(expected, actual, strict=True)
+        )
+    if isinstance(expected, dict) and isinstance(actual, dict):
+        return expected.keys() == actual.keys() and all(
+            _arg_matches(value, actual[key]) for key, value in expected.items()
+        )
     return expected == actual
+
+
+def _normalize_string(value: str) -> str:
+    """Normalize Unicode, case, and whitespace without weakening value identity."""
+    return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
 
 
 def _tool_matches(expected: ExpectedTool, actual: ToolCall) -> bool:
@@ -93,18 +108,30 @@ def _tool_matches(expected: ExpectedTool, actual: ToolCall) -> bool:
 
 
 def _tools_match(
-    expected: tuple[ExpectedTool, ...], actual: tuple[ToolCall, ...]
+    expected: tuple[ExpectedTool, ...],
+    supporting: tuple[ExpectedTool, ...],
+    actual: tuple[ToolCall, ...],
 ) -> bool:
-    """Every expected tool must appear, in order, as a subsequence of the calls."""
-    remaining = list(actual)
-    for want in expected:
-        for index, call in enumerate(remaining):
-            if _tool_matches(want, call):
-                remaining = remaining[index + 1 :]
-                break
-        else:
+    """Require expected calls in order and reject every undeclared extra call."""
+    expected_index = 0
+    for call in actual:
+        if expected_index < len(expected) and _tool_matches(
+            expected[expected_index], call
+        ):
+            expected_index += 1
+            continue
+        if not any(_tool_matches(allowed, call) for allowed in supporting):
             return False
-    return True
+    return expected_index == len(expected)
+
+
+def _only_permitted_tools(
+    permitted: tuple[ExpectedTool, ...], actual: tuple[ToolCall, ...]
+) -> bool:
+    """Return whether every state-scored call matches its explicit allowlist."""
+    return all(
+        any(_tool_matches(allowed, call) for allowed in permitted) for call in actual
+    )
 
 
 def _answer_matches(answer: ExpectedAnswer | None, speech: str) -> bool:
@@ -118,9 +145,9 @@ def _answer_matches(answer: ExpectedAnswer | None, speech: str) -> bool:
 
 def _outcome_matches(outcome: Expected, observed: ObservedTurn) -> bool:
     """Whether one acceptable outcome matches the observed turn."""
-    return _tools_match(outcome.tools, observed.tools) and _answer_matches(
-        outcome.answer, observed.speech
-    )
+    return _tools_match(
+        outcome.tools, outcome.supporting_tools, observed.tools
+    ) and _answer_matches(outcome.answer, observed.speech)
 
 
 def case_correct(
@@ -145,7 +172,9 @@ def case_correct(
     if case.state_scored:
         if observed.unexpected_changes is None:
             return None
-        return not observed.unexpected_changes
+        return not observed.unexpected_changes and _only_permitted_tools(
+            case.permitted_tools, observed.tools
+        )
 
     alternatives = (
         as_alternatives(case.expected)
