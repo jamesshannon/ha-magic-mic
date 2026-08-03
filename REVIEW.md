@@ -626,6 +626,189 @@ provider fork remains unchanged. In HA core, the stronger and more direct destin
 `finally` in `ChatLog`, which owns creation of these tasks; proxy-side tracking is the POC
 seam for the installed release.
 
+## Pass 5: public and persistent contract audit
+
+Status: complete. Reviewed integration setup, configuration and reauthentication, the
+proxy/provider boundary, direct and merged LLM APIs, tool policy and execution results,
+identity and session lifetimes, pending operations, undo replay, scoped persistence,
+localization and exception rendering, corpus loading, observation, and scoring. For each
+seam, compared the documented guarantee with its producer, consumer, failure behavior, and
+boundary tests. Existing declared limitations remain limitations rather than duplicate
+findings.
+
+### R27. `MergedAPI` wrappers discard the tool policy identity
+
+**Severity:** High security-boundary defect. Fix before a restricted tool is offered through
+more than one selected LLM API.
+
+Home Assistant turns every member tool of a `MergedAPI` into an `llm.NamespacedTool`. The
+wrapper has the external namespaced name and holds the original tool in `.tool`.
+`ToolPolicyRegistry.resolve()` examines only the wrapper's type, name, and policy attribute.
+It therefore cannot see a Magic Mic declaration attached to the original tool, and neither
+an exact legacy registration for the original type/name nor a family registration for its
+type can match.
+
+This is not a speculative configuration. `PRODUCT_PLAN.md` identifies multiple selected
+LLM APIs as the existing extension mechanism, and `async_prepare_llm_api()` explicitly
+supports lists and existing `MergedAPI` instances. Under that supported shape, a personal
+tool can become `unclassified`, remain exposed to the unidentified principal, and execute
+under the permissive compatibility default. The current merged-prompt test has no tools, so
+it does not exercise policy resolution.
+
+Policy lookup must preserve the external namespaced execution identity while resolving
+declarations and legacy registrations against the underlying tool. Add merged-API tests for
+declared, exact-legacy, family-legacy, exposure denial, and normalized delegation. Longer
+term, stable tool provenance in HA aggregation remains the better core contract.
+
+### R28. Tool cancellation bypasses the conservative mutation barrier
+
+**Severity:** High effect-journal and correction-safety defect. Fix before mutating tools
+depend on the undo contract.
+
+`TestbedAPI._async_call_tool()` records an `UndoUnavailable` barrier when delegated execution
+raises `Exception`, because a partial mutation cannot be ruled out. `asyncio.CancelledError`
+inherits from `BaseException`, so request cancellation skips that path. A tool may mutate an
+external system or HA state, reach a later await, and then be cancelled by the R26 request
+cleanup. The request ends with no tool result and no journal entry, allowing a later "undo"
+to target an older, unrelated mutation.
+
+This contradicts `tool-policy.md` and `PRODUCT_PLAN.md`, which require every possible
+mutation that raises to install a conservative barrier. Handle cancellation explicitly,
+record the same request-local ambiguous-mutation outcome before re-raising cancellation,
+and fault-inject both cancellation before mutation and cancellation after a simulated
+mutation. The barrier is conservative metadata recorded during cleanup, not evidence that a
+mutation definitely occurred.
+
+### R29. Cancelling undo replay leaves the entry permanently `executing`
+
+**Severity:** Medium state-machine defect; required before undo is user-reachable.
+
+`async_replay_latest()` claims an entry by setting `UndoStatus.EXECUTING`, then converts an
+executor's `Exception` into the terminal `FAILED` state. Cancellation again falls outside
+that handler. Cancelling the request while an inverse awaits leaves the session entry in
+`EXECUTING`; every later replay raises `UndoInProgress`, even though no replay task remains.
+
+The inverse may have partially completed, so automatic retry is unsafe. Cancellation should
+mark the entry `FAILED` and re-raise `CancelledError`, preserving request cancellation while
+making the terminal ambiguity explicit. Add a blocking-executor test that cancels replay and
+then receives `UndoPreviouslyFailed`, not `UndoInProgress`.
+
+### R30. Scoped capability data is persisted with world-readable file permissions
+
+**Severity:** High local privacy defect. Fix before the shared store contains personal or
+sensitive household data.
+
+`UserKeyedStore` constructs HA's `Store` with the default `private=False`. In the installed
+HA release, that path explicitly writes the storage file with mode `0644`; `private=True`
+retains the temporary file's restrictive `0600` mode. The store is designed for personal
+capability data and household facts such as codes, so identity and scope checks at runtime do
+not make its plaintext file safe from other local accounts or container processes.
+
+Construct this store as private and test the resulting mode at the storage boundary. Each
+capability that later selects a different backend, including a memory FTS database, must make
+the same decision explicitly. This does not provide encryption at rest or protect an HA
+administrator; it closes the avoidable host-permission gap.
+
+### R31. Whole-bucket replacement loses concurrent capability updates
+
+**Severity:** Foundational persistence contract defect. Fix before more than one caller uses
+the shared store.
+
+The only mutation API is `get(principal, scope)` followed by
+`async_set(principal, scope, complete_dict)`. The bucket key is only the household or user
+scope. Two overlapping requests can both read the same dictionary, independently add a
+memory/reminder/setting, and then replace the bucket in sequence. The second stale snapshot
+silently removes the first update. Deep copies prevent aliasing but do not make this
+read-modify-write sequence atomic.
+
+The shared foundation needs a locked mutation operation or narrower capability-owned
+records whose writes cannot replace unrelated data. Define conflict and persistence
+semantics at that API, then test two paused writers against the same principal and against
+different capability namespaces. A lock around HA's final file write alone is insufficient;
+the read and transformation must be inside the serialized operation.
+
+### R32. The store has no runtime persistence schema
+
+**Severity:** Medium durability defect. Fix with the first durable capability consumer.
+
+`UserKeyedStore` advertises a JSON `Store` but accepts `dict[str, Any]`, updates its in-memory
+data before saving, and validates neither loaded root/bucket shapes nor values being written.
+HA's `Store.async_save()` logs serialization and write errors rather than reporting them to
+this caller. A set, datetime, or other non-JSON value can therefore appear to succeed and be
+returned by `get()` for the rest of the process while never reaching disk. A malformed or
+manually edited stored bucket can likewise violate the annotated return type after restart.
+
+Define and validate an owned JSON value contract before changing in-memory state, validate
+loaded root and bucket shapes, and add corrupt-load plus non-serializable-write tests. Future
+schema versions also need an explicit migration path; the current version 1 file has no
+consumer data to migrate.
+
+### R33. The embedded provider raises untranslated Magic Mic exception keys
+
+**Severity:** Medium user-facing failure-contract defect.
+
+The provider copy correctly uses the Magic Mic domain, but `strings.json` contains only
+three of the exception keys that its code raises. Normal or supported provider paths can
+raise missing keys including `api_refusal`, `unexpected_chat_log_content`,
+`unexpected_stream_object`, `user_message_not_found`, `wrong_file_path`, and
+`wrong_file_type`. Those keys exist in the matching HA Anthropic integration's strings, not
+in Magic Mic's translation domain.
+
+Copy the English source strings for every retained provider exception, allow HA's locale
+fallback for untranslated languages, and add a parity test that extracts statically declared
+provider exception keys and verifies the Magic Mic source catalog. This is part of the
+release-aligned provider refresh contract, not a reason to duplicate the upstream test suite.
+
+### R34. Custom API executors can disappear from conversation traces
+
+**Severity:** Medium observability and evaluation-contract defect.
+
+HA's base `APIInstance.async_call_tool()` emits the `TOOL_CALL` conversation-trace event.
+The proxy deliberately delegates to arbitrary custom `APIInstance.async_call_tool()`
+overrides, and such an override need not call the base implementation. `TestbedAPI` records a
+compact policy trace and debug classification, but it does not emit the payload-bearing
+conversation event. The existing `RecordingAPIInstance` test fixture demonstrates this
+execution shape.
+
+The tool still runs and its result enters the ChatLog, while `evals.harness.runner` observes
+no call because it reads tool invocations only from `TOOL_CALL` events. This breaks the
+documented "trace every tool call" contract and can make an expected action score as missing.
+Move call tracing to a boundary that every executor crosses, exactly once. Add a driven
+custom-executor test that checks the conversation trace and scorer observation, while
+ensuring ordinary base executors do not produce duplicate events.
+
+### R35. A state-scored case can pass without performing an action
+
+**Severity:** Medium evaluation-validity defect.
+
+For state-scored cases, `_only_permitted_tools()` is an allowlist predicate over observed
+calls. It returns true for an empty call list. If fixture state already equals
+`expect_changes` because of a corpus typo or vacuous setup, no action, no effects, and no
+state difference score as correct even though `permitted_tools` names the mutation the case
+was intended to exercise.
+
+The present corpus has hand-written fixture assertions for several starting states, but the
+scoring contract itself remains vulnerable as cases expand. Require at least one permitted
+action call for a state-scored single-turn case, or introduce an explicit no-call outcome for
+the rare case that intentionally tests a no-op. Add the direct counterexample: light starts
+on, expected state is on, `HassTurnOn` is permitted, and the observed turn makes no calls.
+
+### R36. `load_corpus()` does not provide its advertised validation boundary
+
+**Severity:** Low evaluation-tooling defect.
+
+`load_corpus()` documents `CorpusError` for malformed or inconsistent input, but most fields
+are indexed and parsed before their types are checked. Missing required keys raise
+`KeyError`; malformed expectation members can raise `AttributeError` or `TypeError`; duplicate
+fixture entity IDs are accepted because `World.entity_ids()` collapses them into a set. The
+CLI therefore exposes implementation exceptions for ordinary authoring errors, and a
+duplicate fixture can produce an ambiguous executable world rather than a load failure.
+
+Validate the raw document shape before constructing dataclasses, accumulate field-qualified
+problems into `CorpusError`, and reject duplicate world entity IDs and malformed nested
+arguments/effects/state maps. Keep semantic scorer checks in `validate_corpus()` after the
+shape boundary.
+
 ## Declared limitations confirmed by the trace
 
 These are not new findings, but they bound what the implemented foundation currently proves:
@@ -645,24 +828,32 @@ means the data contracts exist, not that their safety properties are active end 
 
 ## Verification evidence
 
-- `.venv/bin/pytest tests -q --cov=custom_components.magic_mic`: 146 passed, 86% statement
-  coverage.
-- The uncovered proxy line for an undeclared tool is the bypass in R3.
-- A bare `.venv/bin/pytest` with the reference trees present fails during collection, as
-  described in R11.
-- The provider diff against `references/core/homeassistant/components/anthropic/entity.py`
-  shows the missing empty-content guards in R9.
+- `.venv/bin/python -m pytest tests evals/harness -q --cov=custom_components.magic_mic
+  --cov=evals.harness --cov-report=term-missing`: 291 passed, 80% combined statement
+  coverage. The near-upstream provider copy and the interactive/live-key harness account for
+  most uncovered lines; deterministic foundation modules are predominantly 89% to 100%.
+- Installed HA `MergedAPI.async_get_api_instance()` wraps every member in
+  `NamespacedTool`, while local policy resolution reads only the presented wrapper (R27).
+- Installed HA `Store` passes its default `private=False` to a writer that applies mode
+  `0644`, and catches serialization/write errors inside `async_save()` (R30 and R32).
+- Installed HA's base `APIInstance.async_call_tool()` owns the payload-bearing `TOOL_CALL`
+  trace event; a custom override is not required to invoke it (R34).
+- The retained provider code references six exception keys absent from Magic Mic's source
+  string catalog but present in the release-matched Anthropic catalog (R33).
 
 ## Recommended remediation order
 
-1. R1: disable unconfigured egress and establish the provider-capability boundary.
-2. R2: make turn metadata request-local.
-3. R3 and R12: reject undeclared calls and close the argument check/use gap.
-4. R5: make storage enforce principal and scope before a capability consumes it.
-5. R13 through R15: make the active prompt path localizable and bound registry text.
-6. R4: finish conflict semantics before enabling confirmation-sensitive tools.
-7. R6 through R10 before the corresponding prompt, personal-data, or provider feature grows.
-8. R17 and R18 before treating the custom integration as generally installable.
-9. R20 through R24 before using the current scorecard to accept or reject the architecture.
-10. R25 and R26 before claiming end-to-end latency, clarification, or personal-tool safety.
-11. R11, R16, and R19 as test/tooling cleanup that prevents recurrence.
+R1 through R26 are fixed, accepted, or converted into an explicit build gate. For the new
+contract-audit findings:
+
+1. R27 before enabling additional selected APIs or adding any restricted tool to a merged
+   contribution.
+2. R28 before a mutating tool relies on correction or undo safety.
+3. R30 and R31 before the shared store receives its first durable capability data.
+4. R32 in the same first-consumer storage chunk, so persistence starts with a validated
+   schema rather than acquiring one after data exists.
+5. R29 before adding the user-facing undo intent or tool.
+6. R33 before treating all retained provider errors as normally renderable.
+7. R34 before evaluating or claiming complete traces for a custom LLM API executor.
+8. R35 and R36 before materially expanding the corpus or using new state-scored cases for a
+   Wave 1 acceptance decision.
