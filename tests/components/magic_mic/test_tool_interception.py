@@ -33,6 +33,8 @@ from custom_components.magic_mic.undo import (
     LocalizedDescription,
     UndoAction,
     UndoScopeBinding,
+    UndoUnavailable,
+    UndoUnavailableReason,
 )
 from evals.harness.backing import build_executable_world
 from evals.harness.corpus import Entity, World
@@ -328,6 +330,9 @@ async def test_abnormal_stream_end_cancels_tools_before_clearing_identity(
     assert execution_principals == [hass_admin_user.id]
     assert cleanup_principals == [hass_admin_user.id]
     assert late_effects == []
-    assert policy_contexts[0].turn_metadata.effects == []
+    effects = policy_contexts[0].turn_metadata.effects
+    assert len(effects) == 1
+    assert isinstance(effects[0].disposition, UndoUnavailable)
+    assert effects[0].disposition.reason is UndoUnavailableReason.NOT_SUPPORTED
     assert get_resolved_user(hass, context) is UNIDENTIFIED_PRINCIPAL
     assert context.id not in hass.data.get(DATA_RESOLVED_PRINCIPALS, {})

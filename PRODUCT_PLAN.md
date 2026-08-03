@@ -815,8 +815,9 @@ core.
 The implemented foundation makes every completed call report one of three outcomes out of
 band from model-visible result data: `NoMutation`, `UndoAction`, or `UndoUnavailable`.
 Tool policy also classifies calls as `read_only`, `mutating`, or `unknown`. A possible
-mutation without outcome metadata—and a possible partial mutation that raises—creates an
-explicit `not_supported` barrier, so "undo" cannot fall through to an older action.
+mutation without outcome metadata, and a possible partial mutation that raises or is
+cancelled, creates an explicit `not_supported` barrier, so "undo" cannot fall through to an
+older action.
 
 `UndoAction` binds a localized description, household or exact personal-owner scope, and an
 immutable inverse descriptor. The bounded session journal records execution/turn IDs,

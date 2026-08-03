@@ -195,6 +195,13 @@ class TestbedAPI(llm.APIInstance):
 
         try:
             result = await self._inner.async_call_tool(normalized_input)
+        except asyncio.CancelledError:
+            self._record_effect(
+                tool.name,
+                decision.effect,
+                disposition=None,
+            )
+            raise
         except Exception:
             self._record_effect(
                 tool.name,

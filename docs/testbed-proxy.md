@@ -134,7 +134,10 @@ Before clearing request identity, the testbed request boundary yields once so a 
 call can register, cancels unfinished calls, and gathers every retained task. This ordering
 keeps the resolved principal available to tool cleanup and prevents a tool or effect from
 outliving its failed or cancelled turn. Tests cover a blocked call, failure immediately after
-task scheduling, and cancellation of the outer request.
+task scheduling, and cancellation of the outer request. If cancellation interrupts a
+possible mutation, the intercepted call records its conservative undo barrier synchronously
+before re-raising; the drain completes that metadata write before request identity is
+cleared.
 
 This is intentionally provider-neutral and does not belong in `internal.claude`. When the
 behavior graduates to HA core, `ChatLog` should cancel and gather the tasks it creates in its

@@ -196,7 +196,9 @@ before more capabilities depend on the earlier placeholder interfaces.
   [`testbed-proxy.md`](testbed-proxy.md). Fault-injection cases also require that a tool
   scheduled immediately before provider failure, a tool already blocked when the stream
   fails, and a tool running when the outer request is cancelled are all cancelled and joined
-  before resolved identity is cleared, with no late effect.
+  before resolved identity is cleared, with no late work. A cancelled possible mutation must
+  record its conservative undo barrier during that cleanup, whether cancellation arrives
+  before or after the external effect point.
 - **[C] Testing gate (live comparisons):** use one paired pass over affected cases during
   development, with alternating arm order and per-case deltas. Escalate changed or
   decision-relevant cases to three trials. Run the full corpus for broad behavior changes

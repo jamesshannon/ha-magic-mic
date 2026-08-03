@@ -82,9 +82,9 @@ There are three successful execution outcomes:
   `not_supported`.
 
 An unclassified or mutating tool that supplies no disposition is conservatively recorded as
-`not_supported`. A tool exception also records that barrier because a partial effect may
-already have happened. This fail-closed rule prevents "undo" from silently targeting an
-older, unrelated action.
+`not_supported`. A tool exception or cancellation also records that barrier because a
+partial effect may already have happened. Cancellation then propagates unchanged. This
+fail-closed rule prevents "undo" from silently targeting an older, unrelated action.
 
 | Action | What's recorded | Deterministic inverse |
 |---|---|---|
@@ -135,7 +135,8 @@ The pre-Wave-1 foundation now provides:
 - an executor registry, inverse-intent executor, and opt-in state-snapshot helper/executor;
 - private result metadata for direct tools and HA `IntentResponseDict` results;
 - effect classification (`read_only`, `mutating`, `unknown`) at the proxy seam, with
-  conservative barriers for possible mutations lacking metadata.
+  conservative barriers for possible mutations lacking metadata or ending ambiguously by
+  exception or cancellation.
 
 Replay claims an entry before execution. Success and failure both prevent a second replay;
 an authorization denial does not consume it. Repeating the original live command remains

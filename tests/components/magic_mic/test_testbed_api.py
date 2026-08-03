@@ -177,6 +177,28 @@ class BlockingAPIInstance(RecordingAPIInstance):
         return await super().async_call_tool(tool_input)
 
 
+class CancellableMutationAPIInstance(RecordingAPIInstance):
+    """Inner API that blocks either before or after a simulated mutation."""
+
+    def __init__(self, tools: list[llm.Tool], *, mutate_before_wait: bool) -> None:
+        """Initialize the cancellation point around the simulated effect."""
+        super().__init__(tools)
+        self.block = asyncio.Event()
+        self.mutate_before_wait = mutate_before_wait
+        self.mutated = False
+        self.started = asyncio.Event()
+
+    async def async_call_tool(self, tool_input: llm.ToolInput) -> JsonObjectType:
+        """Wait at the configured point in the simulated operation."""
+        if self.mutate_before_wait:
+            self.mutated = True
+        self.started.set()
+        await self.block.wait()
+        if not self.mutate_before_wait:
+            self.mutated = True
+        return await super().async_call_tool(tool_input)
+
+
 def _undo_action() -> UndoAction:
     """Build one household-scoped fixture inverse."""
     return UndoAction(
@@ -465,6 +487,44 @@ async def test_failed_possible_mutation_records_barrier() -> None:
     entry = context.session_state.undo_journal[-1]
     assert isinstance(entry.disposition, UndoUnavailable)
     assert entry.disposition.reason is UndoUnavailableReason.NOT_SUPPORTED
+
+
+@pytest.mark.parametrize(
+    ("mutate_before_wait", "expected_mutated"),
+    [(False, False), (True, True)],
+)
+async def test_cancelled_possible_mutation_records_barrier(
+    mutate_before_wait: bool,
+    expected_mutated: bool,
+) -> None:
+    """Cancellation fails closed on either side of an unknown effect point."""
+    inner = CancellableMutationAPIInstance(
+        [FixtureTool("cancelled")],
+        mutate_before_wait=mutate_before_wait,
+    )
+    registry = ToolPolicyRegistry()
+    registry.register_exact(
+        FixtureTool,
+        "cancelled",
+        StaticToolPolicy(effect=EffectClass.MUTATING),
+    )
+    context = _context()
+    call = asyncio.create_task(
+        testbed_api.TestbedAPI.wrap(inner, context, registry).async_call_tool(
+            llm.ToolInput(tool_name="cancelled", tool_args={})
+        )
+    )
+    await inner.started.wait()
+
+    call.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await call
+
+    assert inner.mutated is expected_mutated
+    entry = context.session_state.undo_journal[-1]
+    assert isinstance(entry.disposition, UndoUnavailable)
+    assert entry.disposition.reason is UndoUnavailableReason.NOT_SUPPORTED
+    assert context.turn_metadata.effects == [entry]
 
 
 def test_personal_tool_is_filtered_for_unidentified_principal() -> None:

@@ -75,10 +75,12 @@ mutate; a sensitive calendar read may remain read-only.
    call claims the single pending slot. Later calls return a structured
    `pending_operation_already_staged` conflict, leave the first record unchanged, and do no
    work. The main LLM writes the spoken question; tools do not provide previews in v1.
-5. After a completed call, the proxy records private undo outcome metadata. A mutating or
-   unknown call without it becomes a `not_supported` journal barrier; read-only and explicit
-   no-op outcomes do not shadow the latest mutation. A raised possible mutation also creates
-   a barrier because a partial effect cannot be ruled out.
+5. At delegated execution's terminal boundary, the proxy records private undo outcome
+   metadata. A completed mutating or unknown call without it becomes a `not_supported`
+   journal barrier; read-only and explicit no-op outcomes do not shadow the latest mutation.
+   A raised possible mutation also creates a barrier because a partial effect cannot be ruled
+   out. Cancellation of a possible mutation records the same barrier before propagating
+   unchanged.
 
 Scope denial raises a typed, localizable `ToolPolicyDeniedError`. Exposure and execution
 decisions record the tool name, policy source, stage, outcome, and consequence in the exact

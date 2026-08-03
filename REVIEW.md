@@ -672,6 +672,13 @@ term, stable tool provenance in HA aggregation remains the better core contract.
 **Severity:** High effect-journal and correction-safety defect. Fix before mutating tools
 depend on the undo contract.
 
+**Resolved in the proxy:** delegated execution now catches `asyncio.CancelledError`, records
+the same request-local `not_supported` barrier used for other ambiguous failures, and
+re-raises cancellation unchanged. Fault-injection tests cancel a mutating tool before and
+after its simulated effect point; both leave the barrier, while only the latter changes the
+fixture's external state. The driven abnormal-stream test also verifies that request cleanup
+records the barrier before clearing resolved identity.
+
 `TestbedAPI._async_call_tool()` records an `UndoUnavailable` barrier when delegated execution
 raises `Exception`, because a partial mutation cannot be ruled out. `asyncio.CancelledError`
 inherits from `BaseException`, so request cancellation skips that path. A tool may mutate an
@@ -836,7 +843,7 @@ means the data contracts exist, not that their safety properties are active end 
 ## Verification evidence
 
 - `.venv/bin/python -m pytest tests evals/harness -q --cov=custom_components.magic_mic
-  --cov=evals.harness --cov-report=term-missing`: 296 passed, 80% combined statement
+  --cov=evals.harness --cov-report=term-missing`: 298 passed, 80% combined statement
   coverage. The near-upstream provider copy and the interactive/live-key harness account for
   most uncovered lines; deterministic foundation modules are predominantly 89% to 100%.
 - Installed HA `MergedAPI.async_get_api_instance()` wraps every member in
@@ -851,15 +858,14 @@ means the data contracts exist, not that their safety properties are active end 
 
 ## Recommended remediation order
 
-R1 through R27 are fixed, accepted, or converted into an explicit build gate. For the
+R1 through R28 are fixed, accepted, or converted into an explicit build gate. For the
 remaining contract-audit findings:
 
-1. R28 before a mutating tool relies on correction or undo safety.
-2. R30 and R31 before the shared store receives its first durable capability data.
-3. R32 in the same first-consumer storage chunk, so persistence starts with a validated
+1. R30 and R31 before the shared store receives its first durable capability data.
+2. R32 in the same first-consumer storage chunk, so persistence starts with a validated
    schema rather than acquiring one after data exists.
-4. R29 before adding the user-facing undo intent or tool.
-5. R33 before treating all retained provider errors as normally renderable.
-6. R34 before evaluating or claiming complete traces for a custom LLM API executor.
-7. R35 and R36 before materially expanding the corpus or using new state-scored cases for a
+3. R29 before adding the user-facing undo intent or tool.
+4. R33 before treating all retained provider errors as normally renderable.
+5. R34 before evaluating or claiming complete traces for a custom LLM API executor.
+6. R35 and R36 before materially expanding the corpus or using new state-scored cases for a
    Wave 1 acceptance decision.
