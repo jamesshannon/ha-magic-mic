@@ -74,6 +74,9 @@
     "api_error": {
       "message": "Error talking to Claude: {message}"
     },
+    "api_refusal": {
+      "message": "Potential policy violation detected."
+    },
     "system_message_not_found": {
       "message": "The chat log does not start with a system message."
     },
@@ -112,6 +115,21 @@
     },
     "undo_prohibited": {
       "message": "That action is not allowed to be undone."
+    },
+    "unexpected_chat_log_content": {
+      "message": "Unexpected content type in chat log: {type}."
+    },
+    "unexpected_stream_object": {
+      "message": "Expected a stream of messages."
+    },
+    "user_message_not_found": {
+      "message": "Last message must be a user message to add attachments."
+    },
+    "wrong_file_path": {
+      "message": "`{file_path}` does not exist."
+    },
+    "wrong_file_type": {
+      "message": "The {model} model does not support {mime_type} file types (for `{file_path}`)."
     }
   }
 }

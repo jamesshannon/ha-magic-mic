@@ -788,6 +788,13 @@ consumer data to migrate.
 
 **Severity:** Medium user-facing failure-contract defect.
 
+**Resolved in the Magic Mic-owned catalog:** the six retained provider messages are copied
+from the release-matched Home Assistant 2026.7.4 Anthropic source strings, including their
+required placeholders. A static parity test extracts every `translation_key` keyword from
+the retained provider modules and requires a corresponding Magic Mic exception entry. Locale
+files can use HA's normal English fallback; the upstream provider test suite remains outside
+the local copy.
+
 The provider copy correctly uses the Magic Mic domain, but `strings.json` contains only
 three of the exception keys that its code raises. Normal or supported provider paths can
 raise missing keys including `api_refusal`, `unexpected_chat_log_content`,
@@ -870,7 +877,7 @@ means the data contracts exist, not that their safety properties are active end 
 ## Verification evidence
 
 - `.venv/bin/python -m pytest tests evals/harness -q --cov=custom_components.magic_mic
-  --cov=evals.harness --cov-report=term-missing`: 316 passed, 80% combined statement
+  --cov=evals.harness --cov-report=term-missing`: 317 passed, 80% combined statement
   coverage. The near-upstream provider copy and the interactive/live-key harness account for
   most uncovered lines; deterministic foundation modules are predominantly 89% to 100%.
 - Installed HA `MergedAPI.async_get_api_instance()` wraps every member in
@@ -885,10 +892,9 @@ means the data contracts exist, not that their safety properties are active end 
 
 ## Recommended remediation order
 
-R1 through R32 are fixed, accepted, or converted into an explicit build gate. For the
+R1 through R33 are fixed, accepted, or converted into an explicit build gate. For the
 remaining contract-audit findings:
 
-1. R33 before treating all retained provider errors as normally renderable.
-2. R34 before evaluating or claiming complete traces for a custom LLM API executor.
-3. R35 and R36 before materially expanding the corpus or using new state-scored cases for a
+1. R34 before evaluating or claiming complete traces for a custom LLM API executor.
+2. R35 and R36 before materially expanding the corpus or using new state-scored cases for a
    Wave 1 acceptance decision.

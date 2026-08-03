@@ -269,7 +269,9 @@ deltas:
 
 - Magic Mic owns setup, config flow, diagnostics, repairs, translations, and integration
   metadata. The adapter therefore omits Anthropic's corresponding modules and reduces its
-  `__init__.py` to a package marker.
+  `__init__.py` to a package marker. A static parity test extracts every translation key used
+  by retained provider code and requires a matching entry in Magic Mic's English exception
+  catalog; locale files may rely on HA's normal English fallback until translated.
 - `conversation.py` becomes `agent.py`. Magic Mic constructs baseline and testbed agents
   itself, passes each agent's identity and options directly, and uses the Magic Mic domain.
 - Coordinator and entity class names follow their Magic Mic role. Provider model discovery
