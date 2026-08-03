@@ -587,8 +587,16 @@ path, drive multi-turn clarification, count turns to completion, or score spoken
 unreachable. The present artifact measures single LLM-only turns, tool/state predicates,
 generations, and provider token usage.
 
-Keep the narrower harness, but label artifacts and build-sequence claims with exactly that
-scope. Add each missing dimension before using it as a Wave 1 acceptance gate.
+**Resolved as a build plan:** Preserve the current single-turn LLM-only runner as the cheap
+agent-behavior tier; do not make every eval traverse the full voice stack. Add separate
+drivers just in time: provider-round timing and the combined local-first text path in Wave 1,
+a scripted multi-turn text driver with the first user-reachable clarification/confirmation,
+and a controlled Assist pipeline driver with continued conversation or satellite delivery.
+`docs/evaluation.md` now defines what each layer proves and maps the features it gates.
+Current artifacts prove only single-turn LLM behavior, tools/state/effects, generations, and
+provider tokens. A feature may implement unrelated deterministic foundations earlier, but it
+cannot make a routing, turns-to-completion, spoken-duration, barge-in, or end-to-end latency
+claim until the corresponding driver exists.
 
 ### R26. Abnormal streaming can outlive the resolved-identity registry entry
 

@@ -89,8 +89,10 @@ they are not reasons to block unrelated Wave 1 work or invent more shared founda
 |---|---|---|
 | **Tokens** (+ cache_read/creation) | `entity.py` `usage` — already emitted | prompt-context §5.2 (roster dump → entity summary + conditioned names) |
 | **Generations / request** | the chat loop (count tool_use round-trips) | `terminal_intent` field, server-side web_search, fewer disambig loops |
-| **Turns / task** | task-level trace | `find_entities`, learning (aliases remove clarification) |
-| **Hassil-intervention rate** (% resolved locally) | pipeline / `prefer_local` path | `prefer_local` ON, contributed intents, aliases, command aliases |
+| **Model TTFT / round duration** | provider-round timing extension (planned Wave 1) | prompt-context, capability selection, fewer tool loops |
+| **Turns / task** | multi-turn text trajectory driver (planned with first clarification) | `find_entities`, learning (aliases remove clarification) |
+| **Hassil-intervention rate** (% resolved locally) | combined local-first text driver (planned Wave 1) | `prefer_local` ON, contributed intents, aliases, command aliases |
+| **Voice TTFT/TTLT + spoken duration** | controlled pipeline plus labelled real-engine profile (planned with first pipeline-owned feature) | prompt/context latency, streaming, TTS, local-first routing |
 
 Reported as the **outcome scorecard** (resolved-locally / LLM-correct / after-clarification /
 wrong / "don't understand"), tracked as a *movement* across changes.
@@ -169,7 +171,8 @@ This freezes the identity/scope contract, ChatLog session-state seam, and two-st
 before more capabilities depend on the earlier placeholder interfaces.
 
 - **[C]** **prompt-context §5.2** — entity summary + request-conditioned name injection,
-  retire the roster dump ([`prompt-context.md`](prompt-context.md)). → measure **Δtokens / TTFT**.
+  retire the roster dump ([`prompt-context.md`](prompt-context.md)). → measure **Δtokens**;
+  add provider-round timing before accepting a **TTFT** claim.
 - **[C]** **Capability-selection shadow mode** — build the provider-neutral catalog,
   deterministic availability filter, relevance retriever, dependency/budget assembler, and
   selection trace, but do not remove tools yet. Compare the proposed per-turn API with the
@@ -179,8 +182,11 @@ before more capabilities depend on the earlier placeholder interfaces.
 - **[C] / possible core seam** **`find_entities`** fuzzy in-match fallback — component tool
   first; use its measurements to motivate a match-layer discussion with core maintainers
   ([`find-entities.md`](find-entities.md)).
-  → measure **Δturns** (disambiguation success).
-- **[HA]** Flip **`prefer_local_intents` ON** (§2.9) → measure **Δhassil-intervention rate**.
+  Direct resolution uses the single-turn runner. Add the scripted multi-turn driver before
+  accepting **Δturns** or disambiguation-recovery claims.
+- **[HA]** Flip **`prefer_local_intents` ON** (§2.9) only after the combined local-first text
+  driver records both the HASSIL intervention and the final action. Then measure
+  **Δhassil-intervention rate** without hiding fallback failures.
 - **[C] Testing gate (tool interception):** driven conversation tests now feed a provider
   `tool_use` through the complete baseline and testbed loops. They prove stock baseline
   execution, allowed proxy execution, private undo-outcome stripping, execution-time denial
@@ -206,6 +212,9 @@ before more capabilities depend on the earlier placeholder interfaces.
 - **[C]** **Learning v1** — the offer engine + two resolvers: `add_alias` (rides the
   `find_entities` friction signal) + the **command-alias** resolver ([`learning.md`](learning.md)).
   → measure **Δhassil-rate + Δturns + utterances-moved-off-cloud**.
+- **Testing gate:** learning's offer, accept/decline, and subsequent reuse run through the
+  multi-turn text trajectory driver. The command-alias local-rate claim also runs through
+  the combined local-first driver. Offer acceptance by itself is not task success.
 - Prepare the `find_entities` results, tests, and proposed match-layer seam for maintainer
   discussion (§7). The eval/trace work can be discussed independently if it proves broadly
   useful; neither is assumed to land unchanged.
@@ -225,6 +234,9 @@ discussion.
   calendar-write.
 - **Testing gate:** the **time/restart/DST simulation harness** ([`evaluation.md`](evaluation.md)
   Part G) becomes required here — the highest-trust-stakes deterministic surface.
+- **Testing gate:** store, trigger, catch-up, and delivery-state work can land under
+  deterministic tests. A reminder is not complete as a voice experience until the controlled
+  pipeline driver covers announce, microphone reopening, pull-to-read, and acknowledgement.
 - **Possible core work later:** calendar-write and reminder/scheduling seams, after the
   proving ground establishes their contracts (§7).
 
@@ -237,6 +249,10 @@ discussion.
   off-satellite push + actionable-notification ack ([`scheduling-model.md`](scheduling-model.md),
   [`speaker-identification.md`](speaker-identification.md)). Long-term memory remains the
   most opinionated candidate for eventual core discussion.
+- **Testing gate:** proactive conversation, continued-conversation behavior, and satellite
+  acknowledgement require the controlled voice-pipeline driver. Streaming cancellation must
+  pass there before claiming barge-in support. Any real latency threshold is reported with
+  the selected STT/TTS engines and hardware, not as a generic model result.
 
 ---
 

@@ -67,12 +67,18 @@ are deliberately hard to find, which is itself the point: it shows how little th
 expected to add *over* HASSIL at Wave 0, before any capability lands. "Predicted" is load-
 bearing here, see the hypotheses note below.
 
-## Two scopes, one corpus
+## Two planned scopes, one corpus
 
-Every case runs at two scopes (`evaluation.md`'s Scope knob): the **local** path (core's
-HASSIL agent) and the **LLM** path (the agent under test). The `local` cases run through the
-LLM too, not as redundant coverage but to measure where the LLM path costs more than local.
-Concretely: core's Assist API drops six of the intents these cases use (`GetCurrentTime`,
+The corpus defines expectations for two scopes (`evaluation.md`'s Scope knob): the **local**
+path (core's HASSIL agent) and the **LLM** path (the agent under test). The current live
+baseline and variant artifacts run only the LLM path with `prefer_local` off. The keyless
+routing measurement probes HASSIL separately; it does not execute the combined user path or
+prove fallback behavior. A planned local-first driver will run the actual HASSIL→LLM path
+before `prefer_local_intents` becomes an acceptance gate.
+
+The `local` cases also run through the LLM, not as redundant coverage but to measure where
+the LLM path costs more than local. Concretely: core's Assist API drops six of the intents
+these cases use (`GetCurrentTime`,
 `GetCurrentDate`, `GetState`, `GetWeather`, `GetTemperature`, `Nevermind`) in favor of the
 general `GetDateTime` / `GetLiveContext` tools. So the model reaches the same answer, but
 often through an extra tool round-trip that HASSIL answers in zero, which is exactly the

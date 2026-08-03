@@ -146,6 +146,11 @@ Before building the flagship “ding → read it” interaction, settle and test
   output call failed.
 - **Acoustic evaluation:** tune earcon, volume, repeated-alarm behavior, busy-satellite
   handling, and escalation on real devices—not only mocked service calls.
+- **Pipeline acceptance:** deterministic tests gate storage, time, restart, catch-up, and
+  delivery transitions. The user-facing reminder is complete only when the controlled voice
+  pipeline proves announce→reopen→pull-to-read→ack/snooze correlation without exposing
+  personal content to an unidentified caller. Real-device acoustic tuning remains a separate
+  profile.
 
 These decisions belong to the Wave-3 reminder slice and its deterministic timing/delivery
 tests, not the pre-Wave-1 gate. Real-home delivery, escalation, acknowledgement, and reuse

@@ -328,6 +328,17 @@ tool.
 
 ---
 
+## Evaluation gate
+
+The deterministic resolver corpus gates ranking, acceptance, ambiguity, and localization
+thresholds. The single-turn LLM runner gates direct resolution and wrong-target effects. A
+scripted multi-turn trajectory is required before claiming disambiguation success or fewer
+turns: it must carry the same `conversation_id`, answer the candidate question, permit a
+correction or unrelated replacement command, and score the final world state. Direct fuzzy
+resolution may land before that driver; the clarification claim may not.
+
+---
+
 ## Dependency: rapidfuzz
 
 **Not** currently a HA dependency (confirmed: no hit in `requirements_all.txt` or

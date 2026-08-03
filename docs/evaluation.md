@@ -16,12 +16,13 @@ contribution candidate because it is feature-decoupled. Treat its upstream shape
 as a maintainer discussion, not an assumption that the proving-ground harness lands first or
 unchanged (§7).
 
-**Testing splits into two tiers** — keep them distinct: **(A) deterministic subsystem
-tests** for the non-LLM machinery (scheduling, delivery, undo, scorer, memory store) —
-ordinary pytest, exact, CI-blocking (**Part G**); **(B) probabilistic LLM-behavior eval**
-— sampled, judged, threshold-gated (**Parts D–E**). Parts A–F below were originally written
-for (B); Part G adds (A), which the highest-trust-stakes code (durable reminders) most
-needs.
+**Testing splits into two broad tiers**: **(A) deterministic subsystem tests** for the
+non-LLM machinery (scheduling, delivery, undo, scorer, memory store), ordinary pytest,
+exact and CI-blocking (**Part G**); **(B) probabilistic behavior evaluation**, sampled and
+threshold-gated (**Parts D–E**). Tier B has several drivers rather than one ever-growing
+runner: single-turn text, local-first text, multi-turn text, and the voice pipeline. The
+layered plan and feature gates are defined below. Parts A–F were originally written for
+(B); Part G adds (A), which the highest-trust-stakes code (durable reminders) most needs.
 
 ---
 
@@ -304,6 +305,42 @@ The paired runner alternates `off→on` and `on→off` by case. Additional trial
 case's order again. Artifacts retain per-case order, correctness, buckets, and deltas, plus
 trial totals. Exact output-token counts are expected to move; cache input and creation/read
 counts are cache-regime evidence, not stable quality metrics.
+
+### Layered harness plan and feature gates
+
+Do not make every corpus case traverse STT, the model, tools, and TTS. Preserve the current
+text runner as the fast agent-behavior tier, then add a new driver when a feature crosses a
+boundary that the existing tier cannot observe. Drivers may reuse corpus cases and scoring,
+but each artifact must name its scope and must not report a metric its driver cannot measure.
+
+| Layer | Driver and evidence | Status | Features and claims gated by it |
+|---|---|---|---|
+| **Deterministic subsystem** | Model-free pytest over policy, stores, state machines, matching, time, restart, and failure paths. Exact and CI-blocking. | Exists; expands with each capability. | Every capability. In particular: identity/tool policy, scheduling, delivery state, undo executors, memory, aliases, capability selection, and the continuation consequence policy. |
+| **Single-turn LLM-only text** | `async_converse` against the fixture home. Scores tools, arguments, state, durable effects, answers, generations, and provider tokens. | Exists. This is all the current live artifacts prove. | Prompt and tool changes, capability-selection recall, direct `find_entities` resolution, one-turn memory/query/write, calendar/weather/web tools, and action correctness. It does **not** prove local routing, clarification recovery, or voice latency. |
+| **Agent timing extension** | Add provider request start, first content delta, final delta, and tool duration to the text trace. Reports per-generation model TTFT and duration, not whole-pipeline voice latency. | Add before the first latency acceptance claim. | Prompt-context, capability-selection, and `find_entities` may claim fewer tokens or generations today; they may claim lower model TTFT only after this layer exists. |
+| **Local-first text** | Drive the actual HASSIL→LLM decision path and record which agent handled the request, fallback behavior, final action, and total conversation-stage duration. Run the same cases LLM-only when attribution is needed. | Add in Wave 1 before enabling the routing gate. | `prefer_local_intents`, new local intents, command aliases claimed to move speech off-cloud, and the offline second local pass. These features cannot claim a HASSIL-intervention or utterances-moved-off-cloud delta from the LLM-only runner. |
+| **Multi-turn text trajectory** | Script user turns over one `conversation_id`; retain ChatLog state and score the final outcome, turns to completion, clarification, correction, cancellation, and intermediate side effects. Start with authored branches; add a user simulator only if scale warrants it. | Add with the first feature that requires a second user turn. | `find_entities` ambiguity recovery, immutable confirmation including “no, do X instead,” session undo, learning offers and acceptance, memory correction, and any claim that a feature removes clarification turns. This makes `resolved after clarification` reachable. |
+| **Controlled voice pipeline** | Feed deterministic STT results through `assist_pipeline` with controlled/mock STT and TTS boundaries. Capture pipeline events, continued-conversation flags, cancellation, spoken output, and delivery/ack transitions. Use real engines or hardware only for a separately labelled performance profile. | Add before a pipeline-owned interaction is called complete. | Continued conversation and its spurious gate, conversation-ID reuse across reopened microphones, streaming cancellation and barge-in, whole-pipeline offline behavior, proactive `start_conversation`, and reminder announce/pull-to-read/ack flows. Spoken duration and absolute end-to-end TTFT/TTLT require the labelled real-engine profile. |
+
+The layers are gates on claims, not gates on unrelated implementation. For example, the
+`ScheduledItemStore` and reminder catch-up machinery can land with exhaustive deterministic
+tests before a voice-pipeline driver exists. The reminder feature is not complete as a voice
+experience until announce, microphone reopening, content delivery, and acknowledgement have
+passed the controlled pipeline layer. Likewise, direct fuzzy resolution can land before the
+multi-turn driver, but ambiguity recovery cannot.
+
+Build the layers just in time:
+
+1. Add agent timing and local-first text during Wave 1, before accepting the prompt-latency
+   and local-routing claims.
+2. Add multi-turn text when `find_entities` first asks a clarification, or before pending
+   confirmation/undo/learning becomes user-reachable if that arrives first.
+3. Add the controlled voice-pipeline driver with continued conversation or the first
+   satellite delivery flow. Extend it for cancellation before claiming barge-in, and for
+   real TTS output before using spoken duration as an acceptance metric.
+
+No layer substitutes for deployed telemetry. Corpus trajectories can prove that a scripted
+recovery works; they cannot prove how often people attempt, abandon, or reuse it in homes.
 
 ---
 

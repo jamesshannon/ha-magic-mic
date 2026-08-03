@@ -194,3 +194,13 @@ we contribute widens that fast path (dual-payoff, §2.9). Prompt-shrinking then 
 only about token cost — it's the primary TTFT lever, and unlike prompt caching it
 helps the first utterance and local models too." Stronger than a streaming
 change, and it's work we're doing anyway.
+
+## Evaluation gate
+
+Unit and conversation tests must prove that provider deltas remain incremental and that
+cancellation joins in-flight generation/tool work. Provider-round timing in the text harness
+is sufficient for a model TTFT claim. A voice-experience claim requires the controlled
+pipeline driver to observe first intent progress, TTS start/end, and cancellation while TTS
+is active. Absolute end-to-end latency and spoken-duration thresholds must name the STT/TTS
+engines, hardware, cache state, and satellite profile used; mock-engine timings prove wiring,
+not user-perceived performance.

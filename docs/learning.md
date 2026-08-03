@@ -268,6 +268,10 @@ hatch, not a black box.
 
 Before enabling automatic offers, settle and test:
 
+- **Trajectory evidence:** run friction detection, offer, accept/decline, persistence, and
+  later reuse through the multi-turn text driver. For command aliases, also use the
+  local-first driver to prove whether the rewritten utterance actually moved off-cloud.
+
 - **Signal attribution:** record the concrete friction signal and the failed/repairing turn
   that justified the offer. Do not learn merely because the model happened to use a tool.
 - **Offer fatigue:** persist decline/suppression state, cap offers across turns as well as

@@ -298,6 +298,17 @@ Deterministic state is added only when reconstructing from prose would be unsafe
 lost. Durable reminder, memory, rule, and delivery state stays in each capability's store,
 not in the chat session.
 
+## Evaluation gate
+
+Use two layers. Scripted multi-turn text trajectories first prove history, corrections,
+pending-operation supersession, and spurious classification without introducing STT or TTS
+variance. The feature is not complete until the controlled Assist pipeline proves that the
+microphone actually reopens without a wake word, preserves `conversation_id`, closes on the
+declared timeout/stop conditions, and discards a spurious capture without speech or effects.
+Barge-in additionally requires cancellation during streamed output and proof that local stop
+handling wins. Real-device timing and acoustic behavior are a separately labelled profile,
+not a prerequisite for every text-behavior run.
+
 ---
 
 ## Key references

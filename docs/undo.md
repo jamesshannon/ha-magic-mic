@@ -260,6 +260,15 @@ Stated once here so those docs can lean on "undoable" without each re-deriving i
 - Register and expose the default executor set when the first user-facing undo entry point
   lands; persistence beyond the two-minute session window remains evidence-driven.
 
+## Evaluation gate
+
+Each inverse first needs exact deterministic action→journal→replay coverage, including
+expiry, single-use consumption, barriers, and world-moved-on refusal. Before voice or text
+"undo that" is called complete, a multi-turn trajectory must perform the original mutation
+and undo in one conversation, verify the final state/effect ledger, and prove that an expired
+or unsupported latest action cannot fall through to an older entry. Locally handled actions
+remain outside the claim until the local-first driver shows their outcomes enter the journal.
+
 ---
 
 ## Key references

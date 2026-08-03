@@ -257,6 +257,16 @@ a commitment.
   run-deterministic; treat runtime-LLM capabilities as knowingly offline-fragile.
 - **Deferred:** Layer 4 local-model fallback.
 
+## Evaluation gate
+
+The local-first text driver must inject each eligible provider failure and prove the second
+local pass, final action, exclusion set, and vendor-neutral failure response. This gates any
+claim that a command survives an LLM outage. A whole-pipeline resilience claim additionally
+requires the controlled pipeline driver with STT and TTS failures separated: cloud STT can
+prevent a transcript from reaching HASSIL, and cloud TTS can prevent even a correct fallback
+response from being heard. Cached phrases, earcons, and reminder queue retention are scored
+at those output boundaries rather than inferred from the conversation result.
+
 ---
 
 ## Open questions

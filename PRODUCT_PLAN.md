@@ -42,8 +42,11 @@ gets its own file there. Current docs:
   delivery, undo, scorer, memory store); the durable-reminder **time/restart/DST simulation
   harness** (freezer + `async_fire_time_changed` + restore-cache — the property list in
   `scheduling-model.md` *is* the test spec; Calendar Trigger tests use the same pattern) is
-  the highest-stakes piece; plus a performance/scale harness. (B) **probabilistic LLM eval**
-  (Parts D–E). Reporting = an **outcome scorecard** (resolved-locally / LLM-correct /
+  the highest-stakes piece; plus a performance/scale harness. (B) **probabilistic behavior
+  eval** (Parts D–E), split into just-in-time drivers for single-turn LLM text, agent timing,
+  the local-first path, multi-turn trajectories, and the controlled voice pipeline. Each
+  driver gates only the product claims it can observe; the current artifacts are
+  single-turn LLM-only. Reporting = an **outcome scorecard** (resolved-locally / LLM-correct /
   after-clarification / wrong / "don't understand" + tokens/gens/turns + local-vs-LLM split) —
   the same instrument as build-sequence's **value dashboard**; a **metric × scope** matrix
   (full hassil→LLM path vs LLM-only × correctness/turns/tokens/latency/**helpfulness**), with
