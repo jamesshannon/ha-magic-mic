@@ -69,4 +69,6 @@ async def test_missing_locale_falls_back_to_english(hass: HomeAssistant) -> None
     """HA's translation loader supplies English when a locale file is absent."""
     strings = await async_get_conversation_strings(hass, "eo")
 
-    assert strings.entity_summary_header.startswith("Home Assistant registry data follows")
+    assert strings.entity_summary_header.startswith(
+        "Home Assistant registry data follows"
+    )

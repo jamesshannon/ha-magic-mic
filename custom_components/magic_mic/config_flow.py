@@ -1,5 +1,6 @@
 """Config flow for the Magic Mic integration."""
 
+from collections.abc import Mapping
 from typing import Any, override
 
 import anthropic
@@ -41,16 +42,8 @@ class MagicMicConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle the initial step: validate the API key, then create the entry."""
         errors: dict[str, str] = {}
         if user_input is not None:
-            try:
-                client = await async_create_client(self.hass, user_input[CONF_API_KEY])
-                await client.models.list(timeout=10.0)
-            except anthropic.AuthenticationError:
-                errors["base"] = "invalid_auth"
-            except anthropic.AnthropicError:
-                errors["base"] = "cannot_connect"
-            except Exception:  # noqa: BLE001
-                LOGGER.exception("Unexpected exception validating the Claude API key")
-                errors["base"] = "unknown"
+            if error := await self._async_validate_api_key(user_input[CONF_API_KEY]):
+                errors["base"] = error
             else:
                 return self.async_create_entry(
                     title="Magic Mic",
@@ -60,6 +53,46 @@ class MagicMicConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
         )
+
+    async def async_step_reauth(
+        self, entry_data: Mapping[str, Any]
+    ) -> ConfigFlowResult:
+        """Start replacement of credentials rejected by the embedded provider."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Validate a replacement API key, then update and reload the entry."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            if error := await self._async_validate_api_key(user_input[CONF_API_KEY]):
+                errors["base"] = error
+            else:
+                return self.async_update_reload_and_abort(
+                    self._get_reauth_entry(),
+                    data_updates={CONF_API_KEY: user_input[CONF_API_KEY]},
+                )
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=STEP_USER_DATA_SCHEMA,
+            errors=errors,
+        )
+
+    async def _async_validate_api_key(self, api_key: str) -> str | None:
+        """Return a config-flow error key, or None when credentials work."""
+        try:
+            client = await async_create_client(self.hass, api_key)
+            await client.models.list(timeout=10.0)
+        except anthropic.AuthenticationError:
+            return "invalid_auth"
+        except anthropic.AnthropicError:
+            return "cannot_connect"
+        except Exception:  # noqa: BLE001
+            LOGGER.exception("Unexpected exception validating the Claude API key")
+            return "unknown"
+        return None
 
 
 class MagicMicOptionsFlow(OptionsFlowWithReload):

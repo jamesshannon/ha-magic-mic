@@ -415,6 +415,14 @@ Add a reauthentication flow that validates the replacement key, updates the exis
 entry, and reloads it. Cover invalid replacement credentials, connection failure, success,
 and coordinator-triggered reauth.
 
+**Resolved:** `MagicMicConfigFlow` now implements HA's standard reauthentication lifecycle
+for the embedded demonstration provider. A confirmed coordinator authentication failure
+opens an administrator replacement-key form. Invalid credentials and connection failures
+leave the existing key unchanged; a validated key updates the same config entry and schedules
+its reload. Tests cover all four paths. The testbed proxy does not catch or rewrite provider
+errors: this is packaging lifecycle for `internal.claude`, not a Magic Mic capability or a
+proposed conversation-error renderer.
+
 ### R18. HACS advertises a Home Assistant version far older than the supported runtime
 
 **Severity:** High installation correctness defect.

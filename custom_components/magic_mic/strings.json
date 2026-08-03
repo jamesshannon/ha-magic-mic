@@ -1,6 +1,13 @@
 {
   "config": {
     "step": {
+      "reauth_confirm": {
+        "title": "Reauthenticate Magic Mic",
+        "description": "The Claude testbed provider rejected its API key. Enter a replacement key to restore the provider connection.",
+        "data": {
+          "api_key": "API key"
+        }
+      },
       "user": {
         "title": "Magic Mic",
         "description": "Enter a Claude API key. Magic Mic uses Claude as its testbed provider while capabilities are built out.",
@@ -15,6 +22,7 @@
       "unknown": "Unexpected error"
     },
     "abort": {
+      "reauth_successful": "Reauthentication successful",
       "single_instance_allowed": "Already configured. Only a single instance of Magic Mic is supported."
     }
   },

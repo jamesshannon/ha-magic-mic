@@ -41,6 +41,14 @@ harness runs a golden set against both and reports the **delta**, which is exact
 "measured change vs. the stock fork, at fixed task success" model in
 [`evaluation.md`](evaluation.md) and [`build-sequence.md`](build-sequence.md).
 
+The embedded provider shares this repository's config entry, so its credential lifecycle is
+necessarily hosted by `MagicMicConfigFlow` in the proving ground. When the provider
+coordinator confirms that its API key has been rejected, HA starts the standard administrator
+reauthentication flow; a validated replacement updates and reloads that entry. This is demo
+provider packaging, not proxy behavior. `magic_mic.testbed` does not catch or rewrite the
+provider's HA-native error. With a separately installed provider, that provider's integration
+owns the same lifecycle.
+
 ## The seam: `chat_log.llm_api`
 
 HA routes three things through one object, the `llm.APIInstance` stored at
