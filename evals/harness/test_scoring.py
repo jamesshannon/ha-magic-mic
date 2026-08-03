@@ -181,6 +181,15 @@ def test_unresolved_bucket() -> None:
     assert classify(case, observed) is Bucket.UNRESOLVED
 
 
+def test_unjudgeable_response_cannot_land_in_success_bucket() -> None:
+    """A resolved-looking response without a predicate is explicitly UNJUDGED."""
+    case = _case(resolves_at_wave0=False, expected=None)
+    observed = ObservedTurn(speech="Sure, I did that.")
+
+    assert case_correct(case, observed) is None
+    assert classify(case, observed) is Bucket.UNJUDGED
+
+
 def test_clarification_bucket() -> None:
     """A correct turn that clarified lands in RESOLVED_AFTER_CLARIFICATION."""
     case = _case(expected=Expected(tools=(ExpectedTool("HassTurnOff"),)))

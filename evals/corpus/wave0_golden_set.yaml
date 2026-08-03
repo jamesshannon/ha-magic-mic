@@ -6,8 +6,8 @@
 # `local` cases were verified against the installed home_assistant_intents sentence
 # templates (en.json). `llm` cases have no matching template but resolve today with
 # existing tools or model knowledge. `resolves_at_wave0: false` cases are VISION
-# features not built yet; they exist so the baseline "don't understand" bucket is
-# real, and each later wave can watch its cases move.
+# features not built yet; they remain unjudged until a later wave gives them a
+# success predicate.
 
 # The fixture home the cases run against. The runner exposes exactly these entities
 # before running, so slot-bearing utterances have something to resolve to.
@@ -394,31 +394,25 @@ cases:
       separates an assistant from a command parser.
 
   # --- Not yet: VISION features unbuilt at Wave 0 (resolves_at_wave0: false) -------
-  # These should land in "don't understand" at baseline and move as their wave ships.
+  # These land in unjudged at baseline and become judgeable as their wave ships.
 
   - id: conditional-reminder
     utterance: remind me in an hour if I haven't closed the garage door
     category: knowledge
     routing_truth: llm
     resolves_at_wave0: false
-    expected:
-      answer:
-        contains: ["hour"]
-    note: "Scheduling spine (Wave 3). Baseline: don't understand."
+    note: "Scheduling spine (Wave 3). Baseline response is unjudged until built."
 
   - id: remember-fact
     utterance: remember the wifi password is hunter2-galaxy
     category: knowledge
     routing_truth: llm
     resolves_at_wave0: false
-    expected:
-      answer:
-        contains: ["got it"]
-    note: "Notebook memory (Wave 2). Baseline: don't understand."
+    note: "Notebook memory (Wave 2). Baseline response is unjudged until built."
 
   - id: undo-last
     utterance: undo that
     category: knowledge
     routing_truth: llm
     resolves_at_wave0: false
-    note: "Undo journal (later wave). Baseline: don't understand."
+    note: "Undo journal (later wave). Baseline response is unjudged until built."

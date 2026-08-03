@@ -31,6 +31,7 @@ class Bucket(Enum):
     RESOLVED_AFTER_CLARIFICATION = "resolved after clarification"
     WRONG_ACTION = "wrong action"
     UNRESOLVED = 'unresolved / "I don\'t understand"'
+    UNJUDGED = "unjudged (no success predicate)"
 
 
 @dataclass(frozen=True)
@@ -171,6 +172,8 @@ def classify(
     if not observed.resolved:
         return Bucket.UNRESOLVED
     correct = case_correct(case, observed, expected=expected)
+    if correct is None:
+        return Bucket.UNJUDGED
     if correct is False:
         return Bucket.WRONG_ACTION
     if observed.clarified:

@@ -9,6 +9,8 @@ from evals.harness import (
     Corpus,
     CorpusError,
     Entity,
+    Expected,
+    ExpectedAnswer,
     ProviderOptions,
     World,
     load_corpus,
@@ -101,6 +103,44 @@ cases:
 
     with pytest.raises(CorpusError, match=r"provider.?option"):
         load_corpus(corpus_path)
+
+
+def test_resolves_at_wave0_must_be_boolean(tmp_path) -> None:
+    """The baseline outcome contract rejects truthy strings."""
+    corpus_path = tmp_path / "invalid-outcome.yaml"
+    corpus_path.write_text(
+        """
+world:
+  areas: []
+  entities: []
+cases:
+  - id: invalid
+    utterance: hello
+    category: small-talk
+    routing_truth: llm
+    resolves_at_wave0: "false"
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CorpusError, match="resolves_at_wave0 must be a boolean"):
+        load_corpus(corpus_path)
+
+
+def test_unsupported_case_cannot_declare_success_predicate() -> None:
+    """An unbuilt Wave 0 feature cannot pass through a loose answer match."""
+    corpus = Corpus(
+        world=World(areas=(), entities=()),
+        cases=(
+            _case(
+                resolves_at_wave0=False,
+                expected=Expected(answer=ExpectedAnswer(contains=("done",))),
+            ),
+        ),
+    )
+
+    with pytest.raises(CorpusError, match="cannot declare a success predicate"):
+        validate_corpus(corpus)
 
 
 def test_duplicate_ids_rejected() -> None:

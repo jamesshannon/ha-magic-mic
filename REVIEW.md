@@ -486,9 +486,13 @@ that it created a conditional reminder passes because the predicate only looks f
 "hour." The scorecard reports zero unresolved cases even though the corpus says these cases
 should form the unresolved baseline bucket.
 
-Introduce an explicit expected outcome for unsupported/unresolved behavior and a separate
-`UNJUDGED` result that can never increase correctness. Remove `resolves_at_wave0` or make it
-an enforced expectation. Recompute every stored headline after this correction.
+**Resolved:** `resolves_at_wave0` is now an enforced expectation. It must be a YAML boolean,
+and a `false` case cannot declare a tool, answer, or state success predicate. A response with
+no checkable predicate lands in the new `UNJUDGED` bucket before routing or clarification
+can place it in a success bucket; an actual error still lands in `UNRESOLVED`. The three
+unbuilt cases no longer carry loose answer predicates. Stored baseline and variant
+observations were rescored as 19 correct, 3 wrong, 3 unjudged, and 0 unresolved per arm;
+cost and routing measurements are unchanged.
 
 ### R21. Tool scoring permits dangerous extra calls and substring argument matches
 

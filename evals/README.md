@@ -41,7 +41,7 @@ Each case is a single-turn `(utterance [, context] -> expected action(s) / answe
 | `utterance` | Exactly what the user says. |
 | `category` | Grouping for the scorecard (device-control, query, timer, media, list, small-talk, compound, implicit, knowledge). |
 | `routing_truth` | Ground-truth label for the **local-vs-LLM split**: `local` = a built-in HASSIL template covers it (given the referenced entities are exposed); `llm` = no HASSIL template, only the model resolves it. This is the label; the runner measures where the utterance *actually* routes and the scorecard compares the two. |
-| `resolves_at_wave0` | Whether Wave 0 (pass-through proxy, no capabilities yet) can produce the right outcome at all. `false` cases are VISION features not built yet; at baseline they land in the "don't understand" bucket on purpose, so the scorecard's starting distribution is honest. |
+| `resolves_at_wave0` | Whether Wave 0 (pass-through proxy, no capabilities yet) can produce a judgeable successful outcome. A `false` case is a VISION feature not built yet and cannot declare a success predicate. An error lands in `unresolved`; any successful-looking response lands in `unjudged`, never in a success bucket. |
 | `requires` | Fixture entities/features the case depends on (documents the context assumption; the runner must expose these). |
 | `provider_options` | Optional provider setup for this case. `web_search` and `web_fetch` are independent booleans and both default off when omitted. The live runner applies changes through the Magic Mic config entry before the turn and records the effective values in the artifact. |
 | `expected.tools` | Ordered list of `{name, args}` the correct outcome invokes. `args` are partial hints, not an exact-match contract. Omit for answer-only cases. |
@@ -266,21 +266,22 @@ Findings the keyless routing measurement surfaced:
 ### Wave 0 exit gate (blocks Wave 1): done
 
 Ran the live baseline keyed from a project-root `.env`: stock full-roster prompt,
-`prefer_local` OFF, model `claude-haiku-4-5`, 25 cases. Result: 21 resolved-by-LLM-correct,
-4 wrong-action, 0 unresolved; routing agreement 8/25 (every case routes to the LLM with
+`prefer_local` OFF, model `claude-haiku-4-5`, 25 cases. Rescored result: 19
+resolved-by-LLM-correct, 3 wrong-action, 3 unjudged, 0 unresolved; routing agreement 8/25
+(every case routes to the LLM with
 `prefer_local` OFF, so only the 8 `llm`-labelled cases agree); 44 generations. Wave 1 reports
 Δtokens / Δturns / Δhassil-rate against this artifact.
 
 > **Refreshed under state scoring (keyed re-run, `claude-haiku-4-5`).** After nine
 > device-control cases moved to `expect_changes`, the keyed baseline was re-run so its
-> scoring basis matches. The distribution is unchanged, 21 LLM-correct / 4 wrong-action / 0
-> unresolved, 44 generations: state scoring agrees with the reconciled tool expectations on
-> this corpus while being robust to tool variance (the device cases pass whichever
-> equally-valid tool the model picks). The 4 wrong are the same as before, all model
-> behavior, not harness faults: `turn-off-all-lights` and `implicit-too-dark` ask which
+> scoring basis matches. R20 later rescored the stored observations as 19 LLM-correct / 3
+> wrong-action / 3 unjudged / 0 unresolved, still 44 generations. State scoring agrees with
+> the reconciled tool expectations on this corpus while being robust to tool variance (the
+> device cases pass whichever equally-valid tool the model picks). The three wrong cases are
+> model behavior, not harness faults: `turn-off-all-lights` and `implicit-too-dark` ask which
 > entity instead of acting (the world does not change, so state scoring marks them wrong for
-> the right reason); `implicit-cold` reads the thermostat then asks how warm; `remember-fact`
-> is a VISION feature not built yet.
+> the right reason); `implicit-cold` reads the thermostat then asks how warm. The three
+> unbuilt VISION cases have no success predicate and cannot raise task success.
 
 This is the **pre-magic roster**. Cases without `provider_options` run with `web_search` and
 `web_fetch` off. A search-specific case can enable either provider tool without changing the
@@ -297,11 +298,13 @@ has location-sensitive cases ("what's open near me"), where the point is to meas
 attaching location improves the answer enough to justify the privacy cost, a decision the
 eval informs precisely because it is more than a mirror of defaults.
 
-The 4 wrong-action cases are model behavior worth recording, not harness faults:
+The 3 wrong-action cases are model behavior worth recording, not harness faults:
 `turn-off-all-lights` and `implicit-too-dark` ask which entity instead of acting;
-`implicit-cold` reads the thermostat then asks how warm; `remember-fact` is a VISION feature
-not built yet (`resolves_at_wave0: false`). The earlier run's other five wrong-action cases
-were the timer gap (now backed) and the four reconciled predictions, all correct here.
+`implicit-cold` reads the thermostat then asks how warm. `conditional-reminder`,
+`remember-fact`, and `undo-last` are unbuilt VISION features
+(`resolves_at_wave0: false`), so their stored responses are unjudged. The earlier run's
+other five wrong-action cases were the timer gap (now backed) and the four reconciled
+predictions, all correct here.
 
 Token counts depend on prompt-cache behavior, which varies run to run: this run read
 214,656 cached tokens against 20,708 uncached input, where an earlier uncached run showed

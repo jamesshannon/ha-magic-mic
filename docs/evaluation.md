@@ -266,6 +266,7 @@ Two independent knobs frame the whole harness — set per run:
   | resolved after clarification | correct, but cost N extra turns |
   | wrong action | did the wrong thing |
   | unresolved / "I don't understand" | no useful outcome |
+  | unjudged (no success predicate) | observed response cannot prove task success |
 
   Plus per-corpus **tokens / generations / turns** and the **local-vs-LLM split**. The
   headline claim is a *movement* in this table — e.g. hassil 20→50, "don't understand" 30→5,

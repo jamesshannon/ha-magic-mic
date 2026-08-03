@@ -279,12 +279,17 @@ def _parse_provider_options(raw: Any) -> ProviderOptions:
 
 
 def _parse_case(raw: dict[str, Any]) -> Case:
+    resolves_at_wave0 = raw.get("resolves_at_wave0")
+    if not isinstance(resolves_at_wave0, bool):
+        raise CorpusError(
+            f"{raw.get('id', '<unknown>')}: resolves_at_wave0 must be a boolean"
+        )
     return Case(
         id=raw["id"],
         utterance=raw["utterance"],
         category=raw["category"],
         routing_truth=raw["routing_truth"],
-        resolves_at_wave0=bool(raw["resolves_at_wave0"]),
+        resolves_at_wave0=resolves_at_wave0,
         requires=tuple(raw.get("requires") or ()),
         provider_options=_parse_provider_options(raw.get("provider_options")),
         expected=_parse_expectation(raw.get("expected")),
@@ -333,6 +338,15 @@ def validate_corpus(corpus: Corpus) -> None:
             problems.append(
                 f"{case.id}: routing_truth must be one of "
                 f"{sorted(_ROUTING_VALUES)}, got {case.routing_truth!r}"
+            )
+        if not case.resolves_at_wave0 and (
+            as_alternatives(case.expected)
+            or case.expected_llm is not None
+            or case.state_scored
+        ):
+            problems.append(
+                f"{case.id}: a Wave 0 unsupported case cannot declare a success "
+                "predicate"
             )
 
     world_ids = corpus.world.entity_ids()

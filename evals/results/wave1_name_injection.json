@@ -3,10 +3,11 @@
     "summary_names": {
       "buckets": {
         "resolved after clarification": 0,
-        "resolved by LLM, correct": 21,
+        "resolved by LLM, correct": 19,
         "resolved locally (hassil)": 0,
+        "unjudged (no success predicate)": 3,
         "unresolved / \"I don't understand\"": 0,
-        "wrong action": 4
+        "wrong action": 3
       },
       "cases": [
         {
@@ -571,11 +572,11 @@
           "utterance": "what's the capital of France?"
         },
         {
-          "bucket": "resolved by LLM, correct",
+          "bucket": "unjudged (no success predicate)",
           "cache_creation_tokens": 0,
           "cache_read_tokens": 10670,
           "category": "knowledge",
-          "correct": true,
+          "correct": null,
           "generations": 2,
           "id": "conditional-reminder",
           "input_tokens": 1118,
@@ -597,11 +598,11 @@
           "utterance": "remind me in an hour if I haven't closed the garage door"
         },
         {
-          "bucket": "wrong action",
+          "bucket": "unjudged (no success predicate)",
           "cache_creation_tokens": 0,
           "cache_read_tokens": 5273,
           "category": "knowledge",
-          "correct": false,
+          "correct": null,
           "generations": 1,
           "id": "remember-fact",
           "input_tokens": 362,
@@ -615,7 +616,7 @@
           "utterance": "remember the wifi password is hunter2-galaxy"
         },
         {
-          "bucket": "resolved by LLM, correct",
+          "bucket": "unjudged (no success predicate)",
           "cache_creation_tokens": 0,
           "cache_read_tokens": 5273,
           "category": "knowledge",
@@ -644,10 +645,11 @@
     "summary_only": {
       "buckets": {
         "resolved after clarification": 0,
-        "resolved by LLM, correct": 21,
+        "resolved by LLM, correct": 19,
         "resolved locally (hassil)": 0,
+        "unjudged (no success predicate)": 3,
         "unresolved / \"I don't understand\"": 0,
-        "wrong action": 4
+        "wrong action": 3
       },
       "cases": [
         {
@@ -1231,11 +1233,11 @@
           "utterance": "what's the capital of France?"
         },
         {
-          "bucket": "resolved by LLM, correct",
+          "bucket": "unjudged (no success predicate)",
           "cache_creation_tokens": 0,
           "cache_read_tokens": 15819,
           "category": "knowledge",
-          "correct": true,
+          "correct": null,
           "generations": 3,
           "id": "conditional-reminder",
           "input_tokens": 2465,
@@ -1264,11 +1266,11 @@
           "utterance": "remind me in an hour if I haven't closed the garage door"
         },
         {
-          "bucket": "wrong action",
+          "bucket": "unjudged (no success predicate)",
           "cache_creation_tokens": 0,
           "cache_read_tokens": 5273,
           "category": "knowledge",
-          "correct": false,
+          "correct": null,
           "generations": 1,
           "id": "remember-fact",
           "input_tokens": 362,
@@ -1282,7 +1284,7 @@
           "utterance": "remember the wifi password is hunter2-galaxy"
         },
         {
-          "bucket": "resolved by LLM, correct",
+          "bucket": "unjudged (no success predicate)",
           "cache_creation_tokens": 0,
           "cache_read_tokens": 5273,
           "category": "knowledge",

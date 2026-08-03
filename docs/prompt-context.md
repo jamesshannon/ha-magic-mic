@@ -632,7 +632,8 @@ anything leaving the box needs explicit opt-in).
 
 `evals/harness/variant.py` ran the 25-case golden set through the testbed agent twice,
 satellite in the living room, names off then on, model `claude-haiku-4-5`. Task-success
-was equal (21 LLM-correct, 4 wrong, both arms). Generations moved by −2 (47 → 45), but
+was equal (rescored after R20: 19 LLM-correct, 3 wrong, 3 unjudged in both arms).
+Generations moved by −2 (47 → 45), but
 `find_entities` was called zero times in either arm, and the two cases that shifted
 (`implicit-cold`, `conditional-reminder`) sit outside the requesting room and carry no
 injected name, so that −2 is run-to-run model variance, not injection (a first run showed
