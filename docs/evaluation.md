@@ -278,8 +278,32 @@ Two independent knobs frame the whole harness — set per run:
   Plus per-corpus **tokens / generations / turns** and the **local-vs-LLM split**. The
   headline claim is a *movement* in this table — e.g. hassil 20→50, "don't understand" 30→5,
   turns↓, tokens↓ — at **fixed or rising task-success**, never a resource win bought with a
-  quality loss (Part D). Per-config comparison + CI regression gates on the deterministic
-  buckets; helpfulness sampled and threshold-gated.
+  quality loss (Part D). Live comparisons use paired cases with alternating arm order and
+  retain each pair's outcome and resource delta, rather than relying only on corpus totals.
+  Helpfulness remains sampled and threshold-gated.
+
+### Live comparison cadence
+
+Use the smallest run that can answer the question:
+
+- A code change with no effect on prompts, routing, provider configuration, tool exposure,
+  or scoring needs deterministic tests, not a keyed model run.
+- During behavioral development, run one paired pass over the affected cases and a few
+  adjacent cases. This is the normal fast feedback loop.
+- If a changed result or small resource delta would affect a design decision, run that
+  targeted set for three paired trials. Accept a small improvement only when its direction
+  repeats and task success does not fall. Three trials do not justify a confidence interval.
+- Run one full-corpus paired pass when a prompt, model, provider configuration, tool roster,
+  routing policy, or scoring contract changes broadly, and when refreshing a locked
+  artifact at a wave or release milestone.
+- Repeat the full corpus for three paired trials only for a broad go/no-go decision where a
+  targeted set cannot represent the affected behavior. Safety failures are never averaged
+  away; one unintended tool, state change, or durable effect requires investigation.
+
+The paired runner alternates `off→on` and `on→off` by case. Additional trials reverse each
+case's order again. Artifacts retain per-case order, correctness, buckets, and deltas, plus
+trial totals. Exact output-token counts are expected to move; cache input and creation/read
+counts are cache-regime evidence, not stable quality metrics.
 
 ---
 

@@ -641,6 +641,12 @@ injected name, so that −2 is run-to-run model variance, not injection (a first
 and resolve it themselves, so the model never reaches for the entity_id lookup injection
 exists to skip. The corpus has no command that forces one.
 
+This stored artifact predates the R24 paired-order fix: it ran the complete names-off arm
+before the names-on arm. Current runs pair arms per case, alternate order across cases, and
+record per-case deltas. The historical result remains useful for the conclusion above
+because the changed cases could not receive the feature, but its small aggregate resource
+delta is not evidence of savings.
+
 Option 1's cache cost showed up as designed: names-on created 42,707 cache tokens against
 names-off's 5,273 (per-turn names bust the system-block cache) and read 46,034 fewer.
 Output tokens fell 549.

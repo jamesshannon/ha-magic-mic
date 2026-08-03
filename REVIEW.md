@@ -560,7 +560,7 @@ record their effects through the same seam.
 
 ### R24. The live A/B delta is a single fixed-order sample
 
-**Severity:** Foundational measurement-design defect for the Wave 1 thesis.
+**Severity:** Medium measurement limitation for small performance claims.
 
 The variant runner executes the entire summary-only arm and then the entire names-on arm
 once. Model sampling, provider load, prompt-cache warmth, and temporal drift are confounded
@@ -568,10 +568,14 @@ with the feature flag. The stored `-2 generations` result may be a feature effec
 model variance; `any_of` handles multiple acceptable outcomes but does not estimate metric
 variance.
 
-Run repeated paired trials and alternate or randomize arm order per case. Report per-case
-paired deltas, distributions, confidence intervals, and failure counts rather than only
-summed totals. Pin model/version and record provider request settings. A single run remains a
-smoke test, not evidence for a go/no-go decision.
+**Resolved:** The default remains one cheap paired pass. The runner now executes the two arms
+next to each other and alternates their order by case, reports and serializes every per-case
+delta, and records the order used. A targeted `--trials 3` run flips order again between
+trials when a small difference would affect a decision. We do not calculate a confidence
+interval from three samples: the requirement is repeated direction plus unchanged task
+success. Full-corpus repetition is reserved for broad changes and milestone decisions. A
+single pass remains useful as a smoke test and for detecting large regressions, but it does
+not support a claim such as "saves two generations."
 
 ### R25. Several advertised scorecard dimensions have no live implementation
 

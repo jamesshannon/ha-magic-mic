@@ -345,3 +345,23 @@ in the corpus instead: `any_of` records the equally-valid resolutions a case fli
 so a genuine tie does not swing the scorecard. Where a case still flaps for a reason `any_of`
 does not cover, that is signal the model is borderline, not a bug to paper over; this tier is
 probabilistic and non-gating (`docs/evaluation.md`), so some jitter in the deltas is expected.
+
+The variant runner keeps the usual comparison to one paired pass. It runs each case's arms
+back to back, alternates `off→on` and `on→off` by case, and writes every pair's order,
+outcomes, and resource deltas to the artifact. Use three trials only for the cases whose
+small delta would affect a decision:
+
+```
+.venv/bin/python -m evals.harness.variant --case implicit-cold
+.venv/bin/python -m evals.harness.variant --case implicit-cold --trials 3
+.venv/bin/python -m evals.harness.variant --case implicit-cold --case conditional-reminder --trials 3
+```
+
+Routine changes that do not touch model behavior use the deterministic test suite. During
+behavioral development, use one paired pass over the affected and adjacent cases. Run the
+full corpus once after broad prompt, model, provider-option, tool-roster, routing, or scoring
+changes, and when refreshing the locked artifact for a wave or release milestone. Run three
+full-corpus trials only for a broad go/no-go decision that a targeted set cannot represent.
+A small efficiency claim needs the same direction across the targeted trials with no task
+success loss; three observations are not a confidence interval. Any safety failure is
+investigated on first occurrence rather than averaged across trials.

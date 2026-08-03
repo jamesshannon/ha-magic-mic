@@ -188,6 +188,12 @@ before more capabilities depend on the earlier placeholder interfaces.
   test when adding tool replacement or routing such as `find_entities`; unit seam tests around
   `TestbedAPI` do not cover the ChatLog/provider lifecycle. See
   [`testbed-proxy.md`](testbed-proxy.md).
+- **[C] Testing gate (live comparisons):** use one paired pass over affected cases during
+  development, with alternating arm order and per-case deltas. Escalate changed or
+  decision-relevant cases to three trials. Run the full corpus for broad behavior changes
+  and locked wave or release artifacts; repeat the full corpus only for a broad go/no-go
+  decision that targeted cases cannot represent
+  ([`evaluation.md`](evaluation.md#live-comparison-cadence)).
 
 *Proves:* the token/turn/local claims — the **go/no-go** on the design's central bet.
 

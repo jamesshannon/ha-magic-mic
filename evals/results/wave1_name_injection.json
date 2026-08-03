@@ -1325,8 +1325,10 @@
     "effect_telemetry": false,
     "kind": "wave1-name-injection",
     "model": "claude-haiku-4-5",
+    "pair_order": "fixed-arms",
     "prefer_local": false,
     "timestamp": "2026-07-31T00:46:58.750459+00:00",
+    "trials": 1,
     "web_tools": false
   }
 }

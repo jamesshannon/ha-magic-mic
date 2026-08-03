@@ -11,10 +11,13 @@ without changing which action is taken (task-success held).
 Like the baseline, this needs a live key and cannot be faked: scoring a mocked response
 would be scoring fabricated output. The delta to trust is **generations** and
 **output_tokens** (docs/evaluation.md Part D); input-token deltas are cache-regime
-dependent and reported for completeness only.
+dependent and reported for completeness only. The default run pairs both arms per case and
+alternates which arm goes first. Use ``--trials 3`` with a targeted case set only when a
+small difference would affect a decision.
 
     .venv/bin/python -m evals.harness.variant                    # full corpus, both arms
     .venv/bin/python -m evals.harness.variant --case turn-off-living-room-lamp
+    .venv/bin/python -m evals.harness.variant --case implicit-cold --trials 3
     .venv/bin/python -m evals.harness.variant --area kitchen     # place satellite there
     .venv/bin/python -m evals.harness.variant --list             # show selection, no key
 """
@@ -23,6 +26,7 @@ import argparse
 import asyncio
 from collections.abc import Sequence
 from contextlib import nullcontext
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -57,7 +61,7 @@ from .baseline import (
 )
 from .corpus import WAVE0_GOLDEN_SET, Case, Corpus, load_corpus
 from .runner import run_case
-from .scoring import Scorecard, build_scorecard
+from .scoring import CaseResult, Scorecard, build_scorecard
 from .world import async_setup_local_agent
 
 # Running as a plain script bypasses the repo-root conftest, so graft this repo's
@@ -85,6 +89,23 @@ DEFAULT_AREA = "living_room"
 _NAME_INJECTION_FLAG = (
     "custom_components.magic_mic.testbed.entity.DEFAULT_NAME_INJECTION"
 )
+_METRIC_KEYS = (
+    "generations",
+    "input_tokens",
+    "output_tokens",
+    "cache_read_tokens",
+    "cache_creation_tokens",
+)
+
+
+@dataclass(frozen=True)
+class PairedTrial:
+    """One balanced pass over the selected cases, with both variant arms."""
+
+    number: int
+    off: Scorecard
+    on: Scorecard
+    orders: tuple[str, ...]
 
 
 def _testbed_agent_id(hass: HomeAssistant, entry: MockConfigEntry) -> str:
@@ -126,7 +147,31 @@ async def stand_up_testbed(
     return _testbed_agent_id(hass, entry), world, satellite, entry
 
 
-async def run_arm(
+async def _run_variant_case(
+    hass: HomeAssistant,
+    agent_id: str,
+    world: ExecutableWorld,
+    satellite: Satellite,
+    case: Case,
+    *,
+    entry: MockConfigEntry,
+    names_on: bool,
+) -> CaseResult:
+    """Run one reset case under one arm of the variant."""
+    gate = nullcontext() if names_on else patch(_NAME_INJECTION_FLAG, False)
+    await apply_provider_options(hass, entry, case.provider_options)
+    await world.reset(hass)
+    with gate:
+        return await run_case(
+            hass,
+            agent_id,
+            case,
+            llm=True,
+            device_id=satellite.device_id,
+        )
+
+
+async def run_paired_trial(
     hass: HomeAssistant,
     agent_id: str,
     world: ExecutableWorld,
@@ -134,40 +179,57 @@ async def run_arm(
     cases: Sequence[Case],
     *,
     entry: MockConfigEntry,
-    names_on: bool,
-) -> Scorecard:
-    """Drive every case through the testbed agent with names on or off, and score the arm.
+    trial_index: int = 0,
+) -> PairedTrial:
+    """Run case pairs, alternating which arm executes first.
 
-    The world is reset before each case (order-independent), and the turn carries the
-    satellite's device_id so injection resolves "here". Names are toggled by patching the
-    proxy's gate default, so the control arm exercises the same code path with Tier 2 off.
+    The order also flips between trials, so a targeted three-trial run gives each case both
+    orderings without adding any extra work to the default one-trial smoke test.
     """
-    label = "summary+names" if names_on else "summary-only"
-    gate = nullcontext() if names_on else patch(_NAME_INJECTION_FLAG, False)
-    results = []
-    with gate:
-        for index, case in enumerate(cases, start=1):
-            await apply_provider_options(hass, entry, case.provider_options)
-            await world.reset(hass)
-            print(f"  [{label}] [{index:>2}/{len(cases)}] {case.id} ...", flush=True)
-            results.append(
-                await run_case(
-                    hass,
-                    agent_id,
-                    case,
-                    llm=True,
-                    device_id=satellite.device_id,
-                )
+    off_results = []
+    on_results = []
+    orders = []
+    for case_index, case in enumerate(cases):
+        off_first = (case_index + trial_index) % 2 == 0
+        order = (False, True) if off_first else (True, False)
+        order_label = "off→on" if off_first else "on→off"
+        orders.append(order_label)
+        print(
+            f"  [trial {trial_index + 1}] [{case_index + 1:>2}/{len(cases)}] "
+            f"[{order_label}] {case.id} ...",
+            flush=True,
+        )
+        for names_on in order:
+            result = await _run_variant_case(
+                hass,
+                agent_id,
+                world,
+                satellite,
+                case,
+                entry=entry,
+                names_on=names_on,
             )
-    return build_scorecard(results)
+            (on_results if names_on else off_results).append(result)
+    return PairedTrial(
+        number=trial_index + 1,
+        off=build_scorecard(off_results),
+        on=build_scorecard(on_results),
+        orders=tuple(orders),
+    )
 
 
-def _arm_dict(scorecard: Scorecard) -> dict:
+def _arm_dict(
+    scorecard: Scorecard, *, trial_numbers: Sequence[int] | None = None
+) -> dict:
     """Reduce one arm's scorecard to a JSON-serializable record."""
+    cases = [_result_to_dict(result) for result in scorecard.results]
+    if trial_numbers is not None:
+        for case, trial_number in zip(cases, trial_numbers, strict=True):
+            case["trial"] = trial_number
     return {
         "buckets": {bucket.value: count for bucket, count in scorecard.buckets.items()},
         "cost_totals": scorecard.totals,
-        "cases": [_result_to_dict(result) for result in scorecard.results],
+        "cases": cases,
     }
 
 
@@ -176,10 +238,59 @@ def _delta(off: dict[str, int], on: dict[str, int]) -> dict[str, int]:
     return {key: on[key] - off[key] for key in on}
 
 
+def _case_metrics(result: CaseResult) -> dict[str, int]:
+    """Return the cost metrics used for one paired case delta."""
+    return {key: getattr(result.observed, key) for key in _METRIC_KEYS}
+
+
+def _paired_cases(trials: Sequence[PairedTrial]) -> list[dict]:
+    """Serialize each paired observation and its metric deltas."""
+    pairs = []
+    for trial in trials:
+        for order, off, on in zip(
+            trial.orders, trial.off.results, trial.on.results, strict=True
+        ):
+            pairs.append(
+                {
+                    "trial": trial.number,
+                    "id": off.case.id,
+                    "order": order,
+                    "summary_only": {
+                        "bucket": off.bucket.value,
+                        "correct": off.correct,
+                    },
+                    "summary_names": {
+                        "bucket": on.bucket.value,
+                        "correct": on.correct,
+                    },
+                    "delta": _delta(_case_metrics(off), _case_metrics(on)),
+                }
+            )
+    return pairs
+
+
+def _combine_trials(trials: Sequence[PairedTrial], *, names_on: bool) -> Scorecard:
+    """Combine one arm across trials for aggregate reporting."""
+    results = [
+        result
+        for trial in trials
+        for result in (trial.on.results if names_on else trial.off.results)
+    ]
+    return build_scorecard(results)
+
+
 def build_variant_artifact(
-    model: str, area: str, corpus_name: str, off: Scorecard, on: Scorecard
+    model: str,
+    area: str,
+    corpus_name: str,
+    trials: Sequence[PairedTrial],
 ) -> dict:
     """Assemble the two-arm artifact: metadata, each arm, and the isolated delta."""
+    off = _combine_trials(trials, names_on=False)
+    on = _combine_trials(trials, names_on=True)
+    trial_numbers = tuple(
+        trial.number for trial in trials for _result in trial.on.results
+    )
     return {
         "run": {
             "kind": "wave1-name-injection",
@@ -190,17 +301,27 @@ def build_variant_artifact(
             "provider_options": "per-case",
             "effect_telemetry": True,
             "corpus": corpus_name,
-            "cases": on.total,
+            "cases": trials[0].on.total,
+            "trials": len(trials),
+            "pair_order": "alternating",
         },
         "arms": {
-            "summary_only": _arm_dict(off),
-            "summary_names": _arm_dict(on),
+            "summary_only": _arm_dict(off, trial_numbers=trial_numbers),
+            "summary_names": _arm_dict(on, trial_numbers=trial_numbers),
         },
         "delta": _delta(off.totals, on.totals),
+        "trial_deltas": [
+            {
+                "trial": trial.number,
+                "delta": _delta(trial.off.totals, trial.on.totals),
+            }
+            for trial in trials
+        ],
+        "pairs": _paired_cases(trials),
     }
 
 
-def _render_delta(off: Scorecard, on: Scorecard) -> str:
+def _render_delta(off: Scorecard, on: Scorecard, trials: Sequence[PairedTrial]) -> str:
     """Render the two arms' cost totals and the isolated delta as a plain-text block."""
     delta = _delta(off.totals, on.totals)
     lines = ["Name-injection delta (names-on minus names-off)", ""]
@@ -215,7 +336,26 @@ def _render_delta(off: Scorecard, on: Scorecard) -> str:
     lines += [
         "",
         f"  correct (task-success): {off_correct} -> {on_correct} (of {on.total})",
+        "",
+        "Per-case paired deltas (names-on minus names-off)",
     ]
+    for pair in _paired_cases(trials):
+        delta = pair["delta"]
+        off_outcome = pair["summary_only"]
+        on_outcome = pair["summary_names"]
+        lines.append(
+            f"  t{pair['trial']} {pair['id']:<32} {pair['order']:<6} "
+            f"correct {off_outcome['correct']}→{on_outcome['correct']}  "
+            f"generations {delta['generations']:+}  output {delta['output_tokens']:+}"
+        )
+    if len(trials) > 1:
+        lines += ["", "Trial-total directions"]
+        for trial in trials:
+            delta = _delta(trial.off.totals, trial.on.totals)
+            lines.append(
+                f"  t{trial.number}: generations {delta['generations']:+}, "
+                f"output {delta['output_tokens']:+}"
+            )
     return "\n".join(lines)
 
 
@@ -249,6 +389,12 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         help=f"area to place the satellite in (default {DEFAULT_AREA})",
     )
     parser.add_argument(
+        "--trials",
+        type=int,
+        default=1,
+        help="paired trials to run (default 1; use 3 for a targeted decision check)",
+    )
+    parser.add_argument(
         "--out",
         type=Path,
         help="write the artifact here (a subset never overwrites the full artifact)",
@@ -264,6 +410,8 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
 async def main(argv: Sequence[str] | None = None) -> None:
     """Run both arms of the name-injection variant and persist the two-arm artifact."""
     args = _parse_args(argv)
+    if args.trials < 1:
+        raise BaselineError("--trials must be at least 1")
     corpus = load_corpus()
     cases = select_cases(corpus, args)
     if not cases:
@@ -279,7 +427,7 @@ async def main(argv: Sequence[str] | None = None) -> None:
     model = DEFAULT[CONF_CHAT_MODEL]
     print(
         f"Running name-injection variant: {len(cases)}/{len(corpus.cases)} cases, "
-        f"model {model}, satellite in {args.area}, both arms\n"
+        f"model {model}, satellite in {args.area}, {args.trials} paired trial(s)\n"
     )
 
     async with async_test_home_assistant() as hass:
@@ -287,35 +435,32 @@ async def main(argv: Sequence[str] | None = None) -> None:
             agent_id, world, satellite, entry = await stand_up_testbed(
                 hass, corpus, api_key, area=args.area
             )
-            off = await run_arm(
-                hass,
-                agent_id,
-                world,
-                satellite,
-                cases,
-                entry=entry,
-                names_on=False,
-            )
-            on = await run_arm(
-                hass,
-                agent_id,
-                world,
-                satellite,
-                cases,
-                entry=entry,
-                names_on=True,
-            )
+            trials = [
+                await run_paired_trial(
+                    hass,
+                    agent_id,
+                    world,
+                    satellite,
+                    cases,
+                    entry=entry,
+                    trial_index=trial_index,
+                )
+                for trial_index in range(args.trials)
+            ]
+
+    off = _combine_trials(trials, names_on=False)
+    on = _combine_trials(trials, names_on=True)
 
     print("\nsummary-only\n" + off.render())
     print("\nsummary+names\n" + on.render())
-    print("\n" + _render_delta(off, on))
+    print("\n" + _render_delta(off, on, trials))
 
     if subset and not args.out:
         print("\n(subset run: full artifact left untouched; pass --out to save)")
         return
     out_path = args.out or VARIANT_ARTIFACT
     written = write_artifact(
-        build_variant_artifact(model, args.area, WAVE0_GOLDEN_SET.name, off, on),
+        build_variant_artifact(model, args.area, WAVE0_GOLDEN_SET.name, trials),
         out_path,
     )
     print(f"\nartifact: {written.relative_to(REPO_ROOT)}")
