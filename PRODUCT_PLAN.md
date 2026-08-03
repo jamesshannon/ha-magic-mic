@@ -709,12 +709,23 @@ with AI, streaming TTS).
   `"default"`-personal bucket to migrate or strand.
 - The shared store accepts a `ResolvedPrincipal` and `DataScope`, never a caller-supplied
   storage key. It derives the household or personal bucket internally, rejects unidentified
-  personal access, and owns deep copies at its read, write, and persistence boundaries. A
-  capability cannot select another user's bucket or mutate stored data without an explicit
-  save. Its HA `Store` uses private mode, which writes the JSON file with owner-only `0600`
-  permissions. Capability-specific backends must choose equivalent filesystem protection
-  explicitly. This is not encryption and does not protect data from the HA process or its
-  administrator.
+  personal access, and persists `{scope → capability namespace → record ID → JSON object}`.
+  Callers can get/list records and atomically put/delete one row; they cannot replace a whole
+  scope bucket. Put/delete return the prior owned value for undo. One internal mutation lock
+  spans fresh-state copy, row mutation, HA `Store` save, and publication, so concurrent rows
+  and namespaces cannot overwrite one another. Same-record upserts serialize with
+  last-write-wins semantics.
+- The store validates every loaded level and every record's complete JSON value domain before
+  publishing it in memory. Writes use the shared immutable-JSON validator before taking the
+  lock or calling HA storage. Version 2 explicitly migrates only the empty, unused version-1
+  placeholder; nonempty v1 data fails clearly because no semantic migration exists. Semantic
+  record fields and later record-schema migrations remain capability-owned.
+- Its HA `Store` uses private mode, which writes the JSON file with owner-only `0600`
+  permissions. Capability-specific backends must choose equivalent filesystem protection,
+  validation, migration, and mutation semantics explicitly. This is not encryption and does
+  not protect data from the HA process or its administrator. HA's public `Store.async_save()`
+  logs filesystem write failures instead of reporting them to callers, so the wrapper can
+  prevent invalid serialization but cannot claim acknowledged disk durability.
 
 #### 5.1.1 ChatLog-centered live interaction state
 

@@ -254,9 +254,17 @@ reading memory, reminder, or household data through a world-readable storage fil
 capability that selects another backend, such as SQLite FTS for memory, must choose and test
 equivalent filesystem permissions itself.
 
+The shared JSON store also validates its scope, capability namespace, record ID, and complete
+JSON object shape before accepting loaded or new data. Row-like mutations run under one
+internal lock, preventing concurrent capability writes from replacing unrelated records.
+Capability-specific field validation still belongs to each capability.
+
 Private file mode is not encryption at rest. It does not protect data from the Home
 Assistant process, an HA administrator, root, backups, or another process running under the
 same OS account. Encryption and backup-key lifecycle remain separate deployment decisions.
+HA's public storage helper also logs filesystem write failures rather than acknowledging
+durability to its caller; JSON validation closes predictable serialization failures, not
+disk or host failure.
 
 ## Diagnostic trace privacy
 

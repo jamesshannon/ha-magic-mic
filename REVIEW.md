@@ -739,6 +739,13 @@ administrator; it closes the avoidable host-permission gap.
 **Severity:** Foundational persistence contract defect. Fix before more than one caller uses
 the shared store.
 
+**Resolved in storage v2:** the shared store now persists
+`{scope → capability namespace → record ID → JSON object}` and exposes get/list plus atomic
+put/delete record operations. It no longer exposes whole-bucket replacement. One internal
+lock spans fresh-state copy, mutation, persistence, and publication. Paused-writer tests
+prove that concurrent records in the same namespace and in different namespaces are both
+retained; same-record upserts serialize deterministically and return the prior value.
+
 The only mutation API is `get(principal, scope)` followed by
 `async_set(principal, scope, complete_dict)`. The bucket key is only the household or user
 scope. Two overlapping requests can both read the same dictionary, independently add a
@@ -755,6 +762,15 @@ the read and transformation must be inside the serialized operation.
 ### R32. The store has no runtime persistence schema
 
 **Severity:** Medium durability defect. Fix with the first durable capability consumer.
+
+**Resolved at the shared persistence boundary:** load validates the root, scope,
+namespace, record-ID, record-object, and nested JSON value shapes before publishing state.
+Writes reuse `freeze_json_mapping()` before taking the mutation lock, so invalid values never
+reach memory or `Store.async_save()`. Storage version 2 has an explicit migration for the
+empty version-1 placeholder and rejects nonempty v1 data rather than discarding or guessing
+its meaning. Tests cover corrupt loads, unsupported values, non-finite numbers, ownership,
+and migration. HA's public `Store.async_save()` still swallows host write failures; the docs
+therefore promise validated serialization, not acknowledged disk durability.
 
 `UserKeyedStore` advertises a JSON `Store` but accepts `dict[str, Any]`, updates its in-memory
 data before saving, and validates neither loaded root/bucket shapes nor values being written.
@@ -854,7 +870,7 @@ means the data contracts exist, not that their safety properties are active end 
 ## Verification evidence
 
 - `.venv/bin/python -m pytest tests evals/harness -q --cov=custom_components.magic_mic
-  --cov=evals.harness --cov-report=term-missing`: 300 passed, 80% combined statement
+  --cov=evals.harness --cov-report=term-missing`: 316 passed, 80% combined statement
   coverage. The near-upstream provider copy and the interactive/live-key harness account for
   most uncovered lines; deterministic foundation modules are predominantly 89% to 100%.
 - Installed HA `MergedAPI.async_get_api_instance()` wraps every member in
@@ -869,13 +885,10 @@ means the data contracts exist, not that their safety properties are active end 
 
 ## Recommended remediation order
 
-R1 through R30 are fixed, accepted, or converted into an explicit build gate. For the
+R1 through R32 are fixed, accepted, or converted into an explicit build gate. For the
 remaining contract-audit findings:
 
-1. R31 before the shared store receives its first durable capability data.
-2. R32 in the same first-consumer storage chunk, so persistence starts with a validated
-   schema rather than acquiring one after data exists.
-3. R33 before treating all retained provider errors as normally renderable.
-4. R34 before evaluating or claiming complete traces for a custom LLM API executor.
-5. R35 and R36 before materially expanding the corpus or using new state-scored cases for a
+1. R33 before treating all retained provider errors as normally renderable.
+2. R34 before evaluating or claiming complete traces for a custom LLM API executor.
+3. R35 and R36 before materially expanding the corpus or using new state-scored cases for a
    Wave 1 acceptance decision.

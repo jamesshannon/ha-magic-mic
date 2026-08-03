@@ -58,10 +58,10 @@ deliberately preserves unclassified tools while tracing them; registry coverage 
 fail-closed unknown default are later deployment gates, not claims made by this POC. Undo is
 likewise selective: possible mutations without typed metadata become explicit barriers, and
 locally handled hassil mutations remain outside the claim until the core intent chokepoint
-can emit the same outcome contract. The final full-suite gate completed on 2026-08-01 with
-formatting, lint, and all 146 tests passing. Wave 1 may
-continue; the documented undo coverage boundaries remain deliberate follow-on work, not a
-foundation blocker.
+can emit the same outcome contract. The durable-store seam now uses locked row mutations over
+validated, capability-namespaced JSON records; whole-scope replacement is not exposed. Wave
+1 may continue; the documented undo and storage-backend boundaries remain deliberate
+follow-on work, not foundation blockers.
 
 **Convergence worth naming:** the features that prove value (axis 2) are almost exactly the
 §5.6 shared primitives — prompt-context moves tokens, `find_entities` moves turns and feeds
