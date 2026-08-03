@@ -438,6 +438,13 @@ is desired, establish a version matrix and compatibility code rather than advert
 untested date. The manifest version, release process, and minimum HA version should move
 together.
 
+**Resolved for the current release line:** `hacs.json` and the installation instructions now
+require Home Assistant `2026.7.0`, the `.0` release of the installed and exercised `2026.7.x`
+line. There is no checked-in CI workflow or pinned HA test dependency yet, so the documented
+`.venv` baseline (`2026.7.4`) remains the concrete compatibility evidence. When CI is added or
+the dependency is upgraded, the HACS minimum must move to the `.0` release of the earliest
+line exercised there; older-line support requires an explicit version matrix.
+
 ### R19. Provider parity is not guarded by upstream-derived tests
 
 **Severity:** Medium maintenance defect that has already produced R9.

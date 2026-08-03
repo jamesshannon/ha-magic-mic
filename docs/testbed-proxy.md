@@ -199,6 +199,11 @@ the project's Python environment. It does not track the head of the `core` devel
 branch. The current provider baseline is Home Assistant `2026.7.4`; the installed package in
 `.venv` is authoritative for runtime interfaces. `references/core` may be newer and is not a
 valid source for a provider refresh unless it is checked out at the matching release.
+HACS requires `2026.7.0`, the first patch release in that exercised monthly line. The minimum
+is not a claim of compatibility with older lines. This repository does not yet contain a CI
+workflow or pinned Home Assistant test dependency, so `.venv` remains the actual exercised
+baseline until CI is added; when that changes, the HACS minimum follows the earliest tested
+monthly line.
 
 A Home Assistant package upgrade and provider refresh are one coherent maintenance change:
 

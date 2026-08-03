@@ -50,8 +50,9 @@ The shell is disposable on purpose; the capabilities are the point.
 5. **Settings → Devices & Services → Add Integration → Magic Mic**, then enter your Claude
    API key. Select the **Magic Mic** conversation agent in your Assist pipeline to use it.
 
-Requires [HACS](https://hacs.xyz). Until a tagged release exists, HACS tracks the `main`
-branch, so an update appears whenever new commits land.
+Requires Home Assistant `2026.7.0` or newer and [HACS](https://hacs.xyz). Until a tagged
+release exists, HACS tracks the `main` branch, so an update appears whenever new commits
+land.
 
 ---
 
