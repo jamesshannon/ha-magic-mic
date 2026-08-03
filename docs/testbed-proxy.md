@@ -205,6 +205,27 @@ workflow or pinned Home Assistant test dependency, so `.venv` remains the actual
 baseline until CI is added; when that changes, the HACS minimum follows the earliest tested
 monthly line.
 
+### Pinning the compatibility baseline in CI
+
+Use an ordinary Python CI job for the component suite. A Home Assistant container is not
+needed: these tests import the released `homeassistant` Python package and run under
+`pytest-homeassistant-custom-component`, just as the local `.venv` does. Containers are useful
+later for full installation or Supervisor/OS smoke tests, but they make the unit-test
+dependency less explicit and do not replace the package-version pin.
+
+Add a small CI requirements file containing the exact baseline, initially
+`homeassistant==2026.7.4`, plus `-r requirements_test.txt`. The workflow should select Python
+3.14, install that file in one resolver invocation, then run Ruff and pytest. Installing the
+requirements together matters: a later unpinned test helper must not silently replace the HA
+pin. The existing metadata test derives `2026.7.0` from the HA package executing the suite and
+checks `hacs.json`, so changing the CI pin to a new monthly line fails until the HACS minimum
+moves with it.
+
+One exact-version job is the first useful gate. If the project later promises compatibility
+across multiple HA lines, add a matrix whose oldest lane installs the advertised minimum
+itself and whose newest lane is the provider-copy baseline. Do not use a floating `latest`
+lane as compatibility evidence; it can supplement, but not replace, the pinned lanes.
+
 A Home Assistant package upgrade and provider refresh are one coherent maintenance change:
 
 1. Upgrade the Home Assistant dependency intentionally and record the resolved release
