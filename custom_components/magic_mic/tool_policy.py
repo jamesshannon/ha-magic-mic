@@ -189,16 +189,21 @@ class ToolPolicyRegistry:
         self._types[tool_type] = policy
 
     def resolve(self, tool: llm.Tool) -> ResolvedToolPolicy:
-        """Resolve declared policy, exact legacy policy, then type policy."""
-        if (declared := getattr(tool, _POLICY_ATTRIBUTE, None)) is not None:
+        """Resolve policy against the tool identity before HA namespacing."""
+        policy_tool = tool
+        while isinstance(policy_tool, llm.NamespacedTool):
+            policy_tool = policy_tool.tool
+
+        if (declared := getattr(policy_tool, _POLICY_ATTRIBUTE, None)) is not None:
             if not isinstance(declared, ToolPolicy):
                 raise TypeError(
-                    f"{type(tool).__name__}.{_POLICY_ATTRIBUTE} must be a ToolPolicy"
+                    f"{type(policy_tool).__name__}.{_POLICY_ATTRIBUTE} must be a "
+                    "ToolPolicy"
                 )
             return ResolvedToolPolicy(declared, PolicySource.DECLARED)
 
-        tool_type = type(tool)
-        if (exact := self._exact.get((tool_type, tool.name))) is not None:
+        tool_type = type(policy_tool)
+        if (exact := self._exact.get((tool_type, policy_tool.name))) is not None:
             return ResolvedToolPolicy(exact, PolicySource.LEGACY_EXACT)
 
         for candidate_type in tool_type.__mro__:

@@ -32,6 +32,7 @@ from custom_components.magic_mic.tool_policy import (
     ToolPolicyContext,
     ToolPolicyDeniedError,
     ToolPolicyRegistry,
+    tool_policy,
 )
 from custom_components.magic_mic.undo import (
     NO_MUTATION,
@@ -234,6 +235,63 @@ async def test_unclassified_call_delegates_to_inner_override() -> None:
     barrier = context.session_state.undo_journal[-1]
     assert isinstance(barrier.disposition, UndoUnavailable)
     assert barrier.disposition.reason is UndoUnavailableReason.NOT_SUPPORTED
+
+
+async def test_namespaced_declared_policy_preserves_external_delegation() -> None:
+    """Policy uses the member tool while execution keeps the merged API name."""
+
+    @tool_policy(StaticToolPolicy(effect=EffectClass.READ_ONLY))
+    class ReadOnlyTool(CoercingTool):
+        """Read-only member tool wrapped by HA API aggregation."""
+
+    tool = llm.NamespacedTool("assist", ReadOnlyTool("lookup"))
+    inner = RecordingAPIInstance([tool])
+    context = _context()
+    wrapped = testbed_api.TestbedAPI.wrap(inner, context)
+    tool_input = llm.ToolInput(
+        external=True,
+        id="call-1",
+        tool_name="assist__lookup",
+        tool_args={"personal": 1},
+    )
+
+    result = await wrapped.async_call_tool(tool_input)
+
+    assert result == {"executor": "inner", "tool_name": "assist__lookup"}
+    assert inner.calls == [
+        llm.ToolInput(
+            external=True,
+            id="call-1",
+            tool_name="assist__lookup",
+            tool_args={"personal": True},
+        )
+    ]
+    assert context.session_state.undo_journal == ()
+    assert {
+        (trace.stage, trace.tool_name, trace.policy_source, trace.allowed)
+        for trace in context.turn_metadata.tool_policy
+    } == {
+        ("execution", "assist__lookup", "declared", True),
+        ("exposure", "assist__lookup", "declared", True),
+    }
+
+
+def test_namespaced_personal_tool_is_filtered_by_underlying_policy() -> None:
+    """HA aggregation cannot make a restricted member tool permissive."""
+    member = FixtureTool("personal")
+    tool = llm.NamespacedTool("assist", member)
+    inner = RecordingAPIInstance([tool])
+    registry = ToolPolicyRegistry()
+    registry.register_exact(
+        FixtureTool,
+        "personal",
+        StaticToolPolicy(required_scope=DataScope.PERSONAL),
+    )
+
+    wrapped = testbed_api.TestbedAPI.wrap(inner, _context(), registry)
+
+    assert wrapped.tools == []
+    assert inner.tools == [tool]
 
 
 async def test_proxy_debug_logs_omit_tool_payloads(

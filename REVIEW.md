@@ -641,6 +641,13 @@ findings.
 **Severity:** High security-boundary defect. Fix before a restricted tool is offered through
 more than one selected LLM API.
 
+**Resolved in the policy registry:** `ToolPolicyRegistry.resolve()` now follows HA
+`NamespacedTool` wrappers to the original member tool before applying declared, exact legacy,
+or family legacy policy. The wrapper keeps its namespaced name throughout exposure,
+execution lookup, tracing, normalization, and delegation. Tests cover all three resolution
+sources, denial of a namespaced personal tool, external-name delegation, and the read-only
+effect behavior that prevents an incorrect undo barrier.
+
 Home Assistant turns every member tool of a `MergedAPI` into an `llm.NamespacedTool`. The
 wrapper has the external namespaced name and holds the original tool in `.tool`.
 `ToolPolicyRegistry.resolve()` examines only the wrapper's type, name, and policy attribute.
@@ -829,11 +836,12 @@ means the data contracts exist, not that their safety properties are active end 
 ## Verification evidence
 
 - `.venv/bin/python -m pytest tests evals/harness -q --cov=custom_components.magic_mic
-  --cov=evals.harness --cov-report=term-missing`: 291 passed, 80% combined statement
+  --cov=evals.harness --cov-report=term-missing`: 296 passed, 80% combined statement
   coverage. The near-upstream provider copy and the interactive/live-key harness account for
   most uncovered lines; deterministic foundation modules are predominantly 89% to 100%.
 - Installed HA `MergedAPI.async_get_api_instance()` wraps every member in
-  `NamespacedTool`, while local policy resolution reads only the presented wrapper (R27).
+  `NamespacedTool`; policy resolution now follows that wrapper to the original member while
+  execution retains the external namespaced identity (R27).
 - Installed HA `Store` passes its default `private=False` to a writer that applies mode
   `0644`, and catches serialization/write errors inside `async_save()` (R30 and R32).
 - Installed HA's base `APIInstance.async_call_tool()` owns the payload-bearing `TOOL_CALL`
@@ -843,17 +851,15 @@ means the data contracts exist, not that their safety properties are active end 
 
 ## Recommended remediation order
 
-R1 through R26 are fixed, accepted, or converted into an explicit build gate. For the new
-contract-audit findings:
+R1 through R27 are fixed, accepted, or converted into an explicit build gate. For the
+remaining contract-audit findings:
 
-1. R27 before enabling additional selected APIs or adding any restricted tool to a merged
-   contribution.
-2. R28 before a mutating tool relies on correction or undo safety.
-3. R30 and R31 before the shared store receives its first durable capability data.
-4. R32 in the same first-consumer storage chunk, so persistence starts with a validated
+1. R28 before a mutating tool relies on correction or undo safety.
+2. R30 and R31 before the shared store receives its first durable capability data.
+3. R32 in the same first-consumer storage chunk, so persistence starts with a validated
    schema rather than acquiring one after data exists.
-5. R29 before adding the user-facing undo intent or tool.
-6. R33 before treating all retained provider errors as normally renderable.
-7. R34 before evaluating or claiming complete traces for a custom LLM API executor.
-8. R35 and R36 before materially expanding the corpus or using new state-scored cases for a
+4. R29 before adding the user-facing undo intent or tool.
+5. R33 before treating all retained provider errors as normally renderable.
+6. R34 before evaluating or claiming complete traces for a custom LLM API executor.
+7. R35 and R36 before materially expanding the corpus or using new state-scored cases for a
    Wave 1 acceptance decision.

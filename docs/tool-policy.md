@@ -130,6 +130,13 @@ Resolution precedence is:
 3. legacy registration for a tool family/type;
 4. explicit `unclassified` result.
 
+When HA combines multiple selected APIs, it presents each member tool as an
+`llm.NamespacedTool`. Policy resolution follows that wrapper to the original member tool, so
+declarations and legacy registrations still use the member's type and unprefixed name. The
+namespaced wrapper remains the external identity for model exposure, execution lookup,
+tracing, argument normalization, and delegation. This keeps policy ownership stable without
+changing HA's merged-API calling convention.
+
 Exact registrations include both type and name because HA currently flattens contributions
 from every LLM tools platform into `APIInstance.tools` and discards the source integration.
 Names alone are not stable identities and may collide. Broad type registrations are only

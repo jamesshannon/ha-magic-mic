@@ -128,6 +128,46 @@ def test_declared_policy_takes_precedence_over_legacy_registry() -> None:
     assert resolved.policy is declared
 
 
+def test_namespaced_tool_resolves_underlying_declared_policy() -> None:
+    """HA aggregation does not hide policy declared by an owned tool."""
+    declared = StaticToolPolicy(effect=EffectClass.READ_ONLY)
+
+    @tool_policy(declared)
+    class DeclaredTool(FixtureTool):
+        """Fixture with policy attached before HA wraps it."""
+
+    resolved = ToolPolicyRegistry().resolve(
+        llm.NamespacedTool("assist", DeclaredTool())
+    )
+
+    assert resolved.source is PolicySource.DECLARED
+    assert resolved.policy is declared
+
+
+def test_namespaced_tool_resolves_underlying_exact_legacy_policy() -> None:
+    """An exact compatibility entry uses the original type and name."""
+    exact = StaticToolPolicy(required_scope=DataScope.PERSONAL)
+    registry = ToolPolicyRegistry()
+    registry.register_exact(FixtureTool, "fixture", exact)
+
+    resolved = registry.resolve(llm.NamespacedTool("assist", FixtureTool()))
+
+    assert resolved.source is PolicySource.LEGACY_EXACT
+    assert resolved.policy is exact
+
+
+def test_namespaced_tool_resolves_underlying_family_policy() -> None:
+    """A family compatibility entry follows the original tool hierarchy."""
+    family = StaticToolPolicy(required_scope=DataScope.HOUSEHOLD)
+    registry = ToolPolicyRegistry()
+    registry.register_type(FixtureTool, family)
+
+    resolved = registry.resolve(llm.NamespacedTool("assist", FixtureSubclassTool()))
+
+    assert resolved.source is PolicySource.LEGACY_TYPE
+    assert resolved.policy is family
+
+
 def test_static_policy_declares_effect_class() -> None:
     """Effect classification travels with invocation policy."""
     registry = ToolPolicyRegistry()
