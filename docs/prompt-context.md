@@ -687,7 +687,9 @@ resolve without names, the roster is dead weight for capable models and Tier 2 s
 out; only if they do not does Option 2 (the cache-isolated second system block) become a
 real question. Until then Tier 2 stays on by default (task-neutral, and its cost is cache
 tokens, not turns), but it is a candidate for removal, not just tuning. Artifact:
-`evals/results/wave1_name_injection.json`.
+`evals/results/wave1_name_injection.json`. This revisit is tracked in the test backlog
+([`evaluation.md`](evaluation.md) Part E, "Open hypotheses and corpus gaps") so it is not
+lost between features.
 
 ### Two tiers of observability (local vs fleet)
 

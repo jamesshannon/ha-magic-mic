@@ -342,6 +342,28 @@ Build the layers just in time:
 No layer substitutes for deployed telemetry. Corpus trajectories can prove that a scripted
 recovery works; they cannot prove how often people attempt, abandon, or reuse it in homes.
 
+### Open hypotheses and corpus gaps (the test backlog)
+
+The harness above is the instrument; this is the running list of what to point it at. Each
+row is an empirical claim the design currently rests on but has not confirmed, paired with
+the corpus or realism gap that keeps it open. It is a tracker, not a buildout: the corpus and
+drivers grow just in time (above), so the point is to record the hypothesis and the test that
+would settle it now, while the test is still cheap to state and the evidence is not yet
+available to build against. A feature doc that flags a "revisit" adds a row and keeps its
+depth; this table is the index. It complements the design-assumption table in
+[`prompt-context.md`](prompt-context.md) (assumptions only deployed telemetry can settle):
+rows here are the ones a corpus or harness change can test without waiting for fleet data.
+
+| Hypothesis (as held today) | Owning doc | What would test it | Corpus / realism gap it needs | Status |
+|---|---|---|---|---|
+| Prompt-loaded entity names go unused: the stock intent tools resolve a spoken name/area/domain slot themselves, so injected names (and perhaps the whole roster) are dead weight in the common case. | [`prompt-context.md`](prompt-context.md) | Cases that force an `entity_id` lookup (oblique reference, an `entity_id`-only tool), scored for whether names shave the `find_entities` round-trip, run across more than one model. | Golden set has none of these; one model; one home. | Open. First live run (2026-08) read a name once, changed nothing. Revisit ~2026-09. |
+| Most commands target the room the user is in (the Tier-2 room-scope prior). | [`prompt-context.md`](prompt-context.md) | Share of resolutions whose target sits in the requesting area, over a multi-room corpus. | Corpus is single-home and does not vary the requesting room; best settled by fleet data. | Open. |
+| The curated golden set over-cleans results: every command names its target or is an area / domain / state case, so a "names don't help, routing is easy" reading may be a corpus artifact. | this doc (Part E) | Grow the corpus toward a realistic utterance distribution and re-run every standing comparison. | A realistic corpus (oblique references, misheard names, `entity_id`-only tools, multi-device homes), seeded from real usage and adapted external corpora (Part H). | Open, cross-cutting. Bounds the confidence of every feature's live conclusion. |
+
+Maintenance: when a feature lands a finding that depends on the corpus growing, or on data we
+do not have yet, add a row here and link it from the owning doc, so the assumption is tracked
+in one place instead of re-derived per feature.
+
 ---
 
 ## Part G — Deterministic subsystem & timing tests (the non-LLM machinery)
