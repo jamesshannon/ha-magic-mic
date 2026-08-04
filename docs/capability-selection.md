@@ -542,6 +542,48 @@ direction, not a gate pass, and the corpus is too small and too clean to trust a
 the target budget with no task-success regression, now with a harness that reports the
 number and a scorer that moves it.
 
+### Script-heavy home, and the paraphrase ceiling (2026-08, `wave1_scripts`)
+
+The Wave-0 set has a 24-tool roster, so its full budget is the whole roster and a budget
+never really binds. `evals/corpus/wave1_scripts.yaml` is the home that makes it bind: 26
+scripts across eight areas, each exposed by Home Assistant as its own tool named by object
+id, for a 50-tool roster. The harness scores this corpus-driven, against each case's
+declared `expected` tool rather than a live model's choice (`selection_shadow --corpus`), so
+it needs no key. Recall and saving across the sweep:
+
+| Budget | Case recall | Avg tools exposed | Avg tools hidden |
+|---|---|---|---|
+| 8  | 76% | 7.2  | 42.8 |
+| 12 | 82% | 9.8  | 40.2 |
+| 24 | 82% | 14.8 | 35.2 |
+| 50 (full) | 82% | 16.5 | 33.5 |
+
+This is the saving the clean set could not show: at budget 24 the plan exposes about fifteen
+tools and hides about thirty-five, on direct requests without loss. But recall stops at 82%
+and does not move with budget, and that ceiling is the real finding. Three oblique requests
+score exactly zero against every script name, because they share no surface word with it:
+
+- "I'm going to sleep" needs `Bedtime`;
+- "I'm heading out" needs `Leaving Home`;
+- "I want to read" needs `Reading Mode` (a stem away from "read", which exact-token matching
+  still misses).
+
+Lexical retrieval cannot rank a tool it shares no token with, so no budget rescues these:
+the only way the full roster would expose them is to expose everything, which is not
+selection. This is exactly the case the design flags for richer retrieval, "add embeddings
+only if measured misses, especially paraphrase or multilingual misses, justify their
+dependency" (Stage 2). The measurement now exists to make that call: the cheaper first
+moves are per-script keywords/aliases (the `keywords` field already feeds the document) and
+Unicode-aware stemming for the "read"/"reading" class; embeddings are the escalation if
+those do not close the paraphrase gap. Tracked in evaluation.md's ledger.
+
+The 82% is also a floor effect worth stating plainly: the relevance floor drops a
+zero-overlap script even when the budget has room, which is why the full-roster point is
+16.5 tools, not 50. That is deliberate (exposing a script that matches nothing is not
+selection), but it means "full-budget recall" here reads as the lexical ceiling, not a
+sanity 100%. On a corpus of oblique requests, no lexical selector reaches 100% without
+abandoning selection.
+
 ---
 
 ## Worked examples
