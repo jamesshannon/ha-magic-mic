@@ -202,6 +202,109 @@ The first administrator UI should expose stable concepts rather than every inter
 The evaluator can later compose these restrictions without changing the `ToolPolicy` methods
 or the `TestbedAPI` enforcement points.
 
+## Confidence, severity, and the confirmation gate (design, not yet built)
+
+Confirmation is decided by two independent inputs. **Severity** is modeled today: the ordinal
+consequence a tool declares (`low`, `confirm_on_continuation`, `always_confirm`). **Match
+confidence**, how sure we are this action is what the request meant, is not modeled yet. This
+section records the model settled in design so the eventual implementation does not relitigate
+it. Nothing here is built. The seams it plugs into already exist: the request-level consequence
+escalation ("an optional minimum consequence raised by other deterministic signals" in
+`ToolPolicyContext`, and "provenance-derived escalation" in configuration layer 3 above), and
+the `find_entities` action auto-resolve threshold ([`find-entities.md`](find-entities.md)).
+
+### Two scores, opposite goals, do not conflate them
+
+There are two numbers in play and they are not the same score.
+
+- **Exposure relevance** (`SELECTION_RELEVANCE_FLOOR`, currently `1.0` on the ranker's
+  IDF-coverage scale of 0 to 100) decides which tools enter the prompt. Its job is **recall**:
+  when in doubt, expose the tool and let the model decide. The floor is deliberately permissive;
+  the tool budget does the real pruning ([`capability-selection.md`](capability-selection.md)).
+- **Match confidence** (the `find_entities` fuzzy score: `token_set_ratio` plus a top-1/top-2
+  margin) decides whether a fuzzy action resolves on its own. Its job is **precision** on a
+  consequential act.
+
+The same closeness pulls these two in opposite directions. A tight margin between two exposure
+candidates is an argument to expose *both* and defer to the model. A tight margin on an action
+resolve is an argument to *not* fire on a guess. Reusing the exposure floor as a confirmation
+signal would be a category error.
+
+### The match score is a floor, not a ceiling
+
+A deterministic match score earns trust asymmetrically.
+
+- **A strong score with a clear margin is a positive license.** It is safe to resolve and act,
+  reproducibly, and it is the one case that also works on the no-AI path where there is no model
+  to lean on.
+- **A weak score is an abstention, not a veto.** It means lexical matching cannot see the
+  connection; the call belongs to the model. A weak score never, on its own, forces a
+  confirmation.
+
+Worked example. "Help me concentrate" or "go into my zero-in mode" against a `Focus Mode`
+script scores low lexically: almost no token overlap. The semantic fit is still obvious, and
+the model resolves it. Faulting the assistant for not confirming there would punish it for the
+scorer's blindness, not for real doubt. So low lexical score is the wrong trigger for a
+confirmation.
+
+**Margin routes; it is not a confirm knob.** A tight margin means the deterministic scorer
+cannot discriminate, so the right move is to raise the model into the loop (return the candidate
+list, expose both), not to lower execution confidence. Once the model has adjudicated on
+meaning, the margin has done its job. If the scorer ranks candidate A at 0.99 and B at 0.85 and
+the model picks B, that only happens on the path where the tool returned a list and deferred;
+the model chose B for a reason the lexical score could not see, which is principle 1 (the LLM
+decides intent and orchestration; deterministic code does the work) working as intended, and
+the A-over-B margin is irrelevant to whether B should confirm.
+
+### What actually triggers a confirmation
+
+Two things, and neither is "the score was low":
+
+1. **Severity** (deterministic, tool-declared or registry-supplied, administrator-overridable).
+   A high-consequence action confirms regardless of how confident anyone is. This is the
+   reproducible backstop, and it is the mechanism already implemented above. Confidence can
+   never lower it.
+2. **Ambiguity the model itself recognizes** (the middle band). Two actions both plausibly fit
+   and it cannot tell, or it is genuinely reaching. Only the model can see semantic fit, and
+   deciding "confirm or just act" is orchestration, which principle 1 assigns to the model.
+
+So the gate is not a flat severity-by-confidence matrix. It has three inputs: the **absolute
+score** licenses a deterministic act at the high end and abstains at the low end; the **margin**
+routes between a deterministic resolve and deferring to the model; and **who adjudicated**
+decides whether a low lexical score is a problem (a bare deterministic resolve on a weak, tight
+match is not allowed) or a non-issue (a model that deliberately chose a semantically strong
+action is confident by construction). Severity sits over all of it as a floor that confidence
+cannot move.
+
+### Wiring to the existing seams
+
+- The confidence signal feeds the **request-level escalation** already in the contract: it can
+  raise a call's effective consequence (`low` toward `confirm`), never lower it.
+- The deterministic half lives in the **`find_entities` action auto-resolve threshold**
+  ([`find-entities.md`](find-entities.md)): the score-plus-margin band above which a fuzzy
+  action resolves without asking, and below which it returns candidates for the model.
+- **Provenance is the cleanest confidence input.** A direct call to an exposed tool the model
+  named is high confidence by construction: the tool made budget and the model chose it. A pick
+  made after a `find_entities` round-trip is where graded confidence actually lives, because that
+  path is the only one carrying a purpose-built match score and margin.
+- The **discovery fallback** ([`capability-selection.md`](capability-selection.md)) is where
+  low-lexical-score semantic matches get a runtime home: a script beyond the tool budget is still
+  reachable through `find_entities(query=..., domain="script")`, so the ranker does not have to be
+  clairvoyant. This is the alternative to embedding the whole catalog.
+
+### Reproducibility and the no-AI path
+
+Letting the model own the ambiguity confirmation is softer than a threshold and risks a "works
+only on a strong model" smell (principle 1). The guard is severity as the deterministic floor:
+a wrong low-severity guess (`Focus Mode` fires when `Reading Mode` was meant) is cheap and
+undoable ([`undo.md`](undo.md)), so leaning on model judgment there is acceptable, while anything
+genuinely consequential is pinned to confirm by severity independent of confidence. The no-AI and
+local path does not get the semantic-ambiguity layer at all; it relies on HASSIL exact match plus
+the deterministic auto-resolve threshold, which is correct because it has no model to consult.
+
+Principle 1 is "the LLM decides intent and orchestration; deterministic code does the work"
+(`PRODUCT_PLAN.md` section 5.4, `CLAUDE.md` core principle 1).
+
 ## Next implementation steps
 
 - Inventory the actual HA/core and bundled third-party tool catalog before a restricted
@@ -214,6 +317,10 @@ or the `TestbedAPI` enforcement points.
 - Wire local yes/no handling to consume the pending operation, re-run policy using the
   approval-turn principal, and delegate the exact stored arguments once.
 - Define the administrator override model after the first settings require it.
+- Implement the confidence input to the confirmation gate (see "Confidence, severity, and the
+  confirmation gate"): derive it from match provenance and the `find_entities` score/margin, feed
+  it through the existing request-level escalation, and keep severity as the floor it cannot
+  lower.
 - Change the unknown-tool default from permissive to unavailable only when classification
   coverage and compatibility behavior are ready for that enforcement gate.
 

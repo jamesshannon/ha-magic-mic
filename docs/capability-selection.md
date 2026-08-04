@@ -349,6 +349,13 @@ capability headers. Choosing a result marks that bundle for exposure on the next
 The fallback costs an extra generation only on a miss and cannot itself execute an arbitrary
 hidden operation.
 
+This is the runtime home for the low-lexical-score semantic match, so the ranker does not
+have to be clairvoyant: "help me concentrate" can miss `Focus Mode` at selection time and
+still be recovered here. Whether acting on a discovered match then confirms is governed by the
+confidence-and-confirmation model in [`tool-policy.md`](tool-policy.md) ("Confidence, severity,
+and the confirmation gate"). A low retrieval score routes to the model and does not by itself
+force a confirmation; severity and model-recognized ambiguity do.
+
 Validate in the proving ground that HA's tool set can expand safely between generations in
 one turn. If the current seam cannot, that is evidence for a core selection/loading seam.
 Do not work around it with a broad `invoke_anything(name, arguments)` tool; that would erase

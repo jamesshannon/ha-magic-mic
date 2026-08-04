@@ -369,7 +369,12 @@ that needs to name a device.
 ## Open questions
 
 - **Auto-resolve threshold for actions** — the decisive `ACCEPT`/`MARGIN` values;
-  conservative enough that a wrong physical action is rare. Tune on evals.
+  conservative enough that a wrong physical action is rare. Tune on evals. This
+  threshold is the deterministic half of the confidence-and-confirmation model in
+  [`tool-policy.md`](tool-policy.md) ("Confidence, severity, and the confirmation
+  gate"): the score-plus-margin band above which a fuzzy action resolves without
+  asking, and below which it returns candidates for the model to adjudicate. A low
+  score routes to the model; it does not by itself force a confirmation.
 - **`fuzzy=True` plumbing** — how the LLM adapter sets the opt-in constraint
   without touching the hassil path; whether it's a `MatchTargetsConstraints` field
   or a wrapper.
