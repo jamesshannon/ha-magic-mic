@@ -68,3 +68,24 @@ FUZZY_IDF_MIN_CANDIDATES = 5
 # Default and hard cap on how many candidates find_entities returns per lookup.
 FIND_ENTITIES_DEFAULT_LIMIT = 5
 FIND_ENTITIES_MAX_LIMIT = 25
+
+# Capability selection (docs/capability-selection.md, PRODUCT_PLAN §5.6/§6.2). The
+# prompt-time system that turns the full installed tool catalog into a small, relevant,
+# authorized API for one turn. Wave 1 builds it in *shadow mode*: it computes the plan
+# and records recall/savings against the full-roster baseline, but never removes a tool
+# from a live request until the recall@budget and task-success gates pass.
+#
+# SELECTION_TOOL_BUDGET is the tool-count ceiling the assembler fits under. The provider
+# hard limit is 128 (docs "Goals"); this soft budget is the shadow target we measure
+# recall against, deliberately far below the ceiling so savings are visible on real homes
+# full of scripts. Tunable on the eval.
+SELECTION_TOOL_BUDGET = 24
+# Retrieval floor: a descriptor scoring below this is not admitted on relevance alone
+# (dependencies and always-resident bundles bypass it). Bias to recall (docs "Optimize
+# for recall"): a false positive costs a few prompt tokens, a false negative breaks the
+# task. Lexical score is 0-100, same scale as the fuzzy scorer. Tunable.
+SELECTION_RELEVANCE_FLOOR = 20.0
+# Structural boost added to a descriptor's lexical score when the request names one of
+# its declared domains outright ("the light", "my calendar"). Keeps strong explicit
+# domain evidence above weak text overlap. Tunable.
+SELECTION_DOMAIN_BOOST = 25.0
