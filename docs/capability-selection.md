@@ -467,6 +467,73 @@ Deferred until evidence demands them:
 
 ---
 
+## As-built: Wave 1 shadow mode
+
+The first slice landed in `custom_components/magic_mic/capabilities/capability_selection.py`
+plus the offline harness `evals/harness/selection_shadow.py`. It implements the
+deterministic spine (steps 1 through 6 of Recommended v1) and the shadow comparison (step
+7), and stops short of enforcement (step 9), discovery (step 8), and conversation
+continuity (Stage 3), which land with their first live consumers.
+
+What exists:
+
+- `CapabilityDescriptor` / `Catalog`: a provider-neutral demo catalog of twelve bundles
+  over the HA Assist intent tools plus `find_entities`, indexed by id and by tool so a
+  used tool maps back to its owning bundle. `GetLiveContext` and `GetDateTime` are marked
+  `resident`.
+- `available_descriptors` (Stage 1): intersects declared tools with the tools the running
+  system actually exposes, so an absent integration drops out and a partly-exposed bundle
+  is projected to its runnable subset. Availability is grounded in the live roster, not a
+  separate requirements engine.
+- `rank_descriptors` (Stage 2): high-recall lexical retrieval, the shared Unicode-aware
+  fuzzy scorer over each bundle's `selection_text` and examples, best-per-bundle, plus a
+  structural boost when the request names a declared domain.
+- `assemble_plan` (Stage 4): residents first and unconditional, then high score to low
+  under a tool-count budget with dependency closure, so nothing is admitted half-
+  functional. Below-floor, budget-displaced, and unavailable bundles all carry into the
+  plan's `omitted` list with a safe reason, so the trace explains every catalog entry.
+- `selection_shadow`: reads a scored baseline artifact (which already records each case's
+  utterance and the tools the model called), recomputes the plan across a budget sweep, and
+  reports exact case- and tool-level recall@budget plus the tool saving.
+
+### First shadow finding (2026-08, `wave0_baseline`)
+
+Nineteen of twenty-five cases called a tool. Recall against the demo catalog:
+
+| Budget | Case recall | Tool recall | Avg tools exposed |
+|---|---|---|---|
+| 6  | 79% | 80% | 6 |
+| 8  | 89% | 90% | 8 |
+| 10 | 89% | 90% | 10 |
+| 24 (full) | 100% | 100% | 24 |
+
+Two things to read from this, and one caveat:
+
+1. **The retriever is not ready to enforce.** At a tight budget the misses are ranking
+   errors, not budget starvation: for "turn off the living room lamp" the `climate` and
+   `volume` bundles outrank `device_control`, because `token_set_ratio` over short
+   descriptor documents rewards an incidental shared word ("the", "room"). Lexical
+   retrieval was the right cheap starting point, but the shadow number says the next work
+   is scorer quality (structural/domain evidence weighted above bare text overlap, or the
+   IDF variant the fuzzy scorer already carries), measured back through this same harness,
+   before selection may remove a real tool.
+2. **The instrument works and is honest.** It surfaces the exact miss and the bundle that
+   displaced the right one, and it separates a catalog gap (an uncatalogued used tool) from
+   a ranking miss so a gap cannot hide as low recall.
+3. **The saving is catalog-relative and understates reality.** The baseline artifact does
+   not record the full per-turn roster HA exposed, so the harness uses the twelve-bundle
+   catalog (24 tools) as the denominator. A real home exposes more (generated scripts,
+   scenes, merged providers), where the same recall would buy a larger saving. Measuring
+   the true exposed roster needs a live shadow run that records `inner.tools` per turn;
+   that is the follow-up, and it does not change the recall numbers above.
+
+This mirrors the prompt-context lesson: build the measurement first, let it tell you
+whether the optimization pays before you ship it. The gate to enforcement stays where
+Recommended v1 put it, a recall threshold at the target budget with no task-success
+regression, now with a harness that can report the number.
+
+---
+
 ## Worked examples
 
 ### Contextual calendar follow-up
