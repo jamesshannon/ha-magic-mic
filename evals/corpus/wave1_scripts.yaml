@@ -7,11 +7,21 @@
 # case the tool budget actually has to choose within, and the one the small, clean Wave 0
 # set cannot show.
 #
-# The shadow harness reads this corpus directly: it builds a per-script descriptor for
-# each script entity, then scores whether selection would have exposed the tool each case
-# is supposed to call (the declared `expected`), across a budget sweep. It needs no live
-# model, because the ground-truth tool is the one the case names, not one the model picks.
-# `expected` tool names are the script object ids.
+# The shadow harness reads this corpus directly (`selection_shadow --corpus`): it builds a
+# per-script descriptor for each script entity from the script's configured metadata, then
+# scores whether selection would have exposed the tool each case declares (`expected`),
+# across a budget sweep. It needs no live model, because the ground-truth tool is the one
+# the case names. `expected` tool names are the script object ids.
+#
+# Measurement honesty. The aliases below are authored from each script's *purpose*, the way
+# a cooperative household writes voice triggers, not from the test utterances. Cases are
+# tagged by correlation regime so the aggregate cannot hide a weak result:
+#   - `in_vocabulary`  the configuring user's own words; overlap with name/alias is real and
+#                      legitimate, so recall here should be high.
+#   - `out_of_vocabulary`  a different speaker, a guest, or drift, phrased without regard to
+#                      the configured triggers. Some are caught because good aliases
+#                      generalize; the misses are the honest residual gap.
+# The number that should gate enforcement is out-of-vocabulary recall, not the aggregate.
 
 world:
   areas:
@@ -24,8 +34,8 @@ world:
     - garage
     - entryway
   entities:
-    # A handful of ordinary devices, so the base control bundles are present and a plain
-    # command still has to compete with the scripts for budget.
+    # Ordinary devices, so the base control bundles are present and a plain command still
+    # has to compete with the scripts for budget.
     - entity_id: light.living_room
       name: Living Room Lamp
       area: living_room
@@ -44,84 +54,123 @@ world:
       area: living_room
       state: idle
 
-    # The routines. Names are the kind a real household writes: overlapping vocabulary
-    # ("good morning" / "good night", "movie night" / "game night") the retriever must
-    # keep apart, plus obliquely phrased requests the cases reach through a paraphrase.
-    # A realistic, uneven spread of configured metadata: some scripts carry the voice
-    # triggers and descriptions a thorough household would set, many carry none. The
-    # aliases are plausible phrasings, not copies of the test utterances, so retrieval
-    # still has to bridge a paraphrase rather than match a planted string.
+    # Configured routines: aliases and a description a thorough household would set, written
+    # from the script's function (not from any test utterance).
     - entity_id: script.movie_night
       name: Movie Night
       area: living_room
       aliases:
         - movie time
         - film night
+        - watch a film
       description: Dim the lights and start the projector for a film.
-    - entity_id: script.game_night
-      name: Game Night
-      area: living_room
-    - entity_id: script.party_mode
-      name: Party Mode
-      area: living_room
-    - entity_id: script.reading_mode
-      name: Reading Mode
-      area: living_room
-      aliases:
-        - reading time
-        - time to read
-      description: Warm, focused light for reading a book.
-    - entity_id: script.relax
-      name: Relax
-      area: living_room
     - entity_id: script.good_morning
       name: Good Morning
       area: bedroom
       aliases:
         - start the day
-      description: Morning routine, raising the lights and opening the blinds.
+        - morning routine
+      description: Raise the lights and open the blinds to start the day.
     - entity_id: script.good_night
       name: Good Night
       area: bedroom
+      aliases:
+        - night night
+      description: Shut the house down for the night.
     - entity_id: script.bedtime
       name: Bedtime
       area: bedroom
       aliases:
         - going to bed
         - time for bed
-      description: Night wind-down, turning the lights off and lowering the thermostat.
-    - entity_id: script.wake_up
-      name: Wake Up
-      area: bedroom
-    - entity_id: script.arriving_home
-      name: Arriving Home
-      area: entryway
+      description: Wind down for the night, turning the lights off and locking the doors.
     - entity_id: script.leaving_home
       name: Leaving Home
       area: entryway
       aliases:
         - I'm leaving
         - leaving the house
-        - heading out
+        - goodbye
       description: Away mode, turning everything off and locking the doors.
+    - entity_id: script.arriving_home
+      name: Arriving Home
+      area: entryway
+      aliases:
+        - I'm home
+        - we're back
+      description: Welcome home, turning the lights on and unlocking the doors.
+    - entity_id: script.reading_mode
+      name: Reading Mode
+      area: living_room
+      aliases:
+        - reading time
+        - book time
+      description: Warm, focused light for reading a book.
+    - entity_id: script.party_mode
+      name: Party Mode
+      area: living_room
+      aliases:
+        - party time
+        - let's party
+      description: Colorful lights and music for a party.
+    - entity_id: script.romantic_dinner
+      name: Romantic Dinner
+      area: dining_room
+      aliases:
+        - date night
+        - dinner for two
+      description: Low warm lights and soft music for dinner.
+    - entity_id: script.focus_mode
+      name: Focus Mode
+      area: office
+      aliases:
+        - work mode
+        - deep work
+      description: Bright, neutral light and no distractions for working.
+    - entity_id: script.night_security
+      name: Night Security
+      area: garage
+      aliases:
+        - arm the alarm
+        - lock up for the night
+      description: Arm the alarm and lock the doors overnight.
+    - entity_id: script.coffee_time
+      name: Coffee Time
+      area: kitchen
+      aliases:
+        - make coffee
+        - brew coffee
+      description: Start the coffee maker.
+    - entity_id: script.workout
+      name: Workout
+      area: office
+      aliases:
+        - exercise time
+        - gym mode
+      description: Upbeat music and bright light for exercising.
+    - entity_id: script.water_plants
+      name: Water the Plants
+      area: living_room
+      aliases:
+        - watering time
+      description: Run the plant watering routine.
+
+    # Routines a household never got around to configuring: name only, no triggers.
+    - entity_id: script.game_night
+      name: Game Night
+      area: living_room
+    - entity_id: script.relax
+      name: Relax
+      area: living_room
+    - entity_id: script.wake_up
+      name: Wake Up
+      area: bedroom
     - entity_id: script.guest_mode
       name: Guest Mode
       area: entryway
     - entity_id: script.dinner_party
       name: Dinner Party
       area: dining_room
-    - entity_id: script.romantic_dinner
-      name: Romantic Dinner
-      area: dining_room
-    - entity_id: script.focus_mode
-      name: Focus Mode
-      area: office
-    - entity_id: script.workout
-      name: Workout
-      area: office
-    - entity_id: script.coffee_time
-      name: Coffee Time
-      area: kitchen
     - entity_id: script.cooking_mode
       name: Cooking Mode
       area: kitchen
@@ -131,19 +180,9 @@ world:
     - entity_id: script.shower_warmup
       name: Shower Warmup
       area: bathroom
-    - entity_id: script.water_plants
-      name: Water the Plants
-      area: living_room
     - entity_id: script.feed_fish
       name: Feed the Fish
       area: living_room
-    - entity_id: script.night_security
-      name: Night Security
-      area: garage
-      aliases:
-        - arm the house
-        - secure the house
-      description: Arm the alarm and lock the doors overnight.
     - entity_id: script.vacuum_downstairs
       name: Vacuum Downstairs
       area: living_room
@@ -155,126 +194,158 @@ world:
       area: living_room
 
 cases:
-  # Direct name requests: the plan must expose the named script's tool.
-  - id: run-movie-night
+  # In-vocabulary: the configuring user, using the name or a trigger they set. Overlap is
+  # legitimate; recall here should be high.
+  - id: iv-movie-night
     utterance: start movie night
     category: action
     routing_truth: llm
     resolves_at_wave0: true
+    phrasing: in_vocabulary
     expected:
       tools:
         - name: movie_night
-  - id: run-good-morning
-    utterance: run the good morning routine
+  - id: iv-coffee
+    utterance: make coffee
     category: action
     routing_truth: llm
     resolves_at_wave0: true
+    phrasing: in_vocabulary
     expected:
       tools:
-        - name: good_morning
-  - id: run-party-mode
-    utterance: let's get the party started
+        - name: coffee_time
+  - id: iv-party
+    utterance: party time
     category: action
     routing_truth: llm
     resolves_at_wave0: true
+    phrasing: in_vocabulary
     expected:
       tools:
         - name: party_mode
-  - id: run-focus-mode
-    utterance: turn on focus mode
+  - id: iv-focus
+    utterance: switch to work mode
     category: action
     routing_truth: llm
     resolves_at_wave0: true
+    phrasing: in_vocabulary
     expected:
       tools:
         - name: focus_mode
-
-  # Near-namesakes: the retriever must pick the right one of a similar pair.
-  - id: pick-movie-not-game
-    utterance: put on a movie
+  - id: iv-bedtime
+    utterance: time for bed
     category: action
     routing_truth: llm
     resolves_at_wave0: true
+    phrasing: in_vocabulary
     expected:
       tools:
-        - name: movie_night
-  - id: pick-good-night
-    utterance: good night
+        - name: bedtime
+  - id: iv-security
+    utterance: arm the alarm
     category: action
     routing_truth: llm
     resolves_at_wave0: true
+    phrasing: in_vocabulary
     expected:
       tools:
-        - name: good_night
-  - id: pick-romantic-dinner
-    utterance: set up a romantic dinner
+        - name: night_security
+  - id: iv-romantic
+    utterance: set up date night
     category: action
     routing_truth: llm
     resolves_at_wave0: true
+    phrasing: in_vocabulary
     expected:
       tools:
         - name: romantic_dinner
+  - id: iv-workout
+    utterance: gym mode
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: in_vocabulary
+    expected:
+      tools:
+        - name: workout
 
-  # Oblique phrasings reached through the script name and area keywords.
-  - id: oblique-bedtime
+  # Out-of-vocabulary: a different speaker's natural phrasing, written without regard to the
+  # configured triggers. Some land because good aliases generalize; the misses are real.
+  - id: oob-bedtime
     utterance: I'm going to sleep
     category: action
     routing_truth: llm
     resolves_at_wave0: true
+    phrasing: out_of_vocabulary
     expected:
       tools:
         - name: bedtime
-  - id: oblique-leaving
-    utterance: I'm heading out
+  - id: oob-leaving
+    utterance: I'm taking off now
     category: action
     routing_truth: llm
     resolves_at_wave0: true
+    phrasing: out_of_vocabulary
     expected:
       tools:
         - name: leaving_home
-  - id: oblique-coffee
-    utterance: make me some coffee
+  - id: oob-reading
+    utterance: I feel like curling up with a book
     category: action
     routing_truth: llm
     resolves_at_wave0: true
-    expected:
-      tools:
-        - name: coffee_time
-  - id: oblique-water-plants
-    utterance: water the plants
-    category: action
-    routing_truth: llm
-    resolves_at_wave0: true
-    expected:
-      tools:
-        - name: water_plants
-  - id: oblique-workout
-    utterance: start my workout
-    category: action
-    routing_truth: llm
-    resolves_at_wave0: true
-    expected:
-      tools:
-        - name: workout
-  - id: oblique-reading
-    utterance: I want to read
-    category: action
-    routing_truth: llm
-    resolves_at_wave0: true
+    phrasing: out_of_vocabulary
     expected:
       tools:
         - name: reading_mode
-  - id: oblique-security
-    utterance: arm the house for the night
+  - id: oob-focus
+    utterance: help me concentrate
     category: action
     routing_truth: llm
     resolves_at_wave0: true
+    phrasing: out_of_vocabulary
     expected:
       tools:
-        - name: night_security
+        - name: focus_mode
+  - id: oob-morning
+    utterance: let's get the day started
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: out_of_vocabulary
+    expected:
+      tools:
+        - name: good_morning
+  - id: oob-arriving
+    utterance: we just got back
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: out_of_vocabulary
+    expected:
+      tools:
+        - name: arriving_home
+  - id: oob-guest-movie
+    utterance: can we watch something tonight
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: out_of_vocabulary
+    expected:
+      tools:
+        - name: movie_night
+  - id: oob-party
+    utterance: let's have some fun in here
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: out_of_vocabulary
+    expected:
+      tools:
+        - name: party_mode
 
   # Plain device control and a read must still survive a roster crowded with scripts.
-  - id: device-turn-on-light
+  - id: base-turn-on-light
     utterance: turn on the kitchen light
     category: action
     routing_truth: llm
@@ -282,7 +353,7 @@ cases:
     expected:
       tools:
         - name: HassTurnOn
-  - id: device-open-garage
+  - id: base-open-garage
     utterance: open the garage door
     category: action
     routing_truth: llm
@@ -290,7 +361,7 @@ cases:
     expected:
       tools:
         - name: HassSetPosition
-  - id: read-the-time
+  - id: base-read-time
     utterance: what time is it
     category: query
     routing_truth: llm

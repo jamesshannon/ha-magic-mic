@@ -9,7 +9,8 @@
         "50": true,
         "8": true
       },
-      "id": "run-movie-night",
+      "id": "iv-movie-night",
+      "phrasing": "in_vocabulary",
       "used": [
         "movie_night"
       ],
@@ -24,11 +25,12 @@
         "50": true,
         "8": true
       },
-      "id": "run-good-morning",
+      "id": "iv-coffee",
+      "phrasing": "in_vocabulary",
       "used": [
-        "good_morning"
+        "coffee_time"
       ],
-      "utterance": "run the good morning routine"
+      "utterance": "make coffee"
     },
     {
       "coverage": {
@@ -39,11 +41,12 @@
         "50": true,
         "8": true
       },
-      "id": "run-party-mode",
+      "id": "iv-party",
+      "phrasing": "in_vocabulary",
       "used": [
         "party_mode"
       ],
-      "utterance": "let's get the party started"
+      "utterance": "party time"
     },
     {
       "coverage": {
@@ -54,11 +57,12 @@
         "50": true,
         "8": true
       },
-      "id": "run-focus-mode",
+      "id": "iv-focus",
+      "phrasing": "in_vocabulary",
       "used": [
         "focus_mode"
       ],
-      "utterance": "turn on focus mode"
+      "utterance": "switch to work mode"
     },
     {
       "coverage": {
@@ -69,11 +73,12 @@
         "50": true,
         "8": true
       },
-      "id": "pick-movie-not-game",
+      "id": "iv-bedtime",
+      "phrasing": "in_vocabulary",
       "used": [
-        "movie_night"
+        "bedtime"
       ],
-      "utterance": "put on a movie"
+      "utterance": "time for bed"
     },
     {
       "coverage": {
@@ -84,11 +89,12 @@
         "50": true,
         "8": true
       },
-      "id": "pick-good-night",
+      "id": "iv-security",
+      "phrasing": "in_vocabulary",
       "used": [
-        "good_night"
+        "night_security"
       ],
-      "utterance": "good night"
+      "utterance": "arm the alarm"
     },
     {
       "coverage": {
@@ -99,11 +105,12 @@
         "50": true,
         "8": true
       },
-      "id": "pick-romantic-dinner",
+      "id": "iv-romantic",
+      "phrasing": "in_vocabulary",
       "used": [
         "romantic_dinner"
       ],
-      "utterance": "set up a romantic dinner"
+      "utterance": "set up date night"
     },
     {
       "coverage": {
@@ -114,7 +121,24 @@
         "50": true,
         "8": true
       },
-      "id": "oblique-bedtime",
+      "id": "iv-workout",
+      "phrasing": "in_vocabulary",
+      "used": [
+        "workout"
+      ],
+      "utterance": "gym mode"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "oob-bedtime",
+      "phrasing": "out_of_vocabulary",
       "used": [
         "bedtime"
       ],
@@ -129,11 +153,12 @@
         "50": true,
         "8": true
       },
-      "id": "oblique-leaving",
+      "id": "oob-leaving",
+      "phrasing": "out_of_vocabulary",
       "used": [
         "leaving_home"
       ],
-      "utterance": "I'm heading out"
+      "utterance": "I'm taking off now"
     },
     {
       "coverage": {
@@ -144,71 +169,28 @@
         "50": true,
         "8": true
       },
-      "id": "oblique-coffee",
-      "used": [
-        "coffee_time"
-      ],
-      "utterance": "make me some coffee"
-    },
-    {
-      "coverage": {
-        "12": true,
-        "16": true,
-        "24": true,
-        "32": true,
-        "50": true,
-        "8": true
-      },
-      "id": "oblique-water-plants",
-      "used": [
-        "water_plants"
-      ],
-      "utterance": "water the plants"
-    },
-    {
-      "coverage": {
-        "12": true,
-        "16": true,
-        "24": true,
-        "32": true,
-        "50": true,
-        "8": true
-      },
-      "id": "oblique-workout",
-      "used": [
-        "workout"
-      ],
-      "utterance": "start my workout"
-    },
-    {
-      "coverage": {
-        "12": true,
-        "16": true,
-        "24": true,
-        "32": true,
-        "50": true,
-        "8": true
-      },
-      "id": "oblique-reading",
+      "id": "oob-reading",
+      "phrasing": "out_of_vocabulary",
       "used": [
         "reading_mode"
       ],
-      "utterance": "I want to read"
+      "utterance": "I feel like curling up with a book"
     },
     {
       "coverage": {
-        "12": true,
-        "16": true,
-        "24": true,
-        "32": true,
-        "50": true,
-        "8": true
+        "12": false,
+        "16": false,
+        "24": false,
+        "32": false,
+        "50": false,
+        "8": false
       },
-      "id": "oblique-security",
+      "id": "oob-focus",
+      "phrasing": "out_of_vocabulary",
       "used": [
-        "night_security"
+        "focus_mode"
       ],
-      "utterance": "arm the house for the night"
+      "utterance": "help me concentrate"
     },
     {
       "coverage": {
@@ -219,7 +201,72 @@
         "50": true,
         "8": true
       },
-      "id": "device-turn-on-light",
+      "id": "oob-morning",
+      "phrasing": "out_of_vocabulary",
+      "used": [
+        "good_morning"
+      ],
+      "utterance": "let's get the day started"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "oob-arriving",
+      "phrasing": "out_of_vocabulary",
+      "used": [
+        "arriving_home"
+      ],
+      "utterance": "we just got back"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "oob-guest-movie",
+      "phrasing": "out_of_vocabulary",
+      "used": [
+        "movie_night"
+      ],
+      "utterance": "can we watch something tonight"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "oob-party",
+      "phrasing": "out_of_vocabulary",
+      "used": [
+        "party_mode"
+      ],
+      "utterance": "let's have some fun in here"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "base-turn-on-light",
+      "phrasing": null,
       "used": [
         "HassTurnOn"
       ],
@@ -234,7 +281,8 @@
         "50": true,
         "8": true
       },
-      "id": "device-open-garage",
+      "id": "base-open-garage",
+      "phrasing": null,
       "used": [
         "HassSetPosition"
       ],
@@ -249,7 +297,8 @@
         "50": true,
         "8": true
       },
-      "id": "read-the-time",
+      "id": "base-read-time",
+      "phrasing": null,
       "used": [
         "GetDateTime"
       ],
@@ -258,70 +307,292 @@
   ],
   "recall": {
     "12": {
-      "avg_exposed_tools": 10.29,
-      "avg_saved_tools": 39.71,
-      "case_recall": 1.0,
-      "cases_covered": 17,
-      "cases_total": 17,
-      "misses": [],
-      "tool_recall": 1.0,
-      "tools_covered": 17,
-      "tools_total": 17
+      "avg_exposed_tools": 9.58,
+      "avg_saved_tools": 40.42,
+      "case_recall": 0.9474,
+      "cases_covered": 18,
+      "cases_total": 19,
+      "misses": [
+        {
+          "id": "oob-focus",
+          "missed": [
+            "focus_mode"
+          ]
+        }
+      ],
+      "tool_recall": 0.9474,
+      "tools_covered": 18,
+      "tools_total": 19
     },
     "16": {
-      "avg_exposed_tools": 12.94,
-      "avg_saved_tools": 37.06,
-      "case_recall": 1.0,
-      "cases_covered": 17,
-      "cases_total": 17,
-      "misses": [],
-      "tool_recall": 1.0,
-      "tools_covered": 17,
-      "tools_total": 17
+      "avg_exposed_tools": 11.74,
+      "avg_saved_tools": 38.26,
+      "case_recall": 0.9474,
+      "cases_covered": 18,
+      "cases_total": 19,
+      "misses": [
+        {
+          "id": "oob-focus",
+          "missed": [
+            "focus_mode"
+          ]
+        }
+      ],
+      "tool_recall": 0.9474,
+      "tools_covered": 18,
+      "tools_total": 19
     },
     "24": {
-      "avg_exposed_tools": 16.12,
-      "avg_saved_tools": 33.88,
-      "case_recall": 1.0,
-      "cases_covered": 17,
-      "cases_total": 17,
-      "misses": [],
-      "tool_recall": 1.0,
-      "tools_covered": 17,
-      "tools_total": 17
+      "avg_exposed_tools": 14.68,
+      "avg_saved_tools": 35.32,
+      "case_recall": 0.9474,
+      "cases_covered": 18,
+      "cases_total": 19,
+      "misses": [
+        {
+          "id": "oob-focus",
+          "missed": [
+            "focus_mode"
+          ]
+        }
+      ],
+      "tool_recall": 0.9474,
+      "tools_covered": 18,
+      "tools_total": 19
     },
     "32": {
-      "avg_exposed_tools": 18.71,
-      "avg_saved_tools": 31.29,
-      "case_recall": 1.0,
-      "cases_covered": 17,
-      "cases_total": 17,
-      "misses": [],
-      "tool_recall": 1.0,
-      "tools_covered": 17,
-      "tools_total": 17
+      "avg_exposed_tools": 16.26,
+      "avg_saved_tools": 33.74,
+      "case_recall": 0.9474,
+      "cases_covered": 18,
+      "cases_total": 19,
+      "misses": [
+        {
+          "id": "oob-focus",
+          "missed": [
+            "focus_mode"
+          ]
+        }
+      ],
+      "tool_recall": 0.9474,
+      "tools_covered": 18,
+      "tools_total": 19
     },
     "50": {
-      "avg_exposed_tools": 19.24,
-      "avg_saved_tools": 30.76,
-      "case_recall": 1.0,
-      "cases_covered": 17,
-      "cases_total": 17,
-      "misses": [],
-      "tool_recall": 1.0,
-      "tools_covered": 17,
-      "tools_total": 17
+      "avg_exposed_tools": 17.11,
+      "avg_saved_tools": 32.89,
+      "case_recall": 0.9474,
+      "cases_covered": 18,
+      "cases_total": 19,
+      "misses": [
+        {
+          "id": "oob-focus",
+          "missed": [
+            "focus_mode"
+          ]
+        }
+      ],
+      "tool_recall": 0.9474,
+      "tools_covered": 18,
+      "tools_total": 19
     },
     "8": {
-      "avg_exposed_tools": 7.53,
-      "avg_saved_tools": 42.47,
-      "case_recall": 1.0,
-      "cases_covered": 17,
-      "cases_total": 17,
-      "misses": [],
-      "tool_recall": 1.0,
-      "tools_covered": 17,
-      "tools_total": 17
+      "avg_exposed_tools": 7.11,
+      "avg_saved_tools": 42.89,
+      "case_recall": 0.9474,
+      "cases_covered": 18,
+      "cases_total": 19,
+      "misses": [
+        {
+          "id": "oob-focus",
+          "missed": [
+            "focus_mode"
+          ]
+        }
+      ],
+      "tool_recall": 0.9474,
+      "tools_covered": 18,
+      "tools_total": 19
+    }
+  },
+  "recall_by_phrasing": {
+    "in_vocabulary": {
+      "12": {
+        "avg_exposed_tools": 10.25,
+        "avg_saved_tools": 39.75,
+        "case_recall": 1.0,
+        "cases_covered": 8,
+        "cases_total": 8,
+        "misses": [],
+        "tool_recall": 1.0,
+        "tools_covered": 8,
+        "tools_total": 8
+      },
+      "16": {
+        "avg_exposed_tools": 12.88,
+        "avg_saved_tools": 37.12,
+        "case_recall": 1.0,
+        "cases_covered": 8,
+        "cases_total": 8,
+        "misses": [],
+        "tool_recall": 1.0,
+        "tools_covered": 8,
+        "tools_total": 8
+      },
+      "24": {
+        "avg_exposed_tools": 15.5,
+        "avg_saved_tools": 34.5,
+        "case_recall": 1.0,
+        "cases_covered": 8,
+        "cases_total": 8,
+        "misses": [],
+        "tool_recall": 1.0,
+        "tools_covered": 8,
+        "tools_total": 8
+      },
+      "32": {
+        "avg_exposed_tools": 16.5,
+        "avg_saved_tools": 33.5,
+        "case_recall": 1.0,
+        "cases_covered": 8,
+        "cases_total": 8,
+        "misses": [],
+        "tool_recall": 1.0,
+        "tools_covered": 8,
+        "tools_total": 8
+      },
+      "50": {
+        "avg_exposed_tools": 16.75,
+        "avg_saved_tools": 33.25,
+        "case_recall": 1.0,
+        "cases_covered": 8,
+        "cases_total": 8,
+        "misses": [],
+        "tool_recall": 1.0,
+        "tools_covered": 8,
+        "tools_total": 8
+      },
+      "8": {
+        "avg_exposed_tools": 7.5,
+        "avg_saved_tools": 42.5,
+        "case_recall": 1.0,
+        "cases_covered": 8,
+        "cases_total": 8,
+        "misses": [],
+        "tool_recall": 1.0,
+        "tools_covered": 8,
+        "tools_total": 8
+      }
+    },
+    "out_of_vocabulary": {
+      "12": {
+        "avg_exposed_tools": 8.0,
+        "avg_saved_tools": 42.0,
+        "case_recall": 0.875,
+        "cases_covered": 7,
+        "cases_total": 8,
+        "misses": [
+          {
+            "id": "oob-focus",
+            "missed": [
+              "focus_mode"
+            ]
+          }
+        ],
+        "tool_recall": 0.875,
+        "tools_covered": 7,
+        "tools_total": 8
+      },
+      "16": {
+        "avg_exposed_tools": 9.0,
+        "avg_saved_tools": 41.0,
+        "case_recall": 0.875,
+        "cases_covered": 7,
+        "cases_total": 8,
+        "misses": [
+          {
+            "id": "oob-focus",
+            "missed": [
+              "focus_mode"
+            ]
+          }
+        ],
+        "tool_recall": 0.875,
+        "tools_covered": 7,
+        "tools_total": 8
+      },
+      "24": {
+        "avg_exposed_tools": 10.62,
+        "avg_saved_tools": 39.38,
+        "case_recall": 0.875,
+        "cases_covered": 7,
+        "cases_total": 8,
+        "misses": [
+          {
+            "id": "oob-focus",
+            "missed": [
+              "focus_mode"
+            ]
+          }
+        ],
+        "tool_recall": 0.875,
+        "tools_covered": 7,
+        "tools_total": 8
+      },
+      "32": {
+        "avg_exposed_tools": 11.38,
+        "avg_saved_tools": 38.62,
+        "case_recall": 0.875,
+        "cases_covered": 7,
+        "cases_total": 8,
+        "misses": [
+          {
+            "id": "oob-focus",
+            "missed": [
+              "focus_mode"
+            ]
+          }
+        ],
+        "tool_recall": 0.875,
+        "tools_covered": 7,
+        "tools_total": 8
+      },
+      "50": {
+        "avg_exposed_tools": 12.0,
+        "avg_saved_tools": 38.0,
+        "case_recall": 0.875,
+        "cases_covered": 7,
+        "cases_total": 8,
+        "misses": [
+          {
+            "id": "oob-focus",
+            "missed": [
+              "focus_mode"
+            ]
+          }
+        ],
+        "tool_recall": 0.875,
+        "tools_covered": 7,
+        "tools_total": 8
+      },
+      "8": {
+        "avg_exposed_tools": 6.38,
+        "avg_saved_tools": 43.62,
+        "case_recall": 0.875,
+        "cases_covered": 7,
+        "cases_total": 8,
+        "misses": [
+          {
+            "id": "oob-focus",
+            "missed": [
+              "focus_mode"
+            ]
+          }
+        ],
+        "tool_recall": 0.875,
+        "tools_covered": 7,
+        "tools_total": 8
+      }
     }
   },
   "run": {
@@ -334,14 +605,14 @@
       32,
       50
     ],
-    "cases_scorable": 17,
-    "cases_total": 17,
+    "cases_scorable": 19,
+    "cases_total": 19,
     "catalog_bundles": 38,
     "catalog_tools": 50,
     "enforced": false,
     "kind": "wave1-capability-selection-shadow",
     "source_artifact": "wave1_scripts.yaml",
-    "timestamp": "2026-08-04T19:42:48.502400+00:00"
+    "timestamp": "2026-08-04T20:06:16.761344+00:00"
   },
   "uncatalogued_tools": []
 }

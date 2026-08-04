@@ -127,12 +127,13 @@ def test_corpus_case_tools_use_the_declared_expected_tool() -> None:
 
     cases = {case.id: case for case in load_case_tools_from_corpus(corpus)}
 
-    assert cases["run-movie-night"].used == ("movie_night",)
-    assert cases["read-the-time"].used == ("GetDateTime",)
+    assert cases["iv-movie-night"].used == ("movie_night",)
+    assert cases["iv-movie-night"].phrasing == "in_vocabulary"
+    assert cases["base-read-time"].used == ("GetDateTime",)
 
 
-def test_configured_aliases_cover_oblique_requests() -> None:
-    """The corpus's script aliases carry oblique requests through selection end to end.
+def test_configured_aliases_carry_an_out_of_vocab_request() -> None:
+    """A configured trigger bridges a different-speaker phrasing end to end.
 
     "I'm going to sleep" shares no token with "Bedtime"; the script's configured "going to
     bed" trigger is what bridges it. This checks the alias field flows from the corpus
@@ -145,7 +146,7 @@ def test_configured_aliases_cover_oblique_requests() -> None:
     recall = shadow_recall(cases, catalog, (8,))
     missed_ids = {miss.id for miss in recall[8].misses}
 
-    assert "oblique-bedtime" not in missed_ids
+    assert "oob-bedtime" not in missed_ids
     # And selection is real: budget 8 exposes far fewer than the ~50-tool roster.
     assert recall[8].avg_exposed < 20
 
