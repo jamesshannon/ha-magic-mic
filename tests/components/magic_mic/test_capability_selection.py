@@ -239,14 +239,46 @@ def test_unavailable_bundles_carry_into_the_trace() -> None:
 
 
 def test_action_descriptor_names_the_tool_by_object_id() -> None:
-    """A script becomes a single-tool descriptor whose retrieval doc is its name/area."""
+    """A script becomes a single-tool descriptor built from its configured metadata."""
     descriptor = action_descriptor(
-        "movie_night", "Movie Night", aliases=("film mode",), area="living room"
+        "movie_night",
+        "Movie Night",
+        aliases=("film mode",),
+        description="Dim the lights and start the projector.",
+        area="living room",
     )
 
     assert descriptor.id == "script:movie_night"
     assert descriptor.tools == ("movie_night",)
     assert descriptor.keywords == ("film mode", "living room")
+    assert descriptor.examples == ("Dim the lights and start the projector.",)
+
+
+def test_alias_bridges_an_oblique_request_to_a_script() -> None:
+    """A configured voice trigger reaches a script the bare name would miss.
+
+    Without an alias, "I'm going to sleep" shares no token with "Bedtime" and scores zero.
+    A household voice trigger like "going to bed" supplies the bridge.
+    """
+    without = action_descriptor("bedtime", "Bedtime")
+    with_alias = action_descriptor(
+        "bedtime", "Bedtime", aliases=("going to bed", "time for bed")
+    )
+    catalog_bare = extend_catalog(default_catalog(), (without,))
+    catalog_aliased = extend_catalog(default_catalog(), (with_alias,))
+
+    bare = select_capabilities(
+        "I'm going to sleep", catalog_bare.tool_names(), catalog=catalog_bare, budget=8
+    )
+    aliased = select_capabilities(
+        "I'm going to sleep",
+        catalog_aliased.tool_names(),
+        catalog=catalog_aliased,
+        budget=8,
+    )
+
+    assert not bare.exposes("bedtime")
+    assert aliased.exposes("bedtime")
 
 
 def test_script_retrieval_discriminates_among_similar_scripts() -> None:

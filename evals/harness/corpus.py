@@ -27,7 +27,12 @@ class CorpusError(ValueError):
 
 @dataclass(frozen=True)
 class Entity:
-    """One exposed entity in the fixture home a case runs against."""
+    """One exposed entity in the fixture home a case runs against.
+
+    ``aliases`` are the entity's alternate names / voice triggers (as an HA entity carries
+    in its registry entry), and ``description`` its configured description. Both are
+    retrieval signal for capability selection, not used by the live runner.
+    """
 
     entity_id: str
     name: str
@@ -35,6 +40,8 @@ class Entity:
     device_class: str | None = None
     state: str | None = None
     attributes: dict[str, Any] = field(default_factory=dict)
+    aliases: tuple[str, ...] = ()
+    description: str | None = None
 
 
 @dataclass(frozen=True)
@@ -182,6 +189,8 @@ def _parse_entity(raw: dict[str, Any]) -> Entity:
         device_class=raw.get("device_class"),
         state=raw.get("state"),
         attributes=dict(raw.get("attributes") or {}),
+        aliases=tuple(raw.get("aliases") or ()),
+        description=raw.get("description"),
     )
 
 

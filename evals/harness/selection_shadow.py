@@ -154,7 +154,11 @@ def catalog_for_world(world: World) -> Catalog:
     """
     scripts = tuple(
         action_descriptor(
-            entity.entity_id.split(".", 1)[1], entity.name, area=entity.area
+            entity.entity_id.split(".", 1)[1],
+            entity.name,
+            aliases=entity.aliases,
+            description=entity.description,
+            area=entity.area,
         )
         for entity in world.entities
         if entity.entity_id.startswith("script.")

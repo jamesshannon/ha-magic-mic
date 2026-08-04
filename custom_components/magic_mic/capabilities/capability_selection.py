@@ -251,6 +251,7 @@ def action_descriptor(
     *,
     domain: str = "script",
     aliases: tuple[str, ...] = (),
+    description: str | None = None,
     area: str | None = None,
 ) -> CapabilityDescriptor:
     """Build a single-tool descriptor for an individually-retrieved action.
@@ -258,15 +259,25 @@ def action_descriptor(
     Scripts, and any other per-entity action a home exposes, arrive as one tool each named
     by their object id (`script.movie_night` becomes the tool `movie_night`). Unlike the
     curated bundles, they have no author-written selection text, so the descriptor's
-    retrieval document is the entity's own name, its aliases, and the area it sits in
-    (docs "Bundles and tools": scripts need "individual retrieval by name, description,
-    domain, and area"). This is the collection the tool budget actually has to choose
-    within, so each is its own selectable unit rather than one giant bundle.
+    retrieval document is drawn from the entity's own configured metadata (docs "Bundles
+    and tools": scripts need "individual retrieval by name, description, domain, and
+    area"):
+
+    - ``name`` is the primary selection text;
+    - ``aliases`` are the home's own voice triggers and alternate names, the phrases a user
+      actually says, so they are the strongest bridge from an oblique request to the script;
+    - ``description`` is the script's configured description (already its tool description
+      in HA), added as a retrieval sentence;
+    - ``area`` is where it sits.
+
+    This is the collection the tool budget actually has to choose within, so each is its own
+    selectable unit rather than one giant bundle.
     """
     return CapabilityDescriptor(
         id=f"{domain}:{tool_name}",
         selection_text=name,
         tools=(tool_name,),
+        examples=(description,) if description else (),
         keywords=(*aliases, *((area,) if area else ())),
         domains=(domain,),
     )
