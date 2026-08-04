@@ -3,9 +3,11 @@
 from custom_components.magic_mic.capabilities.capability_selection import (
     CapabilityDescriptor,
     Catalog,
+    action_descriptor,
     assemble_plan,
     available_descriptors,
     default_catalog,
+    extend_catalog,
     rank_descriptors,
     select_capabilities,
 )
@@ -234,6 +236,45 @@ def test_unavailable_bundles_carry_into_the_trace() -> None:
 
     assert ("covers", "unavailable") in plan.omitted
     assert not plan.exposes("HassSetPosition")
+
+
+def test_action_descriptor_names_the_tool_by_object_id() -> None:
+    """A script becomes a single-tool descriptor whose retrieval doc is its name/area."""
+    descriptor = action_descriptor(
+        "movie_night", "Movie Night", aliases=("film mode",), area="living room"
+    )
+
+    assert descriptor.id == "script:movie_night"
+    assert descriptor.tools == ("movie_night",)
+    assert descriptor.keywords == ("film mode", "living room")
+
+
+def test_script_retrieval_discriminates_among_similar_scripts() -> None:
+    """A named request picks the right script out of a collection of near-namesakes."""
+    scripts = (
+        action_descriptor("movie_night", "Movie Night", area="living room"),
+        action_descriptor("game_night", "Game Night", area="living room"),
+        action_descriptor("good_morning", "Good Morning", area="bedroom"),
+        action_descriptor("good_night", "Good Night", area="bedroom"),
+    )
+    catalog = extend_catalog(default_catalog(), scripts)
+    roster = catalog.tool_names()
+
+    plan = select_capabilities("start movie night", roster, catalog=catalog, budget=8)
+
+    assert plan.exposes("movie_night")
+    # The near-namesake must not outrank the requested script.
+    assert plan.scores["script:movie_night"] > plan.scores["script:game_night"]
+
+
+def test_extend_catalog_indexes_the_added_tools() -> None:
+    """Added action tools are reachable by tool name for shadow scoring."""
+    catalog = extend_catalog(
+        default_catalog(), (action_descriptor("movie_night", "Movie Night"),)
+    )
+
+    assert catalog.by_tool["movie_night"] == "script:movie_night"
+    assert "movie_night" in catalog.tool_names()
 
 
 def test_assemble_is_deterministic_on_score_ties() -> None:

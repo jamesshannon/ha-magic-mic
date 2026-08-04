@@ -46,6 +46,10 @@ class CapabilityDescriptor:
     tools: tuple[str, ...]
     examples: tuple[str, ...] = ()
     domains: tuple[str, ...] = ()
+    # Extra retrieval tokens that are not full sentences: a script's area, an alias, a
+    # synonym. Pooled into the bundle's document alongside selection_text and examples, so
+    # "start the living room movie thing" can reach a "Movie Night" script placed there.
+    keywords: tuple[str, ...] = ()
     instructions: tuple[str, ...] = ()
     context_loaders: tuple[str, ...] = ()
     dependencies: tuple[str, ...] = ()
@@ -241,6 +245,38 @@ def default_catalog() -> Catalog:
     return Catalog(_DEFAULT_DESCRIPTORS)
 
 
+def action_descriptor(
+    tool_name: str,
+    name: str,
+    *,
+    domain: str = "script",
+    aliases: tuple[str, ...] = (),
+    area: str | None = None,
+) -> CapabilityDescriptor:
+    """Build a single-tool descriptor for an individually-retrieved action.
+
+    Scripts, and any other per-entity action a home exposes, arrive as one tool each named
+    by their object id (`script.movie_night` becomes the tool `movie_night`). Unlike the
+    curated bundles, they have no author-written selection text, so the descriptor's
+    retrieval document is the entity's own name, its aliases, and the area it sits in
+    (docs "Bundles and tools": scripts need "individual retrieval by name, description,
+    domain, and area"). This is the collection the tool budget actually has to choose
+    within, so each is its own selectable unit rather than one giant bundle.
+    """
+    return CapabilityDescriptor(
+        id=f"{domain}:{tool_name}",
+        selection_text=name,
+        tools=(tool_name,),
+        keywords=(*aliases, *((area,) if area else ())),
+        domains=(domain,),
+    )
+
+
+def extend_catalog(base: Catalog, extra: tuple[CapabilityDescriptor, ...]) -> Catalog:
+    """Return a catalog of ``base`` plus ``extra`` descriptors (for example, a home's scripts)."""
+    return Catalog((*base.descriptors, *extra))
+
+
 @dataclass(slots=True, frozen=True)
 class FilteredCapability:
     """A descriptor removed by Stage 1, with a safe reason code for the trace."""
@@ -293,6 +329,7 @@ def available_descriptors(
                     tools=present,
                     examples=descriptor.examples,
                     domains=descriptor.domains,
+                    keywords=descriptor.keywords,
                     instructions=descriptor.instructions,
                     context_loaders=descriptor.context_loaders,
                     dependencies=descriptor.dependencies,
@@ -372,10 +409,12 @@ def _idf_coverage(
 
 
 def _bundle_tokens(descriptor: CapabilityDescriptor) -> set[str]:
-    """Pool a bundle's retrieval tokens: selection text, examples, and domain words."""
+    """Pool a bundle's retrieval tokens: selection text, examples, keywords, domains."""
     tokens = tokenize(descriptor.selection_text)
     for example in descriptor.examples:
         tokens |= tokenize(example)
+    for keyword in descriptor.keywords:
+        tokens |= tokenize(keyword)
     for domain in descriptor.domains:
         # Split so media_player contributes the word "player".
         tokens |= tokenize(domain.replace("_", " "))
@@ -529,9 +568,11 @@ __all__ = [
     "FilteredCapability",
     "ScoredDescriptor",
     "SelectionPlan",
+    "action_descriptor",
     "assemble_plan",
     "available_descriptors",
     "default_catalog",
+    "extend_catalog",
     "rank_descriptors",
     "select_capabilities",
 ]
