@@ -166,11 +166,15 @@ per-generation output scripted (no live model), threading the `conversation_id` 
 turns. The driven test (`tests/components/magic_mic/test_trajectory.py`) exercises the
 whole loop: turn 1 calls `find_entities`, gets an ambiguous shortlist, asks, and actuates
 nothing; turn 2 in the same conversation resolves and turns on exactly the chosen light;
-and the acting generation's request replays turn 1's exchange. This is the scripted
-trajectory the build sequence requires before any Δturns or disambiguation-recovery claim
-([`build-sequence.md`](build-sequence.md), [`evaluation.md`](evaluation.md)). It proves the
-machinery deterministically; whether a *live* model chooses to ask when the shortlist comes
-back is a separate, model-dependent measurement.
+and the acting generation's request replays turn 1's exchange. A corpus of these
+trajectories (`evals/corpus/wave1_disambiguation.yaml`) runs through the driver and scores
+recovery, misfire (the unsafe wrong-entity case), and turns to completion: two-way and
+three-way ambiguities recover, and a direct command and a search-with-alternatives both
+complete on the first turn. This is the scripted trajectory the build sequence requires
+before any Δturns or disambiguation-recovery claim ([`build-sequence.md`](build-sequence.md),
+[`evaluation.md`](evaluation.md)). It proves the machinery deterministically; the emergent
+Δturns number (a *live* model choosing when to ask over these same worlds) is a separate,
+model-dependent run.
 
 ---
 

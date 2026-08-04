@@ -204,7 +204,11 @@ def _parse_entity(raw: dict[str, Any]) -> Entity:
     )
 
 
-def _parse_world(raw: dict[str, Any]) -> World:
+def parse_world(raw: dict[str, Any]) -> World:
+    """Parse a corpus ``world`` block into a `World`.
+
+    Public because the trajectory corpus (`trajectory.py`) declares the same world block.
+    """
     return World(
         areas=tuple(raw.get("areas") or ()),
         entities=tuple(_parse_entity(entity) for entity in raw.get("entities") or ()),
@@ -367,7 +371,7 @@ def load_corpus(path: Path = WAVE0_GOLDEN_SET) -> Corpus:
         raise CorpusError(f"corpus {path} must have 'world' and 'cases' keys")
 
     corpus = Corpus(
-        world=_parse_world(raw["world"]),
+        world=parse_world(raw["world"]),
         cases=tuple(_parse_case(case) for case in raw["cases"]),
     )
     validate_corpus(corpus)

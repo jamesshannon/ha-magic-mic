@@ -1,0 +1,100 @@
+# Wave 1 disambiguation trajectories.
+#
+# A corpus for the multi-turn driver (evals/harness/trajectory.py), not the single-turn
+# golden-set runner. Each case declares a world, an ordered set of user turns, and the
+# provider's scripted generations per turn (no live model), plus the expected end state.
+#
+# What it measures. Recovery is a real pass/fail even though the generations are authored:
+# a case with `recovered: true` completes only if the machinery carries an ambiguous
+# find_entities result into a question, ends the turn without acting, and lets a follow-up
+# in the same conversation resolve and actuate the right entity. If history replay, session
+# state, or tool policy regressed, the scripted follow-up would fail. `recovered: false`
+# cases are direct commands that must complete on the first turn. Turn counts are what the
+# script declares, not an emergent metric; the emergent Delta-turns number is a later
+# live-model run over these same worlds.
+#
+# Each generation is one provider round: `{tool: <name>, args: {...}}` calls a tool,
+# `{say: <text>}` speaks and ends the round. A turn that ends in `say` ends as speech; a
+# clarifying question is just a `say` whose text asks. `action_tool` is the tool whose
+# firing completes the task, and `final_state` is the end state each entity must hold.
+
+cases:
+  - id: ambiguous-two-bedroom-lights
+    tags: [disambiguation, two-way]
+    action_tool: HassTurnOn
+    world:
+      areas: [bedroom]
+      entities:
+        - {entity_id: light.bedroom_lamp, name: Bedroom Lamp, area: bedroom, state: "off"}
+        - {entity_id: light.bedroom_ceiling, name: Bedroom Light, area: bedroom, state: "off"}
+    expect:
+      recovered: true
+      final_state: {light.bedroom_ceiling: "on", light.bedroom_lamp: "off"}
+    turns:
+      - utterance: turn on the bedroom light
+        generations:
+          - {tool: find_entities, args: {name: bedroom}}
+          - {say: "Did you mean the Bedroom Lamp or the Bedroom Light?"}
+      - utterance: the ceiling one
+        generations:
+          - {tool: HassTurnOn, args: {name: Bedroom Light}}
+          - {say: "Turned on the Bedroom Light."}
+
+  - id: ambiguous-three-living-room-lamps
+    tags: [disambiguation, three-way]
+    action_tool: HassTurnOn
+    world:
+      areas: [living_room]
+      entities:
+        - {entity_id: light.left_lamp, name: Left Lamp, area: living_room, state: "off"}
+        - {entity_id: light.right_lamp, name: Right Lamp, area: living_room, state: "off"}
+        - {entity_id: light.corner_lamp, name: Corner Lamp, area: living_room, state: "off"}
+    expect:
+      recovered: true
+      final_state:
+        light.corner_lamp: "on"
+        light.left_lamp: "off"
+        light.right_lamp: "off"
+    turns:
+      - utterance: turn on the lamp
+        generations:
+          - {tool: find_entities, args: {name: lamp}}
+          - {say: "There are three: the Left Lamp, the Right Lamp, or the Corner Lamp?"}
+      - utterance: the corner one
+        generations:
+          - {tool: HassTurnOn, args: {name: Corner Lamp}}
+          - {say: "Turned on the Corner Lamp."}
+
+  - id: direct-kitchen-light
+    tags: [direct]
+    action_tool: HassTurnOn
+    world:
+      areas: [kitchen]
+      entities:
+        - {entity_id: light.kitchen, name: Kitchen Light, area: kitchen, state: "off"}
+    expect:
+      recovered: false
+      final_state: {light.kitchen: "on"}
+    turns:
+      - utterance: turn on the kitchen light
+        generations:
+          - {tool: HassTurnOn, args: {name: Kitchen Light}}
+          - {say: "Turned on the Kitchen Light."}
+
+  - id: search-alternatives-then-act
+    tags: [direct, discovery]
+    action_tool: HassTurnOn
+    world:
+      areas: [living_room]
+      entities:
+        - {entity_id: light.reading_lamp, name: Reading Lamp, area: living_room, state: "off"}
+        - {entity_id: light.overhead, name: Overhead Light, area: living_room, state: "off"}
+    expect:
+      recovered: false
+      final_state: {light.reading_lamp: "on", light.overhead: "off"}
+    turns:
+      - utterance: I want to read
+        generations:
+          - {tool: find_entities, args: {name: [reading, book, study]}}
+          - {tool: HassTurnOn, args: {name: Reading Lamp}}
+          - {say: "Turned on the Reading Lamp."}
