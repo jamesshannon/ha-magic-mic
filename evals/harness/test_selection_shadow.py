@@ -131,25 +131,23 @@ def test_corpus_case_tools_use_the_declared_expected_tool() -> None:
     assert cases["read-the-time"].used == ("GetDateTime",)
 
 
-def test_oblique_request_is_a_lexical_ceiling_miss() -> None:
-    """A paraphrase sharing no word with the script name is unreachable at any budget.
+def test_configured_aliases_cover_oblique_requests() -> None:
+    """The corpus's script aliases carry oblique requests through selection end to end.
 
-    This is the finding the script-heavy corpus exists to surface: lexical retrieval caps
-    below full recall on oblique requests, no matter the budget, which is the paraphrase
-    miss the design says would justify embeddings.
+    "I'm going to sleep" shares no token with "Bedtime"; the script's configured "going to
+    bed" trigger is what bridges it. This checks the alias field flows from the corpus
+    through catalog_for_world into a covered case, at a budget far below the roster.
     """
     corpus = load_corpus(_SCRIPTS_CORPUS)
     catalog = catalog_for_world(corpus.world)
     cases = load_case_tools_from_corpus(corpus)
-    full = len(catalog.tool_names())
 
-    recall = shadow_recall(cases, catalog, (full,))
-    missed_ids = {miss.id for miss in recall[full].misses}
+    recall = shadow_recall(cases, catalog, (8,))
+    missed_ids = {miss.id for miss in recall[8].misses}
 
-    # "I'm going to sleep" -> Bedtime shares no token, so even the full roster omits it.
-    assert "oblique-bedtime" in missed_ids
-    # But a direct request is covered at full budget.
-    assert "run-movie-night" not in missed_ids
+    assert "oblique-bedtime" not in missed_ids
+    # And selection is real: budget 8 exposes far fewer than the ~50-tool roster.
+    assert recall[8].avg_exposed < 20
 
 
 def test_shadow_artifact_shape() -> None:

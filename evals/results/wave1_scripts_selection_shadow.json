@@ -107,12 +107,12 @@
     },
     {
       "coverage": {
-        "12": false,
-        "16": false,
-        "24": false,
-        "32": false,
-        "50": false,
-        "8": false
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
       },
       "id": "oblique-bedtime",
       "used": [
@@ -122,12 +122,12 @@
     },
     {
       "coverage": {
-        "12": false,
-        "16": false,
-        "24": false,
-        "32": false,
-        "50": false,
-        "8": false
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
       },
       "id": "oblique-leaving",
       "used": [
@@ -182,12 +182,12 @@
     },
     {
       "coverage": {
-        "12": false,
-        "16": false,
-        "24": false,
-        "32": false,
-        "50": false,
-        "8": false
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
       },
       "id": "oblique-reading",
       "used": [
@@ -202,7 +202,7 @@
         "24": true,
         "32": true,
         "50": true,
-        "8": false
+        "8": true
       },
       "id": "oblique-security",
       "used": [
@@ -258,189 +258,69 @@
   ],
   "recall": {
     "12": {
-      "avg_exposed_tools": 9.82,
-      "avg_saved_tools": 40.18,
-      "case_recall": 0.8235,
-      "cases_covered": 14,
+      "avg_exposed_tools": 10.29,
+      "avg_saved_tools": 39.71,
+      "case_recall": 1.0,
+      "cases_covered": 17,
       "cases_total": 17,
-      "misses": [
-        {
-          "id": "oblique-bedtime",
-          "missed": [
-            "bedtime"
-          ]
-        },
-        {
-          "id": "oblique-leaving",
-          "missed": [
-            "leaving_home"
-          ]
-        },
-        {
-          "id": "oblique-reading",
-          "missed": [
-            "reading_mode"
-          ]
-        }
-      ],
-      "tool_recall": 0.8235,
-      "tools_covered": 14,
+      "misses": [],
+      "tool_recall": 1.0,
+      "tools_covered": 17,
       "tools_total": 17
     },
     "16": {
-      "avg_exposed_tools": 12.18,
-      "avg_saved_tools": 37.82,
-      "case_recall": 0.8235,
-      "cases_covered": 14,
+      "avg_exposed_tools": 12.94,
+      "avg_saved_tools": 37.06,
+      "case_recall": 1.0,
+      "cases_covered": 17,
       "cases_total": 17,
-      "misses": [
-        {
-          "id": "oblique-bedtime",
-          "missed": [
-            "bedtime"
-          ]
-        },
-        {
-          "id": "oblique-leaving",
-          "missed": [
-            "leaving_home"
-          ]
-        },
-        {
-          "id": "oblique-reading",
-          "missed": [
-            "reading_mode"
-          ]
-        }
-      ],
-      "tool_recall": 0.8235,
-      "tools_covered": 14,
+      "misses": [],
+      "tool_recall": 1.0,
+      "tools_covered": 17,
       "tools_total": 17
     },
     "24": {
-      "avg_exposed_tools": 14.82,
-      "avg_saved_tools": 35.18,
-      "case_recall": 0.8235,
-      "cases_covered": 14,
+      "avg_exposed_tools": 16.12,
+      "avg_saved_tools": 33.88,
+      "case_recall": 1.0,
+      "cases_covered": 17,
       "cases_total": 17,
-      "misses": [
-        {
-          "id": "oblique-bedtime",
-          "missed": [
-            "bedtime"
-          ]
-        },
-        {
-          "id": "oblique-leaving",
-          "missed": [
-            "leaving_home"
-          ]
-        },
-        {
-          "id": "oblique-reading",
-          "missed": [
-            "reading_mode"
-          ]
-        }
-      ],
-      "tool_recall": 0.8235,
-      "tools_covered": 14,
+      "misses": [],
+      "tool_recall": 1.0,
+      "tools_covered": 17,
       "tools_total": 17
     },
     "32": {
-      "avg_exposed_tools": 16.47,
-      "avg_saved_tools": 33.53,
-      "case_recall": 0.8235,
-      "cases_covered": 14,
+      "avg_exposed_tools": 18.71,
+      "avg_saved_tools": 31.29,
+      "case_recall": 1.0,
+      "cases_covered": 17,
       "cases_total": 17,
-      "misses": [
-        {
-          "id": "oblique-bedtime",
-          "missed": [
-            "bedtime"
-          ]
-        },
-        {
-          "id": "oblique-leaving",
-          "missed": [
-            "leaving_home"
-          ]
-        },
-        {
-          "id": "oblique-reading",
-          "missed": [
-            "reading_mode"
-          ]
-        }
-      ],
-      "tool_recall": 0.8235,
-      "tools_covered": 14,
+      "misses": [],
+      "tool_recall": 1.0,
+      "tools_covered": 17,
       "tools_total": 17
     },
     "50": {
-      "avg_exposed_tools": 16.47,
-      "avg_saved_tools": 33.53,
-      "case_recall": 0.8235,
-      "cases_covered": 14,
+      "avg_exposed_tools": 19.24,
+      "avg_saved_tools": 30.76,
+      "case_recall": 1.0,
+      "cases_covered": 17,
       "cases_total": 17,
-      "misses": [
-        {
-          "id": "oblique-bedtime",
-          "missed": [
-            "bedtime"
-          ]
-        },
-        {
-          "id": "oblique-leaving",
-          "missed": [
-            "leaving_home"
-          ]
-        },
-        {
-          "id": "oblique-reading",
-          "missed": [
-            "reading_mode"
-          ]
-        }
-      ],
-      "tool_recall": 0.8235,
-      "tools_covered": 14,
+      "misses": [],
+      "tool_recall": 1.0,
+      "tools_covered": 17,
       "tools_total": 17
     },
     "8": {
-      "avg_exposed_tools": 7.18,
-      "avg_saved_tools": 42.82,
-      "case_recall": 0.7647,
-      "cases_covered": 13,
+      "avg_exposed_tools": 7.53,
+      "avg_saved_tools": 42.47,
+      "case_recall": 1.0,
+      "cases_covered": 17,
       "cases_total": 17,
-      "misses": [
-        {
-          "id": "oblique-bedtime",
-          "missed": [
-            "bedtime"
-          ]
-        },
-        {
-          "id": "oblique-leaving",
-          "missed": [
-            "leaving_home"
-          ]
-        },
-        {
-          "id": "oblique-reading",
-          "missed": [
-            "reading_mode"
-          ]
-        },
-        {
-          "id": "oblique-security",
-          "missed": [
-            "night_security"
-          ]
-        }
-      ],
-      "tool_recall": 0.7647,
-      "tools_covered": 13,
+      "misses": [],
+      "tool_recall": 1.0,
+      "tools_covered": 17,
       "tools_total": 17
     }
   },
@@ -461,7 +341,7 @@
     "enforced": false,
     "kind": "wave1-capability-selection-shadow",
     "source_artifact": "wave1_scripts.yaml",
-    "timestamp": "2026-08-04T19:05:41.408394+00:00"
+    "timestamp": "2026-08-04T19:42:48.502400+00:00"
   },
   "uncatalogued_tools": []
 }

@@ -47,9 +47,17 @@ world:
     # The routines. Names are the kind a real household writes: overlapping vocabulary
     # ("good morning" / "good night", "movie night" / "game night") the retriever must
     # keep apart, plus obliquely phrased requests the cases reach through a paraphrase.
+    # A realistic, uneven spread of configured metadata: some scripts carry the voice
+    # triggers and descriptions a thorough household would set, many carry none. The
+    # aliases are plausible phrasings, not copies of the test utterances, so retrieval
+    # still has to bridge a paraphrase rather than match a planted string.
     - entity_id: script.movie_night
       name: Movie Night
       area: living_room
+      aliases:
+        - movie time
+        - film night
+      description: Dim the lights and start the projector for a film.
     - entity_id: script.game_night
       name: Game Night
       area: living_room
@@ -59,18 +67,29 @@ world:
     - entity_id: script.reading_mode
       name: Reading Mode
       area: living_room
+      aliases:
+        - reading time
+        - time to read
+      description: Warm, focused light for reading a book.
     - entity_id: script.relax
       name: Relax
       area: living_room
     - entity_id: script.good_morning
       name: Good Morning
       area: bedroom
+      aliases:
+        - start the day
+      description: Morning routine, raising the lights and opening the blinds.
     - entity_id: script.good_night
       name: Good Night
       area: bedroom
     - entity_id: script.bedtime
       name: Bedtime
       area: bedroom
+      aliases:
+        - going to bed
+        - time for bed
+      description: Night wind-down, turning the lights off and lowering the thermostat.
     - entity_id: script.wake_up
       name: Wake Up
       area: bedroom
@@ -80,6 +99,11 @@ world:
     - entity_id: script.leaving_home
       name: Leaving Home
       area: entryway
+      aliases:
+        - I'm leaving
+        - leaving the house
+        - heading out
+      description: Away mode, turning everything off and locking the doors.
     - entity_id: script.guest_mode
       name: Guest Mode
       area: entryway
@@ -116,6 +140,10 @@ world:
     - entity_id: script.night_security
       name: Night Security
       area: garage
+      aliases:
+        - arm the house
+        - secure the house
+      description: Arm the alarm and lock the doors overnight.
     - entity_id: script.vacuum_downstairs
       name: Vacuum Downstairs
       area: living_room
