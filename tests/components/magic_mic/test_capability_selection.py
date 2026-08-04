@@ -1,10 +1,43 @@
-"""Tests for the capability-selection catalog and availability filter (Stage 1)."""
+"""Tests for the capability-selection catalog, filter, retrieval, and assembler."""
 
 from custom_components.magic_mic.capabilities.capability_selection import (
     CapabilityDescriptor,
     Catalog,
+    assemble_plan,
     available_descriptors,
     default_catalog,
+    rank_descriptors,
+    select_capabilities,
+)
+
+# The tools the Wave-0 fixture home exposes to the model.
+_ROSTER = frozenset(
+    {
+        "GetDateTime",
+        "GetLiveContext",
+        "HassCancelTimer",
+        "HassClimateGetTemperature",
+        "HassClimateSetTemperature",
+        "HassGetWeather",
+        "HassLightSet",
+        "HassListAddItem",
+        "HassListCompleteItem",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassSetPosition",
+        "HassSetVolume",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassToggle",
+        "HassTurnOff",
+        "HassTurnOn",
+        "HassUnpauseTimer",
+        "find_entities",
+        "todo_get_items",
+    }
 )
 
 
@@ -74,3 +107,125 @@ def test_availability_filter_projects_to_exposed_subset() -> None:
     assert len(result.descriptors) == 1
     assert result.descriptors[0].tools == ("HassMediaPause",)
     assert result.filtered == ()
+
+
+def test_ranking_puts_the_relevant_bundle_first() -> None:
+    """A direct request ranks its owning bundle at the top of retrieval."""
+    catalog = default_catalog()
+    available = available_descriptors(catalog, _ROSTER)
+
+    ranked = rank_descriptors("add milk to my shopping list", available.descriptors)
+
+    assert ranked[0].descriptor.id == "lists"
+    assert ranked[0].score > ranked[-1].score
+
+
+def test_domain_word_boosts_a_bundle() -> None:
+    """Naming a declared domain outright lifts the bundle over bare text overlap."""
+    catalog = default_catalog()
+    available = available_descriptors(catalog, _ROSTER)
+
+    ranked = rank_descriptors("what is the weather like", available.descriptors)
+    weather = next(scored for scored in ranked if scored.descriptor.id == "weather")
+
+    assert weather.domain > 0.0
+    assert weather.score == weather.text + weather.domain
+
+
+def test_plan_exposes_the_used_tool_across_the_corpus() -> None:
+    """At the default budget the plan exposes the tool each request needs."""
+    for utterance, used in (
+        ("turn off the living room lamp", "HassTurnOff"),
+        ("what time is it?", "GetDateTime"),
+        ("set a timer for five minutes", "HassStartTimer"),
+        ("add milk to my shopping list", "HassListAddItem"),
+        ("dim the bedroom lights", "HassLightSet"),
+        ("open the garage door", "HassSetPosition"),
+        ("is the garage door open?", "GetLiveContext"),
+        ("pause the music", "HassMediaPause"),
+        ("set the volume to twenty percent", "HassSetVolume"),
+    ):
+        plan = select_capabilities(utterance, _ROSTER)
+        assert plan.exposes(used), f"{utterance!r} did not expose {used}"
+
+
+def test_residents_are_admitted_regardless_of_budget() -> None:
+    """Resident reads survive even a budget too small to hold them."""
+    plan = select_capabilities("random unrelated words", _ROSTER, budget=1)
+
+    assert "live_context" in plan.admitted
+    assert "datetime" in plan.admitted
+    assert plan.exposes("GetLiveContext")
+
+
+def test_budget_prunes_the_lowest_ranked_bundles() -> None:
+    """A budget smaller than the roster omits low-ranked bundles with a reason."""
+    # Residents (GetLiveContext, GetDateTime) plus the lists bundle fill five slots.
+    plan = select_capabilities("add milk to my shopping list", _ROSTER, budget=5)
+
+    assert plan.exposes("HassListAddItem")
+    assert plan.tool_count <= 5
+    assert not plan.exposes("HassSetPosition")
+    assert any(reason == "budget" for _, reason in plan.omitted)
+
+
+def test_below_floor_bundles_are_omitted() -> None:
+    """With a high floor only the paraphrased bundle survives on relevance."""
+    plan = select_capabilities("add milk to my shopping list", _ROSTER, floor=90.0)
+
+    assert "lists" in plan.admitted
+    assert any(reason == "below_floor" for _, reason in plan.omitted)
+
+
+def test_dependency_closure_pulls_in_a_below_floor_dependency() -> None:
+    """A bundle admitted on relevance drags in its dependency, floor notwithstanding."""
+    catalog = Catalog(
+        (
+            CapabilityDescriptor(
+                id="reminders",
+                selection_text="remind me later, conditional reminders and alarms",
+                tools=("create_reminder",),
+                examples=("remind me tomorrow if the door is open",),
+                dependencies=("find_entities",),
+            ),
+            CapabilityDescriptor(
+                id="find_entities",
+                selection_text="look up a device by approximate name",
+                tools=("find_entities",),
+            ),
+        )
+    )
+    exposed = {"create_reminder", "find_entities"}
+
+    # A high floor would drop find_entities on its own relevance to this utterance.
+    plan = select_capabilities(
+        "remind me tomorrow if the door is open",
+        exposed,
+        catalog=catalog,
+        floor=90.0,
+    )
+
+    assert plan.exposes("create_reminder")
+    assert plan.exposes("find_entities")
+    assert ("find_entities", "reminders") in plan.dependency_expansions
+
+
+def test_unavailable_bundles_carry_into_the_trace() -> None:
+    """A Stage-1 filtered bundle is recorded as an unavailable omission."""
+    # A lighting-only home: covers, media, and the rest are unavailable.
+    plan = select_capabilities("turn on the lights", {"HassTurnOn", "HassTurnOff"})
+
+    assert ("covers", "unavailable") in plan.omitted
+    assert not plan.exposes("HassSetPosition")
+
+
+def test_assemble_is_deterministic_on_score_ties() -> None:
+    """Equal scores break on descriptor id, so a plan is reproducible."""
+    catalog = default_catalog()
+    available = available_descriptors(catalog, _ROSTER)
+    ranked = rank_descriptors("hello there", available.descriptors)
+
+    first = assemble_plan(ranked, available)
+    second = assemble_plan(ranked, available)
+
+    assert first.admitted == second.admitted
