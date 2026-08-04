@@ -29,11 +29,14 @@ from pathlib import Path
 
 from custom_components.magic_mic.capabilities.capability_selection import (
     Catalog,
+    action_descriptor,
     default_catalog,
+    extend_catalog,
     select_capabilities,
 )
 
 from .baseline import REPO_ROOT, RESULTS_DIR, write_artifact
+from .corpus import Corpus, World, load_corpus
 
 SHADOW_ARTIFACT = RESULTS_DIR / "wave1_capability_selection_shadow.json"
 DEFAULT_SOURCE = RESULTS_DIR / "wave0_baseline.json"
@@ -120,6 +123,45 @@ def load_case_tools(artifact: dict) -> list[CaseTools]:
     return reduced
 
 
+def load_case_tools_from_corpus(corpus: Corpus) -> list[CaseTools]:
+    """Reduce a corpus's cases to (id, utterance, expected-tools).
+
+    The measurement basis differs from a scored artifact: here the ground-truth tool is
+    the one the case *declares* it should call (its LLM-scope `expected`), not a tool a
+    live model happened to pick. That is what lets the script-heavy home be measured
+    without a key. The first acceptable outcome's tools are used; an answer-only case
+    contributes none and is not scorable.
+    """
+    reduced: list[CaseTools] = []
+    for case in corpus.cases:
+        outcomes = case.expected_for(llm=True)
+        used = (
+            tuple(dict.fromkeys(tool.name for tool in outcomes[0].tools))
+            if outcomes
+            else ()
+        )
+        reduced.append(CaseTools(id=case.id, utterance=case.utterance, used=used))
+    return reduced
+
+
+def catalog_for_world(world: World) -> Catalog:
+    """Build the demo catalog plus one action descriptor per script in ``world``.
+
+    Home Assistant exposes each script as its own tool named by object id, so every
+    ``script.*`` entity becomes an individually-retrieved single-tool descriptor whose
+    document is its name and area. Non-script entities are already served by the demo
+    bundles, so they add no descriptor here.
+    """
+    scripts = tuple(
+        action_descriptor(
+            entity.entity_id.split(".", 1)[1], entity.name, area=entity.area
+        )
+        for entity in world.entities
+        if entity.entity_id.startswith("script.")
+    )
+    return extend_catalog(default_catalog(), scripts)
+
+
 def uncatalogued_tools(cases: Sequence[CaseTools], catalog: Catalog) -> set[str]:
     """Return used tools no descriptor declares (a catalog gap, never coverable)."""
     known = catalog.tool_names()
@@ -191,8 +233,15 @@ def build_shadow_artifact(
     catalog: Catalog,
     cases: Sequence[CaseTools],
     budgets: Sequence[int],
+    *,
+    basis: str = "actual-tool-use",
 ) -> dict:
-    """Assemble the shadow artifact: metadata, per-budget recall, and per-case detail."""
+    """Assemble the shadow artifact: metadata, per-budget recall, and per-case detail.
+
+    ``basis`` records what recall is measured against: ``actual-tool-use`` (the tool a
+    live model called, from a scored baseline) or ``expected-tool`` (the tool a corpus
+    case declares it should call).
+    """
     recall = shadow_recall(cases, catalog, budgets)
     gaps = sorted(uncatalogued_tools(cases, catalog))
     scorable = [case for case in cases if case.used]
@@ -201,6 +250,7 @@ def build_shadow_artifact(
             "kind": "wave1-capability-selection-shadow",
             "timestamp": datetime.now(UTC).isoformat(),
             "source_artifact": source.name,
+            "basis": basis,
             "catalog_tools": len(catalog.tool_names()),
             "catalog_bundles": len(catalog.descriptors),
             "budgets": list(budgets),
@@ -247,7 +297,7 @@ def render_report(artifact: dict) -> str:
     """Render the shadow artifact's recall sweep as a plain-text block."""
     run = artifact["run"]
     lines = [
-        f"Capability-selection shadow: {run['source_artifact']}",
+        f"Capability-selection shadow: {run['source_artifact']} ({run['basis']})",
         (
             f"  catalog {run['catalog_bundles']} bundles / {run['catalog_tools']} tools, "
             f"{run['cases_scorable']}/{run['cases_total']} cases used a tool"
@@ -296,24 +346,30 @@ def _parse_budgets(value: str) -> tuple[int, ...]:
 def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="python -m evals.harness.selection_shadow",
-        description="Shadow-measure capability selection against a scored baseline.",
+        description="Shadow-measure capability selection against a baseline or a corpus.",
     )
-    parser.add_argument(
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument(
         "--artifact",
         type=Path,
-        default=DEFAULT_SOURCE,
-        help=f"scored baseline artifact to read (default {DEFAULT_SOURCE.name})",
+        help=f"scored baseline artifact, recall vs actual tool use (default {DEFAULT_SOURCE.name})",
+    )
+    source.add_argument(
+        "--corpus",
+        type=Path,
+        help="corpus file, recall vs each case's declared expected tool (builds the "
+        "catalog from the corpus world, including its scripts)",
     )
     parser.add_argument(
         "--budgets",
         type=_parse_budgets,
         default=DEFAULT_BUDGETS,
-        help="comma-separated tool budgets to sweep (default 6,8,10,12,24)",
+        help="comma-separated tool budgets to sweep; the catalog size is always added",
     )
     parser.add_argument(
         "--out",
         type=Path,
-        help="write the shadow artifact here (default the standard results path)",
+        help="write the shadow artifact here (default derived from the source name)",
     )
     return parser.parse_args(argv)
 
@@ -321,16 +377,29 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> None:
     """Run the offline shadow sweep and persist the artifact."""
     args = _parse_args(argv)
-    if not args.artifact.exists():
-        raise ShadowError(f"artifact not found: {args.artifact}")
-    source = json.loads(args.artifact.read_text(encoding="utf-8"))
-    cases = load_case_tools(source)
-    catalog = default_catalog()
-    artifact = build_shadow_artifact(args.artifact, catalog, cases, args.budgets)
+    if args.corpus is not None:
+        corpus = load_corpus(args.corpus)
+        catalog = catalog_for_world(corpus.world)
+        cases = load_case_tools_from_corpus(corpus)
+        source = args.corpus
+        basis = "expected-tool"
+        default_out = RESULTS_DIR / f"{args.corpus.stem}_selection_shadow.json"
+    else:
+        source = args.artifact or DEFAULT_SOURCE
+        if not source.exists():
+            raise ShadowError(f"artifact not found: {source}")
+        cases = load_case_tools(json.loads(source.read_text(encoding="utf-8")))
+        catalog = default_catalog()
+        basis = "actual-tool-use"
+        default_out = SHADOW_ARTIFACT
+
+    # Always measure the full-roster ceiling, whatever budgets were asked for.
+    budgets = tuple(sorted(set(args.budgets) | {len(catalog.tool_names())}))
+    artifact = build_shadow_artifact(source, catalog, cases, budgets, basis=basis)
 
     print(render_report(artifact))
 
-    written = write_artifact(artifact, args.out or SHADOW_ARTIFACT)
+    written = write_artifact(artifact, args.out or default_out)
     print(f"\nartifact: {written.relative_to(REPO_ROOT)}")
 
 

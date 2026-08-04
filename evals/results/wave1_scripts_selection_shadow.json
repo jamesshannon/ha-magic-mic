@@ -1,0 +1,467 @@
+{
+  "cases": [
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "run-movie-night",
+      "used": [
+        "movie_night"
+      ],
+      "utterance": "start movie night"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "run-good-morning",
+      "used": [
+        "good_morning"
+      ],
+      "utterance": "run the good morning routine"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "run-party-mode",
+      "used": [
+        "party_mode"
+      ],
+      "utterance": "let's get the party started"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "run-focus-mode",
+      "used": [
+        "focus_mode"
+      ],
+      "utterance": "turn on focus mode"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "pick-movie-not-game",
+      "used": [
+        "movie_night"
+      ],
+      "utterance": "put on a movie"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "pick-good-night",
+      "used": [
+        "good_night"
+      ],
+      "utterance": "good night"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "pick-romantic-dinner",
+      "used": [
+        "romantic_dinner"
+      ],
+      "utterance": "set up a romantic dinner"
+    },
+    {
+      "coverage": {
+        "12": false,
+        "16": false,
+        "24": false,
+        "32": false,
+        "50": false,
+        "8": false
+      },
+      "id": "oblique-bedtime",
+      "used": [
+        "bedtime"
+      ],
+      "utterance": "I'm going to sleep"
+    },
+    {
+      "coverage": {
+        "12": false,
+        "16": false,
+        "24": false,
+        "32": false,
+        "50": false,
+        "8": false
+      },
+      "id": "oblique-leaving",
+      "used": [
+        "leaving_home"
+      ],
+      "utterance": "I'm heading out"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "oblique-coffee",
+      "used": [
+        "coffee_time"
+      ],
+      "utterance": "make me some coffee"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "oblique-water-plants",
+      "used": [
+        "water_plants"
+      ],
+      "utterance": "water the plants"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "oblique-workout",
+      "used": [
+        "workout"
+      ],
+      "utterance": "start my workout"
+    },
+    {
+      "coverage": {
+        "12": false,
+        "16": false,
+        "24": false,
+        "32": false,
+        "50": false,
+        "8": false
+      },
+      "id": "oblique-reading",
+      "used": [
+        "reading_mode"
+      ],
+      "utterance": "I want to read"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": false
+      },
+      "id": "oblique-security",
+      "used": [
+        "night_security"
+      ],
+      "utterance": "arm the house for the night"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "device-turn-on-light",
+      "used": [
+        "HassTurnOn"
+      ],
+      "utterance": "turn on the kitchen light"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "device-open-garage",
+      "used": [
+        "HassSetPosition"
+      ],
+      "utterance": "open the garage door"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "read-the-time",
+      "used": [
+        "GetDateTime"
+      ],
+      "utterance": "what time is it"
+    }
+  ],
+  "recall": {
+    "12": {
+      "avg_exposed_tools": 9.82,
+      "avg_saved_tools": 40.18,
+      "case_recall": 0.8235,
+      "cases_covered": 14,
+      "cases_total": 17,
+      "misses": [
+        {
+          "id": "oblique-bedtime",
+          "missed": [
+            "bedtime"
+          ]
+        },
+        {
+          "id": "oblique-leaving",
+          "missed": [
+            "leaving_home"
+          ]
+        },
+        {
+          "id": "oblique-reading",
+          "missed": [
+            "reading_mode"
+          ]
+        }
+      ],
+      "tool_recall": 0.8235,
+      "tools_covered": 14,
+      "tools_total": 17
+    },
+    "16": {
+      "avg_exposed_tools": 12.18,
+      "avg_saved_tools": 37.82,
+      "case_recall": 0.8235,
+      "cases_covered": 14,
+      "cases_total": 17,
+      "misses": [
+        {
+          "id": "oblique-bedtime",
+          "missed": [
+            "bedtime"
+          ]
+        },
+        {
+          "id": "oblique-leaving",
+          "missed": [
+            "leaving_home"
+          ]
+        },
+        {
+          "id": "oblique-reading",
+          "missed": [
+            "reading_mode"
+          ]
+        }
+      ],
+      "tool_recall": 0.8235,
+      "tools_covered": 14,
+      "tools_total": 17
+    },
+    "24": {
+      "avg_exposed_tools": 14.82,
+      "avg_saved_tools": 35.18,
+      "case_recall": 0.8235,
+      "cases_covered": 14,
+      "cases_total": 17,
+      "misses": [
+        {
+          "id": "oblique-bedtime",
+          "missed": [
+            "bedtime"
+          ]
+        },
+        {
+          "id": "oblique-leaving",
+          "missed": [
+            "leaving_home"
+          ]
+        },
+        {
+          "id": "oblique-reading",
+          "missed": [
+            "reading_mode"
+          ]
+        }
+      ],
+      "tool_recall": 0.8235,
+      "tools_covered": 14,
+      "tools_total": 17
+    },
+    "32": {
+      "avg_exposed_tools": 16.47,
+      "avg_saved_tools": 33.53,
+      "case_recall": 0.8235,
+      "cases_covered": 14,
+      "cases_total": 17,
+      "misses": [
+        {
+          "id": "oblique-bedtime",
+          "missed": [
+            "bedtime"
+          ]
+        },
+        {
+          "id": "oblique-leaving",
+          "missed": [
+            "leaving_home"
+          ]
+        },
+        {
+          "id": "oblique-reading",
+          "missed": [
+            "reading_mode"
+          ]
+        }
+      ],
+      "tool_recall": 0.8235,
+      "tools_covered": 14,
+      "tools_total": 17
+    },
+    "50": {
+      "avg_exposed_tools": 16.47,
+      "avg_saved_tools": 33.53,
+      "case_recall": 0.8235,
+      "cases_covered": 14,
+      "cases_total": 17,
+      "misses": [
+        {
+          "id": "oblique-bedtime",
+          "missed": [
+            "bedtime"
+          ]
+        },
+        {
+          "id": "oblique-leaving",
+          "missed": [
+            "leaving_home"
+          ]
+        },
+        {
+          "id": "oblique-reading",
+          "missed": [
+            "reading_mode"
+          ]
+        }
+      ],
+      "tool_recall": 0.8235,
+      "tools_covered": 14,
+      "tools_total": 17
+    },
+    "8": {
+      "avg_exposed_tools": 7.18,
+      "avg_saved_tools": 42.82,
+      "case_recall": 0.7647,
+      "cases_covered": 13,
+      "cases_total": 17,
+      "misses": [
+        {
+          "id": "oblique-bedtime",
+          "missed": [
+            "bedtime"
+          ]
+        },
+        {
+          "id": "oblique-leaving",
+          "missed": [
+            "leaving_home"
+          ]
+        },
+        {
+          "id": "oblique-reading",
+          "missed": [
+            "reading_mode"
+          ]
+        },
+        {
+          "id": "oblique-security",
+          "missed": [
+            "night_security"
+          ]
+        }
+      ],
+      "tool_recall": 0.7647,
+      "tools_covered": 13,
+      "tools_total": 17
+    }
+  },
+  "run": {
+    "basis": "expected-tool",
+    "budgets": [
+      8,
+      12,
+      16,
+      24,
+      32,
+      50
+    ],
+    "cases_scorable": 17,
+    "cases_total": 17,
+    "catalog_bundles": 38,
+    "catalog_tools": 50,
+    "enforced": false,
+    "kind": "wave1-capability-selection-shadow",
+    "source_artifact": "wave1_scripts.yaml",
+    "timestamp": "2026-08-04T19:05:41.408394+00:00"
+  },
+  "uncatalogued_tools": []
+}

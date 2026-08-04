@@ -8,13 +8,18 @@ from custom_components.magic_mic.capabilities.capability_selection import (
     default_catalog,
 )
 
+from .corpus import CORPUS_DIR, load_corpus
 from .selection_shadow import (
     CaseTools,
     build_shadow_artifact,
+    catalog_for_world,
     load_case_tools,
+    load_case_tools_from_corpus,
     shadow_recall,
     uncatalogued_tools,
 )
+
+_SCRIPTS_CORPUS = CORPUS_DIR / "wave1_scripts.yaml"
 
 
 def test_load_case_tools_dedups_and_skips_answers() -> None:
@@ -102,6 +107,49 @@ def test_uncatalogued_tool_is_surfaced_not_silently_missed() -> None:
     # And it counts as a miss at every budget, since it can never be exposed.
     recall = shadow_recall(cases, catalog, (24,))
     assert recall[24].case_recall == 0.0
+
+
+def test_catalog_for_world_adds_a_tool_per_script() -> None:
+    """Each script entity in the corpus world becomes its own catalog tool."""
+    corpus = load_corpus(_SCRIPTS_CORPUS)
+
+    catalog = catalog_for_world(corpus.world)
+
+    assert "movie_night" in catalog.tool_names()
+    assert catalog.by_tool["movie_night"] == "script:movie_night"
+    # The base bundles are still present alongside the scripts.
+    assert "HassTurnOn" in catalog.tool_names()
+
+
+def test_corpus_case_tools_use_the_declared_expected_tool() -> None:
+    """Corpus-driven recall measures against each case's expected tool, not a live run."""
+    corpus = load_corpus(_SCRIPTS_CORPUS)
+
+    cases = {case.id: case for case in load_case_tools_from_corpus(corpus)}
+
+    assert cases["run-movie-night"].used == ("movie_night",)
+    assert cases["read-the-time"].used == ("GetDateTime",)
+
+
+def test_oblique_request_is_a_lexical_ceiling_miss() -> None:
+    """A paraphrase sharing no word with the script name is unreachable at any budget.
+
+    This is the finding the script-heavy corpus exists to surface: lexical retrieval caps
+    below full recall on oblique requests, no matter the budget, which is the paraphrase
+    miss the design says would justify embeddings.
+    """
+    corpus = load_corpus(_SCRIPTS_CORPUS)
+    catalog = catalog_for_world(corpus.world)
+    cases = load_case_tools_from_corpus(corpus)
+    full = len(catalog.tool_names())
+
+    recall = shadow_recall(cases, catalog, (full,))
+    missed_ids = {miss.id for miss in recall[full].misses}
+
+    # "I'm going to sleep" -> Bedtime shares no token, so even the full roster omits it.
+    assert "oblique-bedtime" in missed_ids
+    # But a direct request is covered at full budget.
+    assert "run-movie-night" not in missed_ids
 
 
 def test_shadow_artifact_shape() -> None:

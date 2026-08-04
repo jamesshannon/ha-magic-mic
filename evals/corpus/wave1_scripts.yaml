@@ -1,0 +1,272 @@
+# Wave 1 script-heavy home.
+#
+# A fixture for capability selection (docs/capability-selection.md), not for the live
+# golden-set runner. Home Assistant exposes each script to Assist as its own LLM tool
+# named by object id (script.movie_night -> the tool `movie_night`), so a home with many
+# routines pushes the exposed roster well past any sane per-turn tool budget. That is the
+# case the tool budget actually has to choose within, and the one the small, clean Wave 0
+# set cannot show.
+#
+# The shadow harness reads this corpus directly: it builds a per-script descriptor for
+# each script entity, then scores whether selection would have exposed the tool each case
+# is supposed to call (the declared `expected`), across a budget sweep. It needs no live
+# model, because the ground-truth tool is the one the case names, not one the model picks.
+# `expected` tool names are the script object ids.
+
+world:
+  areas:
+    - kitchen
+    - living_room
+    - dining_room
+    - bedroom
+    - bathroom
+    - office
+    - garage
+    - entryway
+  entities:
+    # A handful of ordinary devices, so the base control bundles are present and a plain
+    # command still has to compete with the scripts for budget.
+    - entity_id: light.living_room
+      name: Living Room Lamp
+      area: living_room
+      state: "on"
+    - entity_id: light.kitchen
+      name: Kitchen Light
+      area: kitchen
+      state: "off"
+    - entity_id: cover.garage_door
+      name: Garage Door
+      area: garage
+      device_class: garage
+      state: closed
+    - entity_id: media_player.living_room
+      name: Living Room Speaker
+      area: living_room
+      state: idle
+
+    # The routines. Names are the kind a real household writes: overlapping vocabulary
+    # ("good morning" / "good night", "movie night" / "game night") the retriever must
+    # keep apart, plus obliquely phrased requests the cases reach through a paraphrase.
+    - entity_id: script.movie_night
+      name: Movie Night
+      area: living_room
+    - entity_id: script.game_night
+      name: Game Night
+      area: living_room
+    - entity_id: script.party_mode
+      name: Party Mode
+      area: living_room
+    - entity_id: script.reading_mode
+      name: Reading Mode
+      area: living_room
+    - entity_id: script.relax
+      name: Relax
+      area: living_room
+    - entity_id: script.good_morning
+      name: Good Morning
+      area: bedroom
+    - entity_id: script.good_night
+      name: Good Night
+      area: bedroom
+    - entity_id: script.bedtime
+      name: Bedtime
+      area: bedroom
+    - entity_id: script.wake_up
+      name: Wake Up
+      area: bedroom
+    - entity_id: script.arriving_home
+      name: Arriving Home
+      area: entryway
+    - entity_id: script.leaving_home
+      name: Leaving Home
+      area: entryway
+    - entity_id: script.guest_mode
+      name: Guest Mode
+      area: entryway
+    - entity_id: script.dinner_party
+      name: Dinner Party
+      area: dining_room
+    - entity_id: script.romantic_dinner
+      name: Romantic Dinner
+      area: dining_room
+    - entity_id: script.focus_mode
+      name: Focus Mode
+      area: office
+    - entity_id: script.workout
+      name: Workout
+      area: office
+    - entity_id: script.coffee_time
+      name: Coffee Time
+      area: kitchen
+    - entity_id: script.cooking_mode
+      name: Cooking Mode
+      area: kitchen
+    - entity_id: script.bath_time
+      name: Bath Time
+      area: bathroom
+    - entity_id: script.shower_warmup
+      name: Shower Warmup
+      area: bathroom
+    - entity_id: script.water_plants
+      name: Water the Plants
+      area: living_room
+    - entity_id: script.feed_fish
+      name: Feed the Fish
+      area: living_room
+    - entity_id: script.night_security
+      name: Night Security
+      area: garage
+    - entity_id: script.vacuum_downstairs
+      name: Vacuum Downstairs
+      area: living_room
+    - entity_id: script.morning_news
+      name: Morning News
+      area: kitchen
+    - entity_id: script.sunset_lights
+      name: Sunset Lights
+      area: living_room
+
+cases:
+  # Direct name requests: the plan must expose the named script's tool.
+  - id: run-movie-night
+    utterance: start movie night
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: movie_night
+  - id: run-good-morning
+    utterance: run the good morning routine
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: good_morning
+  - id: run-party-mode
+    utterance: let's get the party started
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: party_mode
+  - id: run-focus-mode
+    utterance: turn on focus mode
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: focus_mode
+
+  # Near-namesakes: the retriever must pick the right one of a similar pair.
+  - id: pick-movie-not-game
+    utterance: put on a movie
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: movie_night
+  - id: pick-good-night
+    utterance: good night
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: good_night
+  - id: pick-romantic-dinner
+    utterance: set up a romantic dinner
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: romantic_dinner
+
+  # Oblique phrasings reached through the script name and area keywords.
+  - id: oblique-bedtime
+    utterance: I'm going to sleep
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: bedtime
+  - id: oblique-leaving
+    utterance: I'm heading out
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: leaving_home
+  - id: oblique-coffee
+    utterance: make me some coffee
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: coffee_time
+  - id: oblique-water-plants
+    utterance: water the plants
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: water_plants
+  - id: oblique-workout
+    utterance: start my workout
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: workout
+  - id: oblique-reading
+    utterance: I want to read
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: reading_mode
+  - id: oblique-security
+    utterance: arm the house for the night
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: night_security
+
+  # Plain device control and a read must still survive a roster crowded with scripts.
+  - id: device-turn-on-light
+    utterance: turn on the kitchen light
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: HassTurnOn
+  - id: device-open-garage
+    utterance: open the garage door
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: HassSetPosition
+  - id: read-the-time
+    utterance: what time is it
+    category: query
+    routing_truth: llm
+    resolves_at_wave0: true
+    expected:
+      tools:
+        - name: GetDateTime
