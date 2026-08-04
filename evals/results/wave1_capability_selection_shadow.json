@@ -1,0 +1,414 @@
+{
+  "cases": [
+    {
+      "coverage": {
+        "10": true,
+        "12": true,
+        "24": true,
+        "6": true,
+        "8": true
+      },
+      "id": "current-time",
+      "used": [
+        "GetDateTime"
+      ],
+      "utterance": "what time is it?"
+    },
+    {
+      "coverage": {
+        "10": true,
+        "12": true,
+        "24": true,
+        "6": true,
+        "8": true
+      },
+      "id": "current-date",
+      "used": [
+        "GetDateTime"
+      ],
+      "utterance": "what's the date today?"
+    },
+    {
+      "coverage": {
+        "10": true,
+        "12": true,
+        "24": true,
+        "6": true,
+        "8": true
+      },
+      "id": "turn-on-kitchen-light",
+      "used": [
+        "HassTurnOn"
+      ],
+      "utterance": "turn on the kitchen light"
+    },
+    {
+      "coverage": {
+        "10": true,
+        "12": true,
+        "24": true,
+        "6": false,
+        "8": true
+      },
+      "id": "turn-off-living-room-lamp",
+      "used": [
+        "HassTurnOff"
+      ],
+      "utterance": "turn off the living room lamp"
+    },
+    {
+      "coverage": {
+        "10": true,
+        "12": true,
+        "24": true,
+        "6": true,
+        "8": true
+      },
+      "id": "set-bedroom-brightness",
+      "used": [
+        "HassLightSet"
+      ],
+      "utterance": "set the bedroom light to 30%"
+    },
+    {
+      "coverage": {
+        "10": false,
+        "12": false,
+        "24": true,
+        "6": false,
+        "8": false
+      },
+      "id": "open-garage-door",
+      "used": [
+        "HassTurnOn"
+      ],
+      "utterance": "open the garage door"
+    },
+    {
+      "coverage": {
+        "10": true,
+        "12": true,
+        "24": true,
+        "6": true,
+        "8": true
+      },
+      "id": "close-blinds",
+      "used": [
+        "HassSetPosition"
+      ],
+      "utterance": "close the living room blinds"
+    },
+    {
+      "coverage": {
+        "10": true,
+        "12": true,
+        "24": true,
+        "6": true,
+        "8": true
+      },
+      "id": "set-blinds-position",
+      "used": [
+        "HassSetPosition"
+      ],
+      "utterance": "set the living room blinds to 50%"
+    },
+    {
+      "coverage": {
+        "10": true,
+        "12": true,
+        "24": true,
+        "6": true,
+        "8": true
+      },
+      "id": "room-temperature",
+      "used": [
+        "GetLiveContext"
+      ],
+      "utterance": "what's the temperature in the living room?"
+    },
+    {
+      "coverage": {
+        "10": true,
+        "12": true,
+        "24": true,
+        "6": true,
+        "8": true
+      },
+      "id": "weather",
+      "used": [
+        "GetLiveContext"
+      ],
+      "utterance": "what's the weather?"
+    },
+    {
+      "coverage": {
+        "10": true,
+        "12": true,
+        "24": true,
+        "6": true,
+        "8": true
+      },
+      "id": "set-volume",
+      "used": [
+        "HassSetVolume"
+      ],
+      "utterance": "set the living room volume to 40%"
+    },
+    {
+      "coverage": {
+        "10": true,
+        "12": true,
+        "24": true,
+        "6": true,
+        "8": true
+      },
+      "id": "pause-music",
+      "used": [
+        "HassMediaPause"
+      ],
+      "utterance": "pause the music"
+    },
+    {
+      "coverage": {
+        "10": true,
+        "12": true,
+        "24": true,
+        "6": false,
+        "8": true
+      },
+      "id": "start-timer",
+      "used": [
+        "HassStartTimer"
+      ],
+      "utterance": "set a timer for 10 minutes"
+    },
+    {
+      "coverage": {
+        "10": true,
+        "12": true,
+        "24": true,
+        "6": true,
+        "8": true
+      },
+      "id": "add-shopping-item",
+      "used": [
+        "HassListAddItem"
+      ],
+      "utterance": "add milk to the shopping list"
+    },
+    {
+      "coverage": {
+        "10": true,
+        "12": true,
+        "24": true,
+        "6": true,
+        "8": true
+      },
+      "id": "is-garage-open",
+      "used": [
+        "GetLiveContext"
+      ],
+      "utterance": "is the garage door open?"
+    },
+    {
+      "coverage": {
+        "10": true,
+        "12": true,
+        "24": true,
+        "6": true,
+        "8": true
+      },
+      "id": "compound-two-devices",
+      "used": [
+        "HassTurnOff"
+      ],
+      "utterance": "turn off the kitchen light and the bedroom fan"
+    },
+    {
+      "coverage": {
+        "10": true,
+        "12": true,
+        "24": true,
+        "6": true,
+        "8": true
+      },
+      "id": "implicit-cold",
+      "used": [
+        "GetLiveContext"
+      ],
+      "utterance": "I'm cold"
+    },
+    {
+      "coverage": {
+        "10": true,
+        "12": true,
+        "24": true,
+        "6": true,
+        "8": true
+      },
+      "id": "reasoning-did-i-leave-garage",
+      "used": [
+        "GetLiveContext"
+      ],
+      "utterance": "did I leave the garage door open?"
+    },
+    {
+      "coverage": {
+        "10": false,
+        "12": false,
+        "24": true,
+        "6": false,
+        "8": false
+      },
+      "id": "conditional-reminder",
+      "used": [
+        "GetLiveContext",
+        "HassStartTimer"
+      ],
+      "utterance": "remind me in an hour if I haven't closed the garage door"
+    }
+  ],
+  "recall": {
+    "10": {
+      "avg_exposed_tools": 10.0,
+      "avg_saved_tools": 14.0,
+      "case_recall": 0.8947,
+      "cases_covered": 17,
+      "cases_total": 19,
+      "misses": [
+        {
+          "id": "open-garage-door",
+          "used": [
+            "HassTurnOn"
+          ]
+        },
+        {
+          "id": "conditional-reminder",
+          "used": [
+            "GetLiveContext",
+            "HassStartTimer"
+          ]
+        }
+      ],
+      "tool_recall": 0.9,
+      "tools_covered": 18,
+      "tools_total": 20
+    },
+    "12": {
+      "avg_exposed_tools": 12.0,
+      "avg_saved_tools": 12.0,
+      "case_recall": 0.8947,
+      "cases_covered": 17,
+      "cases_total": 19,
+      "misses": [
+        {
+          "id": "open-garage-door",
+          "used": [
+            "HassTurnOn"
+          ]
+        },
+        {
+          "id": "conditional-reminder",
+          "used": [
+            "GetLiveContext",
+            "HassStartTimer"
+          ]
+        }
+      ],
+      "tool_recall": 0.9,
+      "tools_covered": 18,
+      "tools_total": 20
+    },
+    "24": {
+      "avg_exposed_tools": 24.0,
+      "avg_saved_tools": 0.0,
+      "case_recall": 1.0,
+      "cases_covered": 19,
+      "cases_total": 19,
+      "misses": [],
+      "tool_recall": 1.0,
+      "tools_covered": 20,
+      "tools_total": 20
+    },
+    "6": {
+      "avg_exposed_tools": 6.0,
+      "avg_saved_tools": 18.0,
+      "case_recall": 0.7895,
+      "cases_covered": 15,
+      "cases_total": 19,
+      "misses": [
+        {
+          "id": "turn-off-living-room-lamp",
+          "used": [
+            "HassTurnOff"
+          ]
+        },
+        {
+          "id": "open-garage-door",
+          "used": [
+            "HassTurnOn"
+          ]
+        },
+        {
+          "id": "start-timer",
+          "used": [
+            "HassStartTimer"
+          ]
+        },
+        {
+          "id": "conditional-reminder",
+          "used": [
+            "GetLiveContext",
+            "HassStartTimer"
+          ]
+        }
+      ],
+      "tool_recall": 0.8,
+      "tools_covered": 16,
+      "tools_total": 20
+    },
+    "8": {
+      "avg_exposed_tools": 8.0,
+      "avg_saved_tools": 16.0,
+      "case_recall": 0.8947,
+      "cases_covered": 17,
+      "cases_total": 19,
+      "misses": [
+        {
+          "id": "open-garage-door",
+          "used": [
+            "HassTurnOn"
+          ]
+        },
+        {
+          "id": "conditional-reminder",
+          "used": [
+            "GetLiveContext",
+            "HassStartTimer"
+          ]
+        }
+      ],
+      "tool_recall": 0.9,
+      "tools_covered": 18,
+      "tools_total": 20
+    }
+  },
+  "run": {
+    "budgets": [
+      6,
+      8,
+      10,
+      12,
+      24
+    ],
+    "cases_scorable": 19,
+    "cases_total": 25,
+    "catalog_bundles": 12,
+    "catalog_tools": 24,
+    "enforced": false,
+    "kind": "wave1-capability-selection-shadow",
+    "source_artifact": "wave0_baseline.json",
+    "timestamp": "2026-08-04T18:36:51.094742+00:00"
+  },
+  "uncatalogued_tools": []
+}

@@ -187,6 +187,7 @@ split-on-trailing-comma = false
 "evals/harness/baseline.py" = ["T201"]
 "evals/harness/console.py" = ["T201"]
 "evals/harness/resolution.py" = ["T201"]
+"evals/harness/selection_shadow.py" = ["T201"]
 "evals/harness/variant.py" = ["T201"]
 
 [lint.mccabe]
