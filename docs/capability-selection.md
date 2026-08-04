@@ -485,9 +485,12 @@ What exists:
   system actually exposes, so an absent integration drops out and a partly-exposed bundle
   is projected to its runnable subset. Availability is grounded in the live roster, not a
   separate requirements engine.
-- `rank_descriptors` (Stage 2): high-recall lexical retrieval, the shared Unicode-aware
-  fuzzy scorer over each bundle's `selection_text` and examples, best-per-bundle, plus a
-  structural boost when the request names a declared domain.
+- `rank_descriptors` (Stage 2): high-recall lexical retrieval weighted by inverse document
+  frequency over the catalog. Each bundle's pooled retrieval tokens (`selection_text`,
+  examples, domains, via the shared Unicode-aware tokenizer) are weighted so a word many
+  bundles share counts for little and a discriminating content word decides; a bundle
+  scores the IDF share of the request's retrievable tokens it covers. No language-specific
+  stopword list. See the finding below for why this replaced a raw token-set scorer.
 - `assemble_plan` (Stage 4): residents first and unconditional, then high score to low
   under a tool-count budget with dependency closure, so nothing is admitted half-
   functional. Below-floor, budget-displaced, and unavailable bundles all carry into the
@@ -496,30 +499,36 @@ What exists:
   utterance and the tools the model called), recomputes the plan across a budget sweep, and
   reports exact case- and tool-level recall@budget plus the tool saving.
 
-### First shadow finding (2026-08, `wave0_baseline`)
+### Shadow finding (2026-08, `wave0_baseline`)
 
-Nineteen of twenty-five cases called a tool. Recall against the demo catalog:
+Nineteen of twenty-five cases called a tool. The harness drove one scorer change end to
+end. The first retriever ranked bundles by `token_set_ratio` over each short descriptor
+document, which rewarded an incidental shared word: "turn up the heat" scored 67 against
+"turn off the living room lamp", floating `climate` and `volume` above the `device_control`
+bundle the request actually needed. The IDF-weighted scorer that replaced it down-weights
+words common across the catalog so the discriminating token decides. Recall against the
+demo catalog, before and after:
 
-| Budget | Case recall | Tool recall | Avg tools exposed |
+| Budget | Case recall (token-set) | Case recall (IDF) | Avg tools exposed (IDF) |
 |---|---|---|---|
-| 6  | 79% | 80% | 6 |
-| 8  | 89% | 90% | 8 |
-| 10 | 89% | 90% | 10 |
-| 24 (full) | 100% | 100% | 24 |
+| 6  | 79% | 84% | 5.9 |
+| 8  | 89% | 95% | 7.8 |
+| 10 | 89% | 95% | 9.7 |
+| 24 (full) | 100% | 100% | 21.8 |
 
 Two things to read from this, and one caveat:
 
-1. **The retriever is not ready to enforce.** At a tight budget the misses are ranking
-   errors, not budget starvation: for "turn off the living room lamp" the `climate` and
-   `volume` bundles outrank `device_control`, because `token_set_ratio` over short
-   descriptor documents rewards an incidental shared word ("the", "room"). Lexical
-   retrieval was the right cheap starting point, but the shadow number says the next work
-   is scorer quality (structural/domain evidence weighted above bare text overlap, or the
-   IDF variant the fuzzy scorer already carries), measured back through this same harness,
-   before selection may remove a real tool.
-2. **The instrument works and is honest.** It surfaces the exact miss and the bundle that
-   displaced the right one, and it separates a catalog gap (an uncatalogued used tool) from
-   a ranking miss so a gap cannot hide as low recall.
+1. **The instrument earned its keep on its first change.** It named the miss (`device_control`
+   displaced for "turn off the living room lamp") and the noise that caused it, the fix was
+   scored on the same corpus, and recall rose at every budget without a task-success change.
+   That loop, propose, measure, keep or revert, is the whole point of shadow mode.
+2. **The residual misses have named causes, not mystery.** At budget 6 both remaining misses
+   are `HassStartTimer`: the five-tool `timers` bundle cannot fit beside the two resident
+   reads, which is exactly the large-bundle case the design's second-stage per-tool
+   selection is meant to handle (docs "Bundles and tools"). "Open the garage door" is a
+   catalog/model-choice nuance: the model reached for `HassTurnOn`, but the request retrieves
+   the `covers` bundle. Neither is a scorer defect, and the harness separates them from a
+   catalog gap (an uncatalogued used tool) so a gap cannot hide as low recall.
 3. **The saving is catalog-relative and understates reality.** The baseline artifact does
    not record the full per-turn roster HA exposed, so the harness uses the twelve-bundle
    catalog (24 tools) as the denominator. A real home exposes more (generated scripts,
@@ -527,10 +536,11 @@ Two things to read from this, and one caveat:
    the true exposed roster needs a live shadow run that records `inner.tools` per turn;
    that is the follow-up, and it does not change the recall numbers above.
 
-This mirrors the prompt-context lesson: build the measurement first, let it tell you
-whether the optimization pays before you ship it. The gate to enforcement stays where
-Recommended v1 put it, a recall threshold at the target budget with no task-success
-regression, now with a harness that can report the number.
+The retriever still is not cleared to enforce: 95% at budget 8 on a 25-case set is a
+direction, not a gate pass, and the corpus is too small and too clean to trust a budget on
+(evaluation.md's ledger). The gate stays where Recommended v1 put it, a recall threshold at
+the target budget with no task-success regression, now with a harness that reports the
+number and a scorer that moves it.
 
 ---
 
