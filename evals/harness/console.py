@@ -84,7 +84,7 @@ from .backing import (  # noqa: E402
 from .corpus import World, load_corpus  # noqa: E402
 from .effects import ObservedEffect, effect_cursor, effects_since  # noqa: E402
 from .routing import LocalOutcome  # noqa: E402
-from .runner import _observe_from_trace  # noqa: E402
+from .runner import observe_from_trace  # noqa: E402
 from .scoring import ToolCall  # noqa: E402
 from .world import async_setup_local_agent  # noqa: E402
 
@@ -531,7 +531,7 @@ async def drive_turn(
                     speech = response.speech.get("plain", {}).get("speech", "")
                 if response.response_type is intent.IntentResponseType.ERROR:
                     error = speech or response.error_code.value
-                tools, generations = _observe_from_trace(
+                tools, generations = observe_from_trace(
                     async_get_traces()[-1].as_dict()["events"]
                 )
 

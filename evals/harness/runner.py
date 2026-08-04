@@ -28,10 +28,14 @@ from .scoring import CaseResult, ObservedTurn, ToolCall, score_case
 from .statediff import snapshot, unexpected_changes
 
 
-def _observe_from_trace(
+def observe_from_trace(
     trace_events: list[dict],
 ) -> tuple[tuple[ToolCall, ...], list[dict[str, int]]]:
-    """Split a turn's trace events into tool calls and generation records."""
+    """Split a turn's trace events into tool calls and generation records.
+
+    Shared with the multi-turn trajectory driver (`trajectory.py`), which reduces each
+    turn of a conversation the same way.
+    """
     tools: list[ToolCall] = []
     generations: list[dict[str, int]] = []
     for event in trace_events:
@@ -67,7 +71,7 @@ async def observe_turn(
     if response.speech:
         speech = response.speech.get("plain", {}).get("speech", "")
 
-    tools, generations = _observe_from_trace(async_get_traces()[-1].as_dict()["events"])
+    tools, generations = observe_from_trace(async_get_traces()[-1].as_dict()["events"])
     return ObservedTurn(
         speech=speech,
         tools=tools,

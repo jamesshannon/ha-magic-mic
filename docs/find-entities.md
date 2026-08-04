@@ -160,6 +160,18 @@ flags: a disambiguation happens to fit it, but "Couch lamp, or reading lamp."
 intentional rather than punctuation-dependent. This reframe **relies on** that
 upgrade rather than duplicating it.
 
+**As built: a scripted driver proves the round-trip.** `evals/harness/trajectory.py`
+drives a multi-turn conversation through the real testbed agent with the provider's
+per-generation output scripted (no live model), threading the `conversation_id` across
+turns. The driven test (`tests/components/magic_mic/test_trajectory.py`) exercises the
+whole loop: turn 1 calls `find_entities`, gets an ambiguous shortlist, asks, and actuates
+nothing; turn 2 in the same conversation resolves and turns on exactly the chosen light;
+and the acting generation's request replays turn 1's exchange. This is the scripted
+trajectory the build sequence requires before any Δturns or disambiguation-recovery claim
+([`build-sequence.md`](build-sequence.md), [`evaluation.md`](evaluation.md)). It proves the
+machinery deterministically; whether a *live* model chooses to ask when the shortlist comes
+back is a separate, model-dependent measurement.
+
 ---
 
 ## Design
