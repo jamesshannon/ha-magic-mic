@@ -67,6 +67,14 @@ class CaseCoverage:
 
 
 @dataclass(frozen=True)
+class CaseMiss:
+    """A case not fully covered at a budget, with the used tools that were not exposed."""
+
+    id: str
+    missed: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class BudgetRecall:
     """Aggregate recall and saving at one budget across the scorable cases."""
 
@@ -76,7 +84,7 @@ class BudgetRecall:
     tools_total: int
     tools_covered: int
     avg_exposed: float
-    misses: tuple[CaseTools, ...]
+    misses: tuple[CaseMiss, ...]
 
     @property
     def case_recall(self) -> float:
@@ -170,7 +178,9 @@ def shadow_recall(
             tools_covered=tools_covered,
             avg_exposed=avg_exposed,
             misses=tuple(
-                case for case in scorable if not per_case[case.id][budget].covered
+                CaseMiss(case.id, per_case[case.id][budget].missed)
+                for case in scorable
+                if not per_case[case.id][budget].covered
             ),
         )
     return recall
@@ -212,7 +222,8 @@ def build_shadow_artifact(
                     len(catalog.tool_names()) - result.avg_exposed, 2
                 ),
                 "misses": [
-                    {"id": miss.id, "used": list(miss.used)} for miss in result.misses
+                    {"id": miss.id, "missed": list(miss.missed)}
+                    for miss in result.misses
                 ],
             }
             for budget, result in recall.items()
@@ -265,7 +276,9 @@ def render_report(artifact: dict) -> str:
     misses = artifact["recall"][str(run["budgets"][0])]["misses"]
     if misses:
         lines += ["", f"  misses at the tightest budget ({run['budgets'][0]}):"]
-        lines.extend(f"    {miss['id']}: {', '.join(miss['used'])}" for miss in misses)
+        lines.extend(
+            f"    {miss['id']}: {', '.join(miss['missed'])}" for miss in misses
+        )
     return "\n".join(lines)
 
 

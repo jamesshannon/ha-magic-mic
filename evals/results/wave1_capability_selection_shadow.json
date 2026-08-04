@@ -47,7 +47,7 @@
         "10": true,
         "12": true,
         "24": true,
-        "6": false,
+        "6": true,
         "8": true
       },
       "id": "turn-off-living-room-lamp",
@@ -72,11 +72,11 @@
     },
     {
       "coverage": {
-        "10": false,
-        "12": false,
+        "10": true,
+        "12": true,
         "24": true,
         "6": false,
-        "8": false
+        "8": true
       },
       "id": "open-garage-door",
       "used": [
@@ -270,58 +270,44 @@
   ],
   "recall": {
     "10": {
-      "avg_exposed_tools": 10.0,
-      "avg_saved_tools": 14.0,
-      "case_recall": 0.8947,
-      "cases_covered": 17,
+      "avg_exposed_tools": 9.68,
+      "avg_saved_tools": 14.32,
+      "case_recall": 0.9474,
+      "cases_covered": 18,
       "cases_total": 19,
       "misses": [
         {
-          "id": "open-garage-door",
-          "used": [
-            "HassTurnOn"
-          ]
-        },
-        {
           "id": "conditional-reminder",
-          "used": [
-            "GetLiveContext",
+          "missed": [
             "HassStartTimer"
           ]
         }
       ],
-      "tool_recall": 0.9,
-      "tools_covered": 18,
+      "tool_recall": 0.95,
+      "tools_covered": 19,
       "tools_total": 20
     },
     "12": {
-      "avg_exposed_tools": 12.0,
-      "avg_saved_tools": 12.0,
-      "case_recall": 0.8947,
-      "cases_covered": 17,
+      "avg_exposed_tools": 11.58,
+      "avg_saved_tools": 12.42,
+      "case_recall": 0.9474,
+      "cases_covered": 18,
       "cases_total": 19,
       "misses": [
         {
-          "id": "open-garage-door",
-          "used": [
-            "HassTurnOn"
-          ]
-        },
-        {
           "id": "conditional-reminder",
-          "used": [
-            "GetLiveContext",
+          "missed": [
             "HassStartTimer"
           ]
         }
       ],
-      "tool_recall": 0.9,
-      "tools_covered": 18,
+      "tool_recall": 0.95,
+      "tools_covered": 19,
       "tools_total": 20
     },
     "24": {
-      "avg_exposed_tools": 24.0,
-      "avg_saved_tools": 0.0,
+      "avg_exposed_tools": 21.79,
+      "avg_saved_tools": 2.21,
       "case_recall": 1.0,
       "cases_covered": 19,
       "cases_total": 19,
@@ -331,65 +317,51 @@
       "tools_total": 20
     },
     "6": {
-      "avg_exposed_tools": 6.0,
-      "avg_saved_tools": 18.0,
-      "case_recall": 0.7895,
-      "cases_covered": 15,
+      "avg_exposed_tools": 5.89,
+      "avg_saved_tools": 18.11,
+      "case_recall": 0.8421,
+      "cases_covered": 16,
       "cases_total": 19,
       "misses": [
         {
-          "id": "turn-off-living-room-lamp",
-          "used": [
-            "HassTurnOff"
-          ]
-        },
-        {
           "id": "open-garage-door",
-          "used": [
+          "missed": [
             "HassTurnOn"
           ]
         },
         {
           "id": "start-timer",
-          "used": [
+          "missed": [
             "HassStartTimer"
           ]
         },
         {
           "id": "conditional-reminder",
-          "used": [
-            "GetLiveContext",
+          "missed": [
             "HassStartTimer"
           ]
         }
       ],
-      "tool_recall": 0.8,
-      "tools_covered": 16,
+      "tool_recall": 0.85,
+      "tools_covered": 17,
       "tools_total": 20
     },
     "8": {
-      "avg_exposed_tools": 8.0,
-      "avg_saved_tools": 16.0,
-      "case_recall": 0.8947,
-      "cases_covered": 17,
+      "avg_exposed_tools": 7.79,
+      "avg_saved_tools": 16.21,
+      "case_recall": 0.9474,
+      "cases_covered": 18,
       "cases_total": 19,
       "misses": [
         {
-          "id": "open-garage-door",
-          "used": [
-            "HassTurnOn"
-          ]
-        },
-        {
           "id": "conditional-reminder",
-          "used": [
-            "GetLiveContext",
+          "missed": [
             "HassStartTimer"
           ]
         }
       ],
-      "tool_recall": 0.9,
-      "tools_covered": 18,
+      "tool_recall": 0.95,
+      "tools_covered": 19,
       "tools_total": 20
     }
   },
@@ -408,7 +380,7 @@
     "enforced": false,
     "kind": "wave1-capability-selection-shadow",
     "source_artifact": "wave0_baseline.json",
-    "timestamp": "2026-08-04T18:36:51.094742+00:00"
+    "timestamp": "2026-08-04T18:45:46.027702+00:00"
   },
   "uncatalogued_tools": []
 }

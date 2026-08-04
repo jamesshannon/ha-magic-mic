@@ -21,14 +21,13 @@ manufactured provider registrations (docs "Capability catalog"). `selection_text
 than a tool description without charging every request for those tokens.
 """
 
+from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field
+import math
 
-from ..const import (
-    SELECTION_DOMAIN_BOOST,
-    SELECTION_RELEVANCE_FLOOR,
-    SELECTION_TOOL_BUDGET,
-)
-from ..fuzzy import score, tokenize
+from ..const import SELECTION_RELEVANCE_FLOOR, SELECTION_TOOL_BUDGET
+from ..fuzzy import tokenize
 
 
 @dataclass(slots=True, frozen=True)
@@ -305,18 +304,16 @@ def available_descriptors(
 
 @dataclass(slots=True, frozen=True)
 class ScoredDescriptor:
-    """A descriptor with its Stage-2 relevance score and the signals that produced it.
+    """A descriptor with its Stage-2 relevance score.
 
     ``score`` is a ranking device on a 0-100 scale, not a calibrated probability (docs
-    "Stage 2"). ``text`` is the lexical match against the retrieval documents; ``domain``
-    is the structural boost from an explicit domain word in the request. ``resident``
-    marks a bundle that is admitted regardless of score.
+    "Stage 2"): the IDF-weighted share of the request's retrievable content that this
+    bundle's retrieval document covers. ``resident`` marks a bundle the assembler admits
+    regardless of where it ranks.
     """
 
     descriptor: CapabilityDescriptor
     score: float
-    text: float
-    domain: float
     resident: bool
 
 
@@ -325,46 +322,64 @@ def rank_descriptors(
 ) -> list[ScoredDescriptor]:
     """Rank available descriptors by relevance to ``utterance`` (docs "Stage 2").
 
-    High-recall lexical retrieval: score the request against each retrieval document
-    (``selection_text`` and each example) with the shared Unicode-aware fuzzy scorer and
-    keep the best, so a near-paraphrase example lifts the bundle without diluting the
-    match across a long combined string. Add a structural boost when the request names one
-    of the bundle's declared domains outright. Resident bundles are ranked too, but the
-    assembler admits them regardless of where they land. Ties break on descriptor id for a
-    deterministic order.
+    High-recall lexical retrieval weighted by inverse document frequency across the
+    catalog. Each bundle's retrieval document is the pooled tokens of its
+    ``selection_text``, examples, and domains (via the shared Unicode-aware tokenizer). A
+    token's weight is its IDF over the available bundles, so a word common to many bundles
+    (a stopword, or "turn" and "set" shared by half the catalog) counts for little while a
+    discriminating content word ("thermostat", "volume", "lamp") decides. A bundle scores
+    the IDF-weighted share of the request's *retrievable* tokens it covers, ignoring query
+    words no bundle knows so an out-of-vocabulary name cannot flatten every score together.
+    This removes the short-document stopword inflation the first shadow run surfaced
+    without any language-specific stopword list. Ties break on descriptor id.
     """
     query_tokens = tokenize(utterance)
+    documents = {
+        descriptor.id: _bundle_tokens(descriptor) for descriptor in descriptors
+    }
+    document_frequency: Counter[str] = Counter()
+    for tokens in documents.values():
+        document_frequency.update(tokens)
+    total = len(documents)
+
+    def idf(token: str) -> float:
+        return math.log(1 + total / document_frequency[token])
+
+    # Only query tokens some bundle actually carries are retrievable; an unknown word
+    # cannot rank anything and would only shrink every score by the same denominator.
+    retrievable = {token for token in query_tokens if document_frequency[token]}
     ranked = [
-        _score_descriptor(utterance, query_tokens, descriptor)
+        ScoredDescriptor(
+            descriptor=descriptor,
+            score=_idf_coverage(retrievable, documents[descriptor.id], idf),
+            resident=descriptor.resident,
+        )
         for descriptor in descriptors
     ]
     ranked.sort(key=lambda scored: (-scored.score, scored.descriptor.id))
     return ranked
 
 
-def _score_descriptor(
-    utterance: str, query_tokens: set[str], descriptor: CapabilityDescriptor
-) -> ScoredDescriptor:
-    """Score one descriptor: best lexical document match plus the domain boost."""
-    documents = (descriptor.selection_text, *descriptor.examples)
-    text = max((score(utterance, document) for document in documents), default=0.0)
-    domain = (
-        SELECTION_DOMAIN_BOOST
-        if any(_domain_tokens(domain) & query_tokens for domain in descriptor.domains)
-        else 0.0
-    )
-    return ScoredDescriptor(
-        descriptor=descriptor,
-        score=text + domain,
-        text=text,
-        domain=domain,
-        resident=descriptor.resident,
-    )
+def _idf_coverage(
+    retrievable: set[str], bundle_tokens: set[str], idf: Callable[[str], float]
+) -> float:
+    """Return the IDF-weighted share of ``retrievable`` the bundle covers, in ``[0, 100]``."""
+    total = sum(idf(token) for token in retrievable)
+    if not total:
+        return 0.0
+    matched = sum(idf(token) for token in retrievable if token in bundle_tokens)
+    return 100.0 * matched / total
 
 
-def _domain_tokens(domain: str) -> set[str]:
-    """Tokenize a domain name so ``media_player`` matches the word ``player``."""
-    return tokenize(domain.replace("_", " "))
+def _bundle_tokens(descriptor: CapabilityDescriptor) -> set[str]:
+    """Pool a bundle's retrieval tokens: selection text, examples, and domain words."""
+    tokens = tokenize(descriptor.selection_text)
+    for example in descriptor.examples:
+        tokens |= tokenize(example)
+    for domain in descriptor.domains:
+        # Split so media_player contributes the word "player".
+        tokens |= tokenize(domain.replace("_", " "))
+    return tokens
 
 
 @dataclass(slots=True, frozen=True)

@@ -90,7 +90,7 @@ def test_tight_budget_misses_a_displaced_bundle() -> None:
     assert full[3].case_recall == 1.0
     assert tight[2].case_recall == 0.0
     assert tight[2].misses[0].id == "mismatch"
-    assert tight[2].misses[0].used == ("ToolB",)
+    assert tight[2].misses[0].missed == ("ToolB",)
 
 
 def test_uncatalogued_tool_is_surfaced_not_silently_missed() -> None:

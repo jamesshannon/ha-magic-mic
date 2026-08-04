@@ -81,11 +81,8 @@ FIND_ENTITIES_MAX_LIMIT = 25
 # full of scripts. Tunable on the eval.
 SELECTION_TOOL_BUDGET = 24
 # Retrieval floor: a descriptor scoring below this is not admitted on relevance alone
-# (dependencies and always-resident bundles bypass it). Bias to recall (docs "Optimize
-# for recall"): a false positive costs a few prompt tokens, a false negative breaks the
-# task. Lexical score is 0-100, same scale as the fuzzy scorer. Tunable.
-SELECTION_RELEVANCE_FLOOR = 20.0
-# Structural boost added to a descriptor's lexical score when the request names one of
-# its declared domains outright ("the light", "my calendar"). Keeps strong explicit
-# domain evidence above weak text overlap. Tunable.
-SELECTION_DOMAIN_BOOST = 25.0
+# (dependencies and always-resident bundles bypass it). Deliberately near zero, so it only
+# drops a bundle with no query overlap at all; budget and ranking do the real pruning, not
+# an aggressive early cut (docs "Optimize for recall": a false positive costs a few tokens,
+# a false negative breaks the task). Score is IDF-weighted coverage, 0-100. Tunable.
+SELECTION_RELEVANCE_FLOOR = 1.0

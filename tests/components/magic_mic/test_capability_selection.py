@@ -120,16 +120,33 @@ def test_ranking_puts_the_relevant_bundle_first() -> None:
     assert ranked[0].score > ranked[-1].score
 
 
-def test_domain_word_boosts_a_bundle() -> None:
-    """Naming a declared domain outright lifts the bundle over bare text overlap."""
+def test_idf_ignores_shared_words_and_ranks_on_the_discriminator() -> None:
+    """A stopword shared with the query does not lift a bundle; a rare content word does.
+
+    "turn off the living room lamp" shares "turn"/"the" with several bundles, but only the
+    device-control and light bundles carry the discriminating words, so the thermostat and
+    volume bundles must not outrank them the way the raw token-set scorer let them.
+    """
     catalog = default_catalog()
     available = available_descriptors(catalog, _ROSTER)
 
-    ranked = rank_descriptors("what is the weather like", available.descriptors)
-    weather = next(scored for scored in ranked if scored.descriptor.id == "weather")
+    ranked = rank_descriptors("turn off the living room lamp", available.descriptors)
+    rank = {scored.descriptor.id: position for position, scored in enumerate(ranked)}
 
-    assert weather.domain > 0.0
-    assert weather.score == weather.text + weather.domain
+    assert rank["device_control"] < rank["climate"]
+    assert rank["device_control"] < rank["volume"]
+
+
+def test_out_of_vocabulary_word_does_not_flatten_scores() -> None:
+    """A query word no bundle knows is ignored, so a real match still scores high."""
+    catalog = default_catalog()
+    available = available_descriptors(catalog, _ROSTER)
+
+    # "xyzzy" is in no descriptor; the volume signal should still dominate.
+    ranked = rank_descriptors("set the xyzzy volume", available.descriptors)
+
+    assert ranked[0].descriptor.id == "volume"
+    assert ranked[0].score > 50.0
 
 
 def test_plan_exposes_the_used_tool_across_the_corpus() -> None:
