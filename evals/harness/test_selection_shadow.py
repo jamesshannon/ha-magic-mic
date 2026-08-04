@@ -150,6 +150,39 @@ def test_configured_aliases_cover_oblique_requests() -> None:
     assert recall[8].avg_exposed < 20
 
 
+def test_recall_is_reported_by_phrasing_regime() -> None:
+    """Tagged cases get a per-regime recall breakdown, not just an aggregate."""
+    catalog = default_catalog()
+    cases = [
+        CaseTools(
+            "a",
+            "turn off the living room lamp",
+            ("HassTurnOff",),
+            phrasing="in_vocabulary",
+        ),
+        CaseTools(
+            "b",
+            "add milk to my shopping list",
+            ("HassListAddItem",),
+            phrasing="out_of_vocabulary",
+        ),
+        CaseTools("c", "what time is it", ("GetDateTime",)),
+    ]
+
+    artifact = build_shadow_artifact(
+        Path("c.yaml"), catalog, cases, (24,), basis="expected-tool"
+    )
+
+    assert set(artifact["recall_by_phrasing"]) == {
+        "in_vocabulary",
+        "out_of_vocabulary",
+    }
+    assert artifact["recall_by_phrasing"]["in_vocabulary"]["24"]["cases_total"] == 1
+    # The untagged case still counts in the aggregate.
+    assert artifact["recall"]["24"]["cases_total"] == 3
+    assert artifact["cases"][0]["phrasing"] == "in_vocabulary"
+
+
 def test_shadow_artifact_shape() -> None:
     """The artifact carries run metadata, per-budget recall, and per-case coverage."""
     catalog = default_catalog()

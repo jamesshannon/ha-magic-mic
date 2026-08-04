@@ -17,6 +17,15 @@ WAVE0_GOLDEN_SET = CORPUS_DIR / "wave0_golden_set.yaml"
 ROUTING_LOCAL = "local"
 ROUTING_LLM = "llm"
 _ROUTING_VALUES = frozenset({ROUTING_LOCAL, ROUTING_LLM})
+
+# Correlation regime for capability-selection measurement: how well a case's phrasing
+# aligns with the target's configured metadata. `in_vocabulary` is the configuring user's
+# own words (name/alias overlap is realistic and legitimate); `out_of_vocabulary` is a
+# different speaker, a guest, or drift, whose words the configured triggers may not
+# anticipate. Untagged cases (plain device control, reads) sit in neither.
+PHRASING_IN_VOCAB = "in_vocabulary"
+PHRASING_OUT_OF_VOCAB = "out_of_vocabulary"
+_PHRASING_VALUES = frozenset({PHRASING_IN_VOCAB, PHRASING_OUT_OF_VOCAB})
 _PROVIDER_OPTION_KEYS = frozenset({"web_fetch", "web_search"})
 _READ_ONLY_SUPPORTING_TOOLS = frozenset({"GetDateTime", "GetLiveContext"})
 
@@ -150,6 +159,7 @@ class Case:
     category: str
     routing_truth: str
     resolves_at_wave0: bool
+    phrasing: str | None = None
     requires: tuple[str, ...] = ()
     provider_options: ProviderOptions = field(default_factory=ProviderOptions)
     expected: Expected | tuple[Expected, ...] = ()
@@ -331,6 +341,7 @@ def _parse_case(raw: dict[str, Any]) -> Case:
         category=raw["category"],
         routing_truth=raw["routing_truth"],
         resolves_at_wave0=resolves_at_wave0,
+        phrasing=raw.get("phrasing"),
         requires=tuple(raw.get("requires") or ()),
         provider_options=_parse_provider_options(raw.get("provider_options")),
         expected=_parse_expectation(raw.get("expected")),
@@ -380,6 +391,11 @@ def validate_corpus(corpus: Corpus) -> None:
             problems.append(
                 f"{case.id}: routing_truth must be one of "
                 f"{sorted(_ROUTING_VALUES)}, got {case.routing_truth!r}"
+            )
+        if case.phrasing is not None and case.phrasing not in _PHRASING_VALUES:
+            problems.append(
+                f"{case.id}: phrasing must be one of "
+                f"{sorted(_PHRASING_VALUES)}, got {case.phrasing!r}"
             )
         if not case.resolves_at_wave0 and (
             as_alternatives(case.expected)

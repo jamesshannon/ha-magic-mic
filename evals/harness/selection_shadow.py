@@ -52,11 +52,17 @@ class ShadowError(Exception):
 
 @dataclass(frozen=True)
 class CaseTools:
-    """One case reduced to what shadow scoring needs: its request and the tools it used."""
+    """One case reduced to what shadow scoring needs: its request and the tools it used.
+
+    ``phrasing`` is the optional correlation-regime tag (``in_vocabulary`` /
+    ``out_of_vocabulary``) that lets the report break recall down by how well the request's
+    wording aligns with the target's configured metadata.
+    """
 
     id: str
     utterance: str
     used: tuple[str, ...]
+    phrasing: str | None = None
 
 
 @dataclass(frozen=True)
@@ -140,7 +146,14 @@ def load_case_tools_from_corpus(corpus: Corpus) -> list[CaseTools]:
             if outcomes
             else ()
         )
-        reduced.append(CaseTools(id=case.id, utterance=case.utterance, used=used))
+        reduced.append(
+            CaseTools(
+                id=case.id,
+                utterance=case.utterance,
+                used=used,
+                phrasing=case.phrasing,
+            )
+        )
     return reduced
 
 
@@ -232,6 +245,29 @@ def shadow_recall(
     return recall
 
 
+def _serialize_recall(
+    recall: dict[int, BudgetRecall], catalog: Catalog
+) -> dict[str, dict]:
+    """Serialize a per-budget recall map to the artifact's JSON shape."""
+    roster = len(catalog.tool_names())
+    return {
+        str(budget): {
+            "case_recall": round(result.case_recall, 4),
+            "tool_recall": round(result.tool_recall, 4),
+            "cases_covered": result.cases_covered,
+            "cases_total": result.cases_total,
+            "tools_covered": result.tools_covered,
+            "tools_total": result.tools_total,
+            "avg_exposed_tools": round(result.avg_exposed, 2),
+            "avg_saved_tools": round(roster - result.avg_exposed, 2),
+            "misses": [
+                {"id": miss.id, "missed": list(miss.missed)} for miss in result.misses
+            ],
+        }
+        for budget, result in recall.items()
+    }
+
+
 def build_shadow_artifact(
     source: Path,
     catalog: Catalog,
@@ -244,11 +280,24 @@ def build_shadow_artifact(
 
     ``basis`` records what recall is measured against: ``actual-tool-use`` (the tool a
     live model called, from a scored baseline) or ``expected-tool`` (the tool a corpus
-    case declares it should call).
+    case declares it should call). When cases carry a ``phrasing`` tag, recall is also
+    reported per regime under ``recall_by_phrasing``, so the aggregate does not hide a low
+    out-of-vocabulary number behind an easy in-vocabulary one.
     """
-    recall = shadow_recall(cases, catalog, budgets)
     gaps = sorted(uncatalogued_tools(cases, catalog))
     scorable = [case for case in cases if case.used]
+    regimes = sorted({case.phrasing for case in scorable if case.phrasing})
+    recall_by_phrasing = {
+        regime: _serialize_recall(
+            shadow_recall(
+                [case for case in scorable if case.phrasing == regime],
+                catalog,
+                budgets,
+            ),
+            catalog,
+        )
+        for regime in regimes
+    }
     return {
         "run": {
             "kind": "wave1-capability-selection-shadow",
@@ -263,30 +312,14 @@ def build_shadow_artifact(
             "enforced": False,
         },
         "uncatalogued_tools": gaps,
-        "recall": {
-            str(budget): {
-                "case_recall": round(result.case_recall, 4),
-                "tool_recall": round(result.tool_recall, 4),
-                "cases_covered": result.cases_covered,
-                "cases_total": result.cases_total,
-                "tools_covered": result.tools_covered,
-                "tools_total": result.tools_total,
-                "avg_exposed_tools": round(result.avg_exposed, 2),
-                "avg_saved_tools": round(
-                    len(catalog.tool_names()) - result.avg_exposed, 2
-                ),
-                "misses": [
-                    {"id": miss.id, "missed": list(miss.missed)}
-                    for miss in result.misses
-                ],
-            }
-            for budget, result in recall.items()
-        },
+        "recall": _serialize_recall(shadow_recall(scorable, catalog, budgets), catalog),
+        "recall_by_phrasing": recall_by_phrasing,
         "cases": [
             {
                 "id": case.id,
                 "utterance": case.utterance,
                 "used": list(case.used),
+                "phrasing": case.phrasing,
                 "coverage": {
                     str(budget): coverage.covered
                     for budget, coverage in score_case(case, catalog, budgets).items()
@@ -320,6 +353,13 @@ def render_report(artifact: dict) -> str:
             f"{record['tool_recall']:>11.0%}  "
             f"{record['avg_exposed_tools']:>12}  "
             f"{record['avg_saved_tools']:>10}"
+        )
+    for regime, by_budget in artifact.get("recall_by_phrasing", {}).items():
+        total = next(iter(by_budget.values()))["cases_total"]
+        lines += ["", f"  {regime} case recall ({total} cases)"]
+        lines.extend(
+            f"  {budget:>6}  {by_budget[str(budget)]['case_recall']:>11.0%}"
+            for budget in run["budgets"]
         )
     if artifact["uncatalogued_tools"]:
         lines += [
