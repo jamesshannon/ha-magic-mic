@@ -589,34 +589,47 @@ abandoning selection.
 
 A Home Assistant script does not carry only its name. It can hold **voice triggers** (the
 sentences a household configures for HASSIL to match) and a **description**, and both are
-retrieval documents the first pass threw away. Wiring them in (`action_descriptor` now takes
-`aliases` and `description`; the corpus `Entity` carries them) closes the ceiling:
+retrieval documents the first pass threw away. `action_descriptor` now takes `aliases` and
+`description`, and the corpus `Entity` carries them.
 
-| Budget | Case recall, names only | Case recall, with aliases + descriptions |
-|---|---|---|
-| 8  | 76% | 100% |
-| 24 | 82% | 100% |
-| 50 (full) | 82% | 100% |
+The confound to avoid here is not that aliases help, which is realistic and the intended
+operating condition: the person configuring a home is cooperative, they *want* to be
+understood, and nobody writes cryptic entity names to spite the ranker. The confound is
+**clairvoyance**, an author who has seen the exact test utterances writing triggers to
+match them. So the aliases in `wave1_scripts.yaml` are authored from each script's *purpose*
+(the phrasings a household would naturally add), twelve of the twenty-six scripts carry none
+at all, and every case is tagged by how well its wording aligns with the configured metadata:
 
-At budget 8 the aliased run exposes about eight of the fifty tools at full recall. The three
-oblique misses now bridge on a configured phrase: "going to bed" reaches `Bedtime`, "heading
-out" reaches `Leaving Home`, "time to read" reaches `Reading Mode` on the shared "read". A
-household's own trigger phrasings are the strongest signal available, because a person wrote
-them *as* the things people say, and they are per-home real language rather than the English
-`selection_text` this doc hand-authored, so leaning on them also chips at the localization
-worry (R14).
+- **in-vocabulary**, the configuring user's own words, where name/alias overlap is real and
+  legitimate;
+- **out-of-vocabulary**, a different speaker (a partner, a guest) or drift, phrased without
+  regard to the triggers.
 
-**This is graded homework, and the 100% should be read as a ceiling, not a field result.**
-The aliases here were written by a developer who could see the test utterances. They are
-deliberately not verbatim copies (the bridge from "I'm going to sleep" is "going to bed", not
-"going to sleep"), and most scripts carry no aliases at all, but a real home's triggers will
-be sparser and will miss phrasings no one anticipated. What this run actually proves is that
-the mechanism works: aliases and descriptions flow into ranking and move recall. What it does
-*not* prove is that real configured metadata is good enough to enforce a budget on. The next
-honest step is to handicap the aliases, drop or thin them toward what a lazy household would
-actually set, and re-measure the gap that survives. Whatever remains after realistic aliases
-and Unicode stemming is the real case for embeddings or the discovery fallback, not this
-number. Tracked in evaluation.md's ledger.
+Recall by regime on the 50-tool home, at budget 8 (which exposes about seven tools):
+
+| Regime | Cases | Case recall | What it says |
+|---|---|---|---|
+| in-vocabulary | 8 | 100% | a cooperative user is fully served by their own triggers |
+| out-of-vocabulary | 8 | 88% (7/8) | good aliases generalize to a different speaker, mostly |
+| aggregate | 19 | 95% | hides ~43 of 50 tools at this budget |
+
+The number that matters for enforcement is the out-of-vocabulary one, and it is the honest
+result: cooperative, purpose-written metadata carries most of a different speaker's
+rephrasing, and the residual is genuine synonymy. The single miss is "help me concentrate" ->
+`Focus Mode`, where the configured triggers are "work mode" and "deep work" and no lexical
+bridge to "concentrate" exists. That is the clean case for embeddings or the discovery
+fallback: a synonym no configured phrase anticipated.
+
+Two honesty caveats keep the 88% from being oversold. The sample is eight cases, so it is
+7/8, not a stable rate. And two of the seven hits land on incidental words rather than real
+semantic overlap: "I'm taking off" reaches `Leaving Home` only through "off" in its
+description, "let's have some fun" reaches `Party Mode` only through "let's" in an alias.
+Widen the out-of-vocabulary set and some of those lucky hits will turn into misses. The
+leaning-on-configured-metadata result also chips at the localization worry (R14), because
+aliases and triggers are the home's own language rather than the English `selection_text`
+this doc hand-authored. Next moves, tracked in evaluation.md's ledger: a larger and harder
+out-of-vocabulary set (and non-English cases), Unicode stemming for the "concentrate" class,
+and only then embeddings or discovery for whatever synonym gap survives.
 
 ---
 
