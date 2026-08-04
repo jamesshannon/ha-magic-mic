@@ -176,6 +176,24 @@ before any Δturns or disambiguation-recovery claim ([`build-sequence.md`](build
 Δturns number (a *live* model choosing when to ask over these same worlds) is a separate,
 model-dependent run.
 
+**The live run exists, and the first pass did not recover.** `evals/harness/trajectory_live.py`
+drives the same corpus worlds and utterances through the real testbed proxy with a key,
+letting the model generate its own tool calls (no scripting). It stops the moment the
+action tool fires, so the turn count is emergent, and stands each case up on its own HA
+instance so a prior world's entities cannot leak into the next case's `find_entities`
+search. The first live pass (2026-08, `claude-haiku-4-5`, artifact
+`evals/results/wave1_disambiguation_live.json`) recovered zero of the two ambiguous cases:
+the model acted on the first turn instead of asking. Two of those four cases turned out to
+be mis-authored for a live model, which the scripted harness could not have surfaced: the
+two-way case names one light exactly "Bedroom Light", so "turn on the bedroom light" is an
+exact match, not an ambiguity; and the search-with-alternatives case gives no follow-up
+turn, so a model that asks "which light?" first (as haiku did) cannot complete. The
+three-way case is a genuine finding: given three lamps and "turn on the lamp", haiku both
+fired `HassTurnOn(name="lamp")` and spoke a clarifying question in the same turn, ending the
+conversation, so it left the wrong state (scored MISFIRED). A live disambiguation Δturns
+number needs a corpus authored for genuine live ambiguity (no exact-name shortcut, and a
+follow-up turn on every case) before it can mean anything; the runner is ready for it.
+
 ---
 
 ## Design

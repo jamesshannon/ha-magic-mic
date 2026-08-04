@@ -99,12 +99,17 @@ async def drive_trajectory(
     utterances: list[str],
     *,
     device_id: str | None = None,
+    stop_on_action: str | None = None,
 ) -> list[TurnObservation]:
     """Drive ``utterances`` in order as one conversation, threading the conversation id.
 
-    The caller scripts the provider's generations for the entire trajectory before
-    calling this; each turn's `async_converse` consumes as many generations as its
-    scripted responses declare.
+    With a scripted provider the caller scripts the generations for the whole trajectory
+    up front; each turn's `async_converse` consumes as many as its scripted responses
+    declare. Against a live model the same utterances are driven, but the model generates
+    freely, so ``stop_on_action`` matters: pass the action tool's name and the drive stops
+    the moment a turn fires it, leaving the remaining follow-up utterances unspoken. That
+    makes the turn count emergent (how many turns the model actually needed), not a
+    consequence of always speaking every authored line even after the task was done.
     """
     observations: list[TurnObservation] = []
     conversation_id: str | None = None
@@ -118,6 +123,8 @@ async def drive_trajectory(
         )
         observations.append(observation)
         conversation_id = observation.conversation_id
+        if stop_on_action is not None and observation.called(stop_on_action):
+            break
     return observations
 
 

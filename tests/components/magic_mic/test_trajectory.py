@@ -106,6 +106,46 @@ async def test_ambiguous_resolution_asks_then_a_follow_up_resolves(
     assert disambiguation_recovered([ask, resolve], action_tool="HassTurnOn")
 
 
+async def test_stop_on_action_ends_the_drive_when_the_action_fires(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_create_stream: AsyncMock,
+) -> None:
+    """A live-style drive stops the moment the action fires; follow-ups stay unspoken.
+
+    This is what makes the live turn count emergent: a model that acts on the first turn
+    is not fed the authored clarification follow-up, so it scores as a one-turn direct hit
+    rather than being dragged through a round-trip it never needed.
+    """
+    await _two_bedroom_lights(hass)
+    testbed_id = _testbed_id(hass, setup_integration)
+
+    # Turn 1 acts immediately (tool_use then end_turn); the follow-up turn's generation is
+    # scripted but must be left unconsumed once the action fires.
+    mock_create_stream.return_value = [
+        create_tool_use_block(
+            0, "toolu_on", "HassTurnOn", ['{"name": "Bedroom Light"}']
+        ),
+        create_content_block(0, ["Turned on the Bedroom Light."]),
+        create_content_block(0, ["This follow-up must never be spoken."]),
+    ]
+
+    observations = await drive_trajectory(
+        hass,
+        testbed_id,
+        ["turn on the bedroom light", "the ceiling one"],
+        stop_on_action="HassTurnOn",
+    )
+
+    # Only the first utterance was driven; the follow-up generation was left unconsumed.
+    assert len(observations) == 1
+    assert observations[0].utterance == "turn on the bedroom light"
+    assert observations[0].called("HassTurnOn")
+    assert len(mock_create_stream.return_value) == 1
+    assert hass.states.get(_CEILING).state == "on"
+    assert not disambiguation_recovered(observations, action_tool="HassTurnOn")
+
+
 async def test_follow_up_generation_sees_the_prior_turn_history(
     hass: HomeAssistant,
     setup_integration: MockConfigEntry,

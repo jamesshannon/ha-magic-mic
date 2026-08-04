@@ -1,0 +1,152 @@
+{
+  "cases": [
+    {
+      "expected_shape": "recovered",
+      "final_state": {
+        "light.bedroom_ceiling": "on",
+        "light.bedroom_lamp": "off"
+      },
+      "id": "ambiguous-two-bedroom-lights",
+      "outcome": "direct",
+      "passed": false,
+      "tags": [
+        "disambiguation",
+        "two-way"
+      ],
+      "turns": [
+        {
+          "continue_conversation": false,
+          "resolved": true,
+          "speech": "Done! The bedroom light is now on.",
+          "tools": [
+            {
+              "args": {
+                "domain": [
+                  "light"
+                ],
+                "name": "Bedroom Light"
+              },
+              "name": "HassTurnOn"
+            }
+          ],
+          "utterance": "turn on the bedroom light"
+        }
+      ],
+      "turns_to_complete": 1
+    },
+    {
+      "expected_shape": "recovered",
+      "final_state": {
+        "light.corner_lamp": "on",
+        "light.left_lamp": "off",
+        "light.right_lamp": "off"
+      },
+      "id": "ambiguous-three-living-room-lamps",
+      "outcome": "misfired",
+      "passed": false,
+      "tags": [
+        "disambiguation",
+        "three-way"
+      ],
+      "turns": [
+        {
+          "continue_conversation": false,
+          "resolved": true,
+          "speech": "I found three lamps in your living room. Which one would you like to turn on?\n- Left Lamp\n- Right Lamp\n- Corner Lamp\n\nOr I can turn them all on if you'd like.",
+          "tools": [
+            {
+              "args": {
+                "area": "living room",
+                "domain": [
+                  "light"
+                ],
+                "name": "lamp"
+              },
+              "name": "HassTurnOn"
+            },
+            {
+              "args": {
+                "area": "living room",
+                "domain": "light"
+              },
+              "name": "find_entities"
+            }
+          ],
+          "utterance": "turn on the lamp"
+        }
+      ],
+      "turns_to_complete": 1
+    },
+    {
+      "expected_shape": "direct",
+      "final_state": {
+        "light.kitchen": "on"
+      },
+      "id": "direct-kitchen-light",
+      "outcome": "direct",
+      "passed": true,
+      "tags": [
+        "direct"
+      ],
+      "turns": [
+        {
+          "continue_conversation": false,
+          "resolved": true,
+          "speech": "Done! The kitchen light is now on.",
+          "tools": [
+            {
+              "args": {
+                "domain": [
+                  "light"
+                ],
+                "name": "Kitchen Light"
+              },
+              "name": "HassTurnOn"
+            }
+          ],
+          "utterance": "turn on the kitchen light"
+        }
+      ],
+      "turns_to_complete": 1
+    },
+    {
+      "expected_shape": "direct",
+      "final_state": {
+        "light.overhead": "off",
+        "light.reading_lamp": "on"
+      },
+      "id": "search-alternatives-then-act",
+      "outcome": "no_action",
+      "passed": false,
+      "tags": [
+        "direct",
+        "discovery"
+      ],
+      "turns": [
+        {
+          "continue_conversation": true,
+          "resolved": true,
+          "speech": "I'd be happy to help! To assist with reading, I can:\n\n1. **Adjust the lights** - Would you like me to turn on or dim the lights in the living room for reading?\n2. **Set a specific brightness** - I can set the lights to a comfortable level (for example, 70-80% brightness is good for reading)\n3. **Set a timer** - If you want a reminder when to stop reading, I can set one\n\nWhat would you like me to do?",
+          "tools": [],
+          "utterance": "I want to read"
+        }
+      ],
+      "turns_to_complete": null
+    }
+  ],
+  "run": {
+    "cases": 4,
+    "corpus": "wave1_disambiguation.yaml",
+    "kind": "wave1-disambiguation-live",
+    "model": "claude-haiku-4-5",
+    "timestamp": "2026-08-04T22:31:40.306145+00:00"
+  },
+  "scorecard": {
+    "mean_turns_to_complete": 1.0,
+    "misfired": 1,
+    "no_action": 1,
+    "passed": 1,
+    "recovered": 0,
+    "total": 4
+  }
+}
