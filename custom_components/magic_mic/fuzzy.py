@@ -26,7 +26,7 @@ dependency as optional (find-entities.md "Dependency: rapidfuzz"). Depends on ne
 """
 
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 import math
@@ -122,7 +122,9 @@ def score(query: str, name: str) -> float:
     return _difflib_token_set_ratio(query_normalized, name_normalized)
 
 
-def score_candidates(query: str, candidates: dict[str, Candidate]) -> list[Scored]:
+def score_candidates(
+    query: str | Sequence[str], candidates: dict[str, Candidate]
+) -> list[Scored]:
     """Score each candidate by its best-matching document, ranked high to low.
 
     ``candidates`` maps an opaque key (an ``entity_id`` for the entity consumers) to a
@@ -130,9 +132,24 @@ def score_candidates(query: str, candidates: dict[str, Candidate]) -> list[Score
     are scored separately and the best is kept: per-alias so a query cannot span two
     different aliases, location-on-each so it can span a name token and an area token.
     Candidates with no documents are dropped.
+
+    ``query`` may be one string or a list of alternatives to OR together (synonyms the
+    caller wants to broaden with). Each alternative is scored independently and a
+    candidate keeps its single best, so a stuffed disjunction cannot dilute a strong
+    single-term hit the way one pooled string would (find-entities.md).
     """
+    queries = _as_queries(query)
+    if not queries:
+        return []
     ranked = [
-        Scored(key, max(score(query, document) for document in documents))
+        Scored(
+            key,
+            max(
+                score(alternative, document)
+                for alternative in queries
+                for document in documents
+            ),
+        )
         for key, candidate in candidates.items()
         if (documents := candidate.documents())
     ]
@@ -161,9 +178,12 @@ def resolve(ranked: list[Scored], limit: int) -> Resolution:
 
 
 def resolve_candidates(
-    query: str, candidates: dict[str, Candidate], limit: int
+    query: str | Sequence[str], candidates: dict[str, Candidate], limit: int
 ) -> Resolution:
     """Resolve a fuzzy ``query`` against ``candidates`` (the shared primitive entry point).
+
+    ``query`` is one string or a list of alternatives to OR together; each is scored
+    independently and a candidate keeps its best (see `score_candidates`).
 
     Union `token_set_ratio` first; if that decides or finds nothing, return it. Only when
     it leaves an above-floor cluster ambiguous *and* there are enough candidates for IDF
@@ -172,14 +192,18 @@ def resolve_candidates(
     can therefore break a tie but never demote the union result: small homes and recall
     are unaffected, and the cost is paid only on the ambiguous large-set path.
     """
-    union = resolve(score_candidates(query, candidates), limit)
+    queries = _as_queries(query)
+    if not queries:
+        return Resolution(None)
+    union = resolve(score_candidates(queries, candidates), limit)
     if union.match is not None or not union.ambiguous:
         return union
     if len(candidates) < FUZZY_IDF_MIN_CANDIDATES:
         return union
 
     weighted = {
-        scored.key: scored.score for scored in _score_candidates_idf(query, candidates)
+        scored.key: scored.score
+        for scored in _score_candidates_idf(queries, candidates)
     }
     cluster = sorted(
         (
@@ -193,7 +217,9 @@ def resolve_candidates(
     return reranked if reranked.match is not None else union
 
 
-def _score_candidates_idf(query: str, candidates: dict[str, Candidate]) -> list[Scored]:
+def _score_candidates_idf(
+    query: str | Sequence[str], candidates: dict[str, Candidate]
+) -> list[Scored]:
     """Score each candidate by IDF-weighted token coverage over the candidate set.
 
     Each candidate contributes one token set per document (name/alias + location); a
@@ -205,6 +231,10 @@ def _score_candidates_idf(query: str, candidates: dict[str, Candidate]) -> list[
     query-side keeps a subset of a longer name scoring high, doc-side stops an unmatched
     content word in the query from being ignored. Per-document (not one pooled bag) so a
     match cannot span two different aliases.
+
+    A multi-alternative ``query`` scores each alternative's token set independently and
+    keeps the best, matching the union stage: an alternative's unmatched words are not
+    charged against a different alternative that hit.
     """
     docs = {
         key: token_docs
@@ -221,10 +251,15 @@ def _score_candidates_idf(query: str, candidates: dict[str, Candidate]) -> list[
         # unmatched content word is penalized rather than ignored.
         return math.log(1 + total / document_frequency.get(token, 1))
 
-    query_tokens = tokenize(query)
+    query_token_sets = [tokenize(alternative) for alternative in _as_queries(query)]
     return [
         Scored(
-            key, max(_idf_coverage(query_tokens, tokens, idf) for tokens in token_docs)
+            key,
+            max(
+                _idf_coverage(query_tokens, tokens, idf)
+                for query_tokens in query_token_sets
+                for tokens in token_docs
+            ),
         )
         for key, token_docs in docs.items()
     ]
@@ -290,6 +325,18 @@ def _difflib_token_set_ratio(query: str, name: str) -> float:
         SequenceMatcher(None, core, name_only).ratio(),
         SequenceMatcher(None, query_only, name_only).ratio(),
     )
+
+
+def _as_queries(query: str | Sequence[str]) -> tuple[str, ...]:
+    """Normalize a query to a tuple of alternatives; a bare string is one alternative.
+
+    A list lets a caller OR several synonyms together (find-entities.md): the LLM emits
+    structured alternatives rather than a boolean string, so nothing here parses an
+    operator, and it stays language-neutral. Empty and whitespace-only alternatives are
+    dropped so a stray "" cannot become a candidate document.
+    """
+    alternatives = (query,) if isinstance(query, str) else tuple(query)
+    return tuple(alternative for alternative in alternatives if alternative.strip())
 
 
 def tokenize(value: str) -> set[str]:

@@ -52,7 +52,7 @@
     "find_entities": {
       "description": "Look up Home Assistant entities and their entity_ids by fuzzy name and/or by structured filters (area, floor, domain, device class, state). Use it when you need entity_ids as data rather than to act now: authoring a reminder or automation, listing what exists in an area, or resolving an approximate name before another step. Returns scored candidates; when several are close it flags them ambiguous so you can ask which one.",
       "fields": {
-        "name": "Approximate entity name or alias; matched fuzzily.",
+        "name": "Approximate entity name or alias, matched fuzzily; one or a list of alternatives to try together (synonyms or rephrasings). The best-matching alternative wins, so broadening the search does not weaken a strong match.",
         "area": "Restrict to an area by name, id, or alias.",
         "floor": "Restrict to a floor by name, id, or alias.",
         "domain": "Restrict by domain (for example, 'light'); one or a list.",

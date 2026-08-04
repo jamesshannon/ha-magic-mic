@@ -231,3 +231,73 @@ def test_idf_tiebreak_works_without_rapidfuzz(monkeypatch: pytest.MonkeyPatch) -
 
     assert resolution.match is not None
     assert resolution.match.key == "cover.blind"
+
+
+# A synonym-broadening set: only "focus"/"deep work" name the office script; the other
+# alternatives a model might OR in ("concentration", "zone") match nothing here.
+_FOCUS_HOME = {
+    "script.focus_mode": Candidate(("Focus Mode", "deep work"), context=("office",)),
+    "script.reading_mode": Candidate(("Reading Mode",), context=("living room",)),
+    "script.movie_night": Candidate(("Movie Night",), context=("living room",)),
+    "script.party_mode": Candidate(("Party Mode",), context=("living room",)),
+    "script.coffee_time": Candidate(("Coffee Time",), context=("kitchen",)),
+}
+
+
+def test_pooled_synonym_string_dilutes_below_the_floor() -> None:
+    """One string of OR-ed synonyms scores worse than its best term: the miss we fix.
+
+    "focus concentration" pools three query tokens against "Focus Mode" where only
+    "focus" hits, so token_set_ratio falls under the floor and nothing resolves. This
+    pins the motivation for list alternatives.
+    """
+    pooled = resolve_candidates("focus concentration", _FOCUS_HOME, 5)
+
+    assert pooled.match is None
+    assert pooled.candidates == []
+    # The single strong term, alone, would have resolved outright.
+    assert score("focus", "Focus Mode office") >= FUZZY_ACCEPT_SCORE
+
+
+def test_list_alternatives_keep_the_best_and_do_not_dilute() -> None:
+    """A list ORs the synonyms: the strong alternative wins, the empty ones cost nothing."""
+    resolution = resolve_candidates(
+        ["concentration", "focus", "zone", "deep work"], _FOCUS_HOME, 5
+    )
+
+    assert resolution.match is not None
+    assert resolution.match.key == "script.focus_mode"
+    assert resolution.match.score >= FUZZY_ACCEPT_SCORE
+
+
+def test_a_single_item_list_matches_the_bare_string() -> None:
+    """Wrapping one query in a list changes nothing; it is one alternative."""
+    as_string = resolve_candidates("reading lamp", _SHARED_WORD_HOME, 5)
+    as_list = resolve_candidates(["reading lamp"], _SHARED_WORD_HOME, 5)
+
+    assert (as_string.match is None) == (as_list.match is None)
+    assert [s.key for s in as_string.candidates] == [s.key for s in as_list.candidates]
+
+
+def test_empty_and_blank_alternatives_are_dropped() -> None:
+    """Whitespace-only alternatives never become candidate documents or a match."""
+    assert resolve_candidates([], _FOCUS_HOME, 5).match is None
+    assert resolve_candidates(["", "  "], _FOCUS_HOME, 5).candidates == []
+    # A blank alternative alongside a real one is ignored, not scored as a hit.
+    resolution = resolve_candidates(["", "focus"], _FOCUS_HOME, 5)
+    assert resolution.match is not None
+    assert resolution.match.key == "script.focus_mode"
+
+
+def test_alternatives_carry_the_idf_tiebreak() -> None:
+    """The list path reaches IDF re-ranking, not just the union stage.
+
+    Union ties the blind and TV on "living room"; passing that phrasing as one of several
+    alternatives still lets IDF separate them on the rare "blind".
+    """
+    resolution = resolve_candidates(
+        ["living room blind", "window shade"], _SHARED_WORD_HOME, 5
+    )
+
+    assert resolution.match is not None
+    assert resolution.match.key == "cover.blind"

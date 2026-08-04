@@ -205,6 +205,46 @@ async def test_domain_accepts_a_list(
     assert ids == {"light.a", "switch.b"}
 
 
+async def test_name_accepts_a_list_of_alternatives(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
+    """A list of synonyms ORs the search: the strong alternative resolves the target.
+
+    "concentration" and "zone" name nothing here; "focus" matches the script. A single
+    pooled string of the same words would dilute below the floor, so the list is what
+    lets a model broaden a search that had no direct hit.
+    """
+    _register(hass, "script.focus_mode", "Focus Mode")
+    _register(hass, "script.movie_night", "Movie Night")
+
+    result = await _call(
+        hass,
+        conversation_strings,
+        {"name": ["concentration", "focus", "zone"]},
+    )
+
+    assert result["success"] is True
+    assert "ambiguous" not in result
+    assert [row["entity_id"] for row in result["results"]] == ["script.focus_mode"]
+
+
+async def test_empty_name_list_falls_back_to_structured(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
+    """A name list with nothing usable behaves like no name: structured, scoreless."""
+    kitchen = ar.async_get(hass).async_create("Kitchen").id
+    _register(hass, "light.k1", "Counter Light", area_id=kitchen)
+    _register(hass, "light.elsewhere", "Hall Light")
+
+    result = await _call(
+        hass, conversation_strings, {"name": ["", "  "], "area": "Kitchen"}
+    )
+
+    assert result["success"] is True
+    assert [row["entity_id"] for row in result["results"]] == ["light.k1"]
+    assert all("score" not in row for row in result["results"])
+
+
 async def test_device_class_and_floor_reported(
     hass: HomeAssistant, conversation_strings: ConversationStrings
 ) -> None:

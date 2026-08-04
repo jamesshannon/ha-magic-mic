@@ -23,7 +23,7 @@
     "find_entities": {
       "description": "Busca entidades de Home Assistant y sus entity_ids por nombre aproximado o mediante filtros estructurados (área, planta, dominio, clase de dispositivo y estado). Úsala cuando necesites entity_ids como datos en lugar de actuar ahora: al crear un recordatorio o una automatización, enumerar lo que existe en un área o resolver un nombre aproximado antes de otro paso. Devuelve candidatos puntuados; cuando varios son similares, los marca como ambiguos para que puedas preguntar cuál.",
       "fields": {
-        "name": "Nombre aproximado o alias de la entidad; se compara de forma flexible.",
+        "name": "Nombre aproximado o alias de la entidad, comparado de forma flexible; uno o una lista de alternativas para probarlas juntas (sinónimos o reformulaciones). Gana la alternativa que mejor coincida, así que ampliar la búsqueda no debilita una buena coincidencia.",
         "area": "Limitar a un área por nombre, id o alias.",
         "floor": "Limitar a una planta por nombre, id o alias.",
         "domain": "Limitar por dominio (por ejemplo, 'light'); uno o una lista.",

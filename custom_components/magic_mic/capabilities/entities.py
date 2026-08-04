@@ -50,7 +50,7 @@ class FindEntitiesTool(llm.Tool):
                 vol.Optional(
                     "name",
                     description=strings.find_entities_field_name,
-                ): cv.string,
+                ): vol.Any(cv.string, [cv.string]),
                 vol.Optional(
                     "area",
                     description=strings.find_entities_field_area,
@@ -96,7 +96,13 @@ class FindEntitiesTool(llm.Tool):
             }
 
         args = self.parameters(tool_input.tool_args)
-        name = args.get("name")
+        # `name` is one string or a list of alternatives to OR together; the scorer keeps
+        # each candidate's best over them, so broadening with synonyms cannot dilute a hit.
+        name_alternatives = [
+            alternative
+            for alternative in (_as_list(args.get("name")) or [])
+            if alternative.strip()
+        ]
         limit = args.get("limit", FIND_ENTITIES_DEFAULT_LIMIT)
 
         # Everything except the name goes to HA's matcher, exact and exposure-aware;
@@ -134,7 +140,7 @@ class FindEntitiesTool(llm.Tool):
             return {"success": True, "results": []}
 
         registries = Registries(hass)
-        if name is None:
+        if not name_alternatives:
             # Pure structured list: return the matched set as-is, most relevant first
             # is undefined, so keep HA's order and just cap it.
             results = [
@@ -147,7 +153,7 @@ class FindEntitiesTool(llm.Tool):
             state.entity_id: build_candidate(hass, registries, state)
             for state in match_result.states
         }
-        resolution = resolve_candidates(name, candidates, limit)
+        resolution = resolve_candidates(name_alternatives, candidates, limit)
 
         chosen = (
             [resolution.match]

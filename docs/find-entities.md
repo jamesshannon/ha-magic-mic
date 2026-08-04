@@ -206,7 +206,7 @@ Signature:
 
 ```
 find_entities(
-    name:         str | None      # fuzzy — the scored field
+    name:         str | list | None  # fuzzy — the scored field (one string, or alternatives to OR)
     area:         str | None      # structured (HA resolves, alias-aware)
     floor:        str | None      # structured
     domain:       str | list | None
@@ -221,6 +221,25 @@ Implementation reuses HA: call `async_match_targets` with everything *except*
 to get the valid candidate set, then apply the **same scorer + guard** as
 Consumer 1. If `name` is absent it's a pure structured list ("the kitchen lights")
 — returning `entity_id`s, which is what `GetLiveContext` can't do today.
+
+### Name alternatives (OR without a query language)
+
+`name` takes one string or a list of alternatives, and the list is an OR: each alternative
+is scored independently and a candidate keeps its best, so broadening a search with synonyms
+cannot dilute a strong single-term hit. This exists because the opposite, a model pooling
+synonyms into one string, measurably backfires. `token_set_ratio` charges the unmatched words
+against the one that hit, so "focus concentration" against a `Focus Mode` script scores 51
+(under the floor, nothing resolves) where "focus" alone scores 100. LLMs reach for boolean
+`OR` naturally, but a bag-of-tokens scorer treats extra tokens as dilution, closer to AND, so
+the naive attempt fails silently.
+
+Structured alternatives fix it without teaching the scorer a query language: the model emits a
+list, nothing parses an operator, and it stays language-neutral (no localized `OR` to strip).
+The scorer is reused unchanged, called once per alternative with the best kept per candidate,
+and the IDF tie-break likewise takes each candidate's best alternative. This is the runtime
+recovery for a low-lexical-score match that capability selection missed (the discovery fallback
+in [`capability-selection.md`](capability-selection.md)); whether acting on it then confirms is
+the confidence gate in [`tool-policy.md`](tool-policy.md).
 
 The tool is constructed per request from Magic Mic's `conversation` translation category.
 Its description and every parameter description therefore use the request language with
