@@ -24,6 +24,15 @@
 # failure. "small-home" cases are the counterweight: too few entities to estimate term
 # rarity, so IDF must not be trusted there; the corpus-free union scorer keeps them
 # decisive, and any IDF change has to leave them that way.
+#
+# Cases tagged "decoy" and "near-miss" are the caution counterweight, the guardrail on the
+# opposite pull. A decoy home puts a confusingly similar sibling beside each target (two
+# door locks, a Garage Light next to a Garage Door); a near-miss home names a device that
+# does not exist so the nearest match is a decoy to refuse. Making the scorer more decisive
+# to win shared-word cases (a lower ACCEPT or margin) is exactly what would turn these
+# ask/none outcomes into a confident wrong action, so they must never false-resolve. They
+# straddle the thresholds on purpose: the three "* light" near-miss queries land above the
+# margin, over the floor but under ACCEPT, and under the floor, pinning where each sits.
 
 homes:
   demo:
@@ -97,6 +106,30 @@ homes:
     - {entity_id: light.kids_ceiling, names: [Ceiling Light], area: Kids Room, floor: Upstairs}
     - {entity_id: light.bath_vanity, names: [Vanity Light], area: Bathroom, floor: Upstairs}
 
+  # Decoy home: every device has a confusingly similar sibling, so the guard's margin is
+  # what stands between a correct resolve and acting on the wrong device. Two door locks
+  # (a "back door" request must not touch the front), and a Garage Light beside a Garage
+  # Door so "garage door" must not turn on the light (which still scores 71, above ACCEPT)
+  # and bare "garage" is honestly ambiguous between a light and a physical door.
+  decoys:
+    - {entity_id: lock.front, names: [Front Door Lock]}
+    - {entity_id: lock.back, names: [Back Door Lock]}
+    - {entity_id: light.garage, names: [Garage Light], area: Garage}
+    - {entity_id: cover.garage, names: [Garage Door], area: Garage}
+    - {entity_id: light.living, names: [Living Room Light], area: Living Room}
+    - {entity_id: switch.living_fan, names: [Living Room Fan], area: Living Room}
+
+  # Near-miss home: the named device does not exist, and the nearest candidate is a decoy
+  # that shares a token. The safe outcome is to ask or match nothing, never to act on the
+  # decoy. The three "* light" queries land in the three score bands the guard divides on:
+  # two close decoys (ask), one lone decoy above the floor but under ACCEPT (ask), and one
+  # under the floor (none) - so this home pins where FLOOR and ACCEPT actually sit.
+  near_miss:
+    - {entity_id: light.bath, names: [Bathroom Light], area: Bathroom}
+    - {entity_id: cover.bedroom, names: [Bedroom Blind], area: Bedroom}
+    - {entity_id: lock.front, names: [Front Door Lock]}
+    - {entity_id: climate.hall, names: [Hallway Thermostat], area: Hallway}
+
 cases:
   # --- decisive hits (a clear single winner) ---
   - {id: reading-lamp-exact, home: demo, query: reading lamp, expect: {resolves_to: light.reading}, tags: [decisive]}
@@ -165,3 +198,39 @@ cases:
   - {id: nonsense, home: demo, query: xylophone, expect: {none: true}, tags: [none]}
   - {id: absent-domain, home: studio, query: garage door, expect: {none: true},
      tags: [none, small-home], note: "no garage entity in the studio home"}
+
+  # --- decoy: a confusingly similar sibling is present; the margin must not misfire ---
+  # The action-caution regime. A decisive resolve here is only safe because the target
+  # beats its decoy by more than the margin; where two decoys tie, or a bare token fits
+  # both, the guard must ask rather than guess. These must never false-resolve.
+  - {id: decoy-back-door, home: decoys, query: back door, expect: {resolves_to: lock.back},
+     tags: [decoy, decisive], note: "Front Door Lock decoy at 62 loses to Back Door Lock at 100"}
+  - {id: decoy-garage-door-not-light, home: decoys, query: garage door, expect: {resolves_to: cover.garage},
+     tags: [decoy, decisive], note: "Garage Light scores 71 (over ACCEPT) but the margin keeps the door the winner"}
+  - {id: decoy-garage-light-not-door, home: decoys, query: garage light, expect: {resolves_to: light.garage},
+     tags: [decoy, decisive], note: "the mirror: 'light' picks the light, not the equally garage-tokened door"}
+  - {id: decoy-two-locks, home: decoys, query: door lock,
+     expect: {ambiguous: [lock.front, lock.back]},
+     tags: [decoy, ambiguous], note: "both locks tie at 100; a security action must ask, never guess a door"}
+  - {id: decoy-bare-garage, home: decoys, query: garage,
+     expect: {ambiguous: [light.garage, cover.garage]},
+     tags: [decoy, ambiguous], note: "bare shared token fits a light and a door equally; ask which"}
+
+  # --- near-miss: the named device is absent; the nearest match is a decoy to refuse ---
+  # These pin the two thresholds. A too-eager scorer (lower ACCEPT or margin) would turn
+  # the ask/none outcomes here into a confident wrong action, so they are the guardrail on
+  # the caution side of tuning.
+  - {id: near-miss-two-decoys, home: near_miss, query: bedroom light,
+     expect: {ambiguous: [light.bath, cover.bedroom]},
+     tags: [near-miss, ambiguous],
+     note: "no bedroom light exists; Bathroom Light (81) and Bedroom Blind (77) sit within the margin, so ask"}
+  - {id: near-miss-below-accept, home: near_miss, query: basement light,
+     expect: {ambiguous: [light.bath]},
+     tags: [near-miss, ambiguous],
+     note: "lone decoy Bathroom Light at 64 is over the floor but under ACCEPT: shortlist, don't act"}
+  - {id: near-miss-below-floor, home: near_miss, query: kitchen light, expect: {none: true},
+     tags: [near-miss, none], note: "nearest is Bathroom Light at 59, under the floor: nothing clears"}
+  - {id: near-miss-wrong-door, home: near_miss, query: back door,
+     expect: {ambiguous: [lock.front]},
+     tags: [near-miss, ambiguous],
+     note: "only a Front Door Lock exists; a 'back door' request must not decisively unlock the front"}

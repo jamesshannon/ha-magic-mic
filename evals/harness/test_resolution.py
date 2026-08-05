@@ -24,7 +24,7 @@ from evals.harness.resolution import (
     run,
 )
 
-# Current measured floor for the seed set (30 cases across regimes). Union-document plus
+# Current measured floor for the seed set (39 cases across regimes). Union-document plus
 # the IDF tie-break resolves location, medium-home, and most shared-word/area-filtered
 # cases; the two survivors are a synonym (reading light -> Reading Lamp, out of scope for
 # weighting) and one 3-shared-token area case, both recall-safe. Raise this as the scorer
@@ -35,9 +35,19 @@ _SEED_MIN_DECISIVE_ACCURACY = 0.92
 # Regimes that must stay perfect regardless of scorer changes. Small homes are too sparse
 # for IDF to estimate term rarity, so a weighting change must never make them cautious;
 # the decisive/none/ambiguous guardrails pin the behavior the guard exists to guarantee.
+# The decoy and near-miss regimes are the caution side of that guarantee: a confusingly
+# similar sibling, or a named device that does not exist, must never become a confident
+# wrong action, so a scorer made more decisive (lower ACCEPT/margin) cannot regress them.
 # The shared-word and area-filtered regimes are deliberately absent: those are allowed to
 # be imperfect (they are what a scorer change is trying to lift).
-_GUARDRAIL_REGIMES = ("decisive", "small-home", "none", "ambiguous")
+_GUARDRAIL_REGIMES = (
+    "ambiguous",
+    "decisive",
+    "decoy",
+    "near-miss",
+    "none",
+    "small-home",
+)
 
 
 def _corpus(*cases: ResCase) -> ResCorpus:

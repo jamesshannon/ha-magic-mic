@@ -452,6 +452,17 @@ So here the cost-benefit favors the **ambiguity guard / clarify-when-close** sta
 margin), opposite policy knob. Stated explicitly so the two docs don't look
 contradictory.
 
+The **`decoy` and `near-miss` regimes** in the resolver benchmark
+(`evals/corpus/resolution/`) are the guardrail on this stance. A decoy home puts a
+confusingly similar sibling beside each target (two door locks, a Garage Light next to a
+Garage Door); a near-miss home names a device that does not exist, so the nearest candidate
+is a decoy to refuse. Pushing the scorer more decisive to win shared-word cases (a lower
+`ACCEPT` or margin) is exactly what would turn these ask/none outcomes into a confident
+wrong action, so the CI gate holds them at zero false-resolves regardless of tuning. The
+three "* light" near-miss queries straddle the thresholds by construction, landing above the
+margin, over the floor but under `ACCEPT`, and under the floor, so the corpus also records
+where each guard boundary currently sits.
+
 ---
 
 ## `GetLiveContextTool` — fold in vs alongside
