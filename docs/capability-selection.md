@@ -668,6 +668,37 @@ this doc hand-authored. Next moves, tracked in evaluation.md's ledger: a larger 
 out-of-vocabulary set (and non-English cases), Unicode stemming for the "concentrate" class,
 and only then embeddings or discovery for whatever synonym gap survives.
 
+### Enforcement gate finding (2026-08, `wave0` golden set)
+
+Shadow mode answers "would the used tool have survived selection". The enforcement gate
+(`evals/harness/selection_gate.py`) answers the other question the design requires before
+the flag may flip: does *applying* the plan to a live request change the outcome. It drives
+the 25-case golden set through the testbed agent twice per case, full roster versus enforced
+at budget 8, in one balanced pass with the arm order alternating, on haiku-4-5.
+
+Task success was identical, case for case: 17 of 25 correct under both arms, zero
+regressions, zero regressions attributable to a dropped tool. The eight non-passing cases
+are the same under both arms (four wrong in both, four carrying no success predicate), so
+none is a selection effect. Enforcement pruned the roster from 31 tools exposed to 17.1 on
+average (range 12 to 18) and changed no answer. On this corpus, applying the plan is
+outcome-neutral.
+
+Two things bound the result. The prune stops near 17, not the budget of 8, because the demo
+catalog describes 24 tools while the live agent exposes 31: the roughly 13 uncatalogued HA
+intents (the ones outside the demo bundles) pass through untouched, and budget 8 binds only
+the catalogued portion. So 17.1 is a floor on the saving, and fuller catalog coverage, not a
+tighter budget, is the next lever. And budget 8 barely stresses recall on this corpus:
+residents plus `device_control` plus the single-tool bundles mostly fit, so the cases that
+would expose a large-bundle miss (the budget-6 `timers` displacement the shadow run found)
+do not bind here.
+
+This clears the task-success gate on this corpus, but not the two blockers that keep
+`CONF_CAPABILITY_SELECTION` off: the catalog's retrieval documents are English, which
+"Localization" forbids from gating a live request, and 25 clean English cases is a
+direction, not a corpus-breadth pass (evaluation.md's ledger). Enforcement stays gated until
+a localized catalog and a broader, multilingual corpus clear those; the mechanism and the
+measurement that will read them are now both in place.
+
 ---
 
 ## Worked examples

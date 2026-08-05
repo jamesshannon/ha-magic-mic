@@ -1,0 +1,2317 @@
+{
+  "arms": {
+    "enforced": {
+      "buckets": {
+        "resolved after clarification": 0,
+        "resolved by LLM, correct": 17,
+        "resolved locally (hassil)": 0,
+        "unjudged (no success predicate)": 4,
+        "unresolved / \"I don't understand\"": 0,
+        "wrong action": 4
+      },
+      "cases": [
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "query",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "current-time",
+          "input_tokens": 7060,
+          "output_tokens": 100,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "It's currently 7:43 PM (19:43) on Tuesday, August 4th, 2026 in PDT.",
+          "tools": [
+            {
+              "args": {},
+              "name": "GetDateTime"
+            }
+          ],
+          "utterance": "what time is it?"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "query",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "current-date",
+          "input_tokens": 7896,
+          "output_tokens": 82,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Today is Tuesday, August 4, 2026.",
+          "tools": [
+            {
+              "args": {},
+              "name": "GetDateTime"
+            }
+          ],
+          "utterance": "what's the date today?"
+        },
+        {
+          "bucket": "wrong action",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "device-control",
+          "correct": false,
+          "effects": [],
+          "generations": 2,
+          "id": "turn-off-all-lights",
+          "input_tokens": 8950,
+          "output_tokens": 281,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Done! I've turned off the living room lights.",
+          "tools": [
+            {
+              "args": {
+                "area": "living room",
+                "domain": [
+                  "light"
+                ]
+              },
+              "name": "HassTurnOff"
+            }
+          ],
+          "utterance": "turn off the lights"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "device-control",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "turn-on-kitchen-light",
+          "input_tokens": 8373,
+          "output_tokens": 154,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Done! The kitchen light is now on.",
+          "tools": [
+            {
+              "args": {
+                "name": "Kitchen Light"
+              },
+              "name": "HassTurnOn"
+            }
+          ],
+          "utterance": "turn on the kitchen light"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "device-control",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "turn-off-living-room-lamp",
+          "input_tokens": 8532,
+          "output_tokens": 220,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Done! I've turned off the Living Room Lamp.",
+          "tools": [
+            {
+              "args": {
+                "domain": [
+                  "light"
+                ],
+                "name": "Living Room Lamp"
+              },
+              "name": "HassTurnOff"
+            }
+          ],
+          "utterance": "turn off the living room lamp"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "device-control",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "set-bedroom-brightness",
+          "input_tokens": 8467,
+          "output_tokens": 214,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Done! I've set the bedroom light to 30% brightness.",
+          "tools": [
+            {
+              "args": {
+                "brightness": 30,
+                "name": "Bedroom Light"
+              },
+              "name": "HassLightSet"
+            }
+          ],
+          "utterance": "set the bedroom light to 30%"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "device-control",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "open-garage-door",
+          "input_tokens": 8886,
+          "output_tokens": 184,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "The garage door is now opening.",
+          "tools": [
+            {
+              "args": {
+                "domain": [
+                  "cover"
+                ],
+                "name": "Garage Door"
+              },
+              "name": "HassTurnOn"
+            }
+          ],
+          "utterance": "open the garage door"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "device-control",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "close-blinds",
+          "input_tokens": 8960,
+          "output_tokens": 177,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Done! The living room blinds are now closed.",
+          "tools": [
+            {
+              "args": {
+                "name": "Living Room Blinds",
+                "position": 0
+              },
+              "name": "HassSetPosition"
+            }
+          ],
+          "utterance": "close the living room blinds"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "device-control",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "set-blinds-position",
+          "input_tokens": 8563,
+          "output_tokens": 241,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Done! I've set the living room blinds to 50%.",
+          "tools": [
+            {
+              "args": {
+                "name": "Living Room Blinds",
+                "position": 50
+              },
+              "name": "HassSetPosition"
+            }
+          ],
+          "utterance": "set the living room blinds to 50%"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "query",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "room-temperature",
+          "input_tokens": 8383,
+          "output_tokens": 254,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "The current temperature in the living room is **19\u00b0C**. The thermostat is set to maintain 20\u00b0C and is currently in heating mode.",
+          "tools": [
+            {
+              "args": {
+                "area": "living room",
+                "domain": "climate"
+              },
+              "name": "GetLiveContext"
+            }
+          ],
+          "utterance": "what's the temperature in the living room?"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "query",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "weather",
+          "input_tokens": 7977,
+          "output_tokens": 154,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "The weather is currently sunny with a temperature of 22\u00b0C (about 72\u00b0F).",
+          "tools": [
+            {
+              "args": {
+                "domain": "weather"
+              },
+              "name": "GetLiveContext"
+            }
+          ],
+          "utterance": "what's the weather?"
+        },
+        {
+          "bucket": "wrong action",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "media",
+          "correct": false,
+          "effects": [],
+          "generations": 2,
+          "id": "set-volume",
+          "input_tokens": 7933,
+          "output_tokens": 292,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Done! I've set the Living Room Speaker volume to 40%.",
+          "tools": [
+            {
+              "args": {
+                "name": "Living Room Speaker",
+                "volume_level": 0.4
+              },
+              "name": "HassSetVolume"
+            }
+          ],
+          "utterance": "set the living room volume to 40%"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "media",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "pause-music",
+          "input_tokens": 7715,
+          "output_tokens": 174,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Done! I've paused the music on the living room speaker.",
+          "tools": [
+            {
+              "args": {
+                "area": "living room",
+                "domain": [
+                  "media_player"
+                ]
+              },
+              "name": "HassMediaPause"
+            }
+          ],
+          "utterance": "pause the music"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "timer",
+          "correct": true,
+          "effects": [
+            {
+              "data": {
+                "device_id": "56ceaf0fbc7a5cd1d9352edc93cdcc85",
+                "name": null,
+                "seconds": 600
+              },
+              "kind": "timer.started"
+            }
+          ],
+          "generations": 2,
+          "id": "start-timer",
+          "input_tokens": 7575,
+          "output_tokens": 215,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Your 10-minute timer is set!",
+          "tools": [
+            {
+              "args": {
+                "minutes": 10
+              },
+              "name": "HassStartTimer"
+            }
+          ],
+          "utterance": "set a timer for 10 minutes"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "list",
+          "correct": true,
+          "effects": [
+            {
+              "data": {
+                "entity_id": "todo.shopping_list",
+                "summary": "Milk"
+              },
+              "kind": "todo.item_created"
+            }
+          ],
+          "generations": 2,
+          "id": "add-shopping-item",
+          "input_tokens": 7716,
+          "output_tokens": 203,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Done! I've added milk to your shopping list.",
+          "tools": [
+            {
+              "args": {
+                "item": "milk",
+                "name": "Shopping List"
+              },
+              "name": "HassListAddItem"
+            }
+          ],
+          "utterance": "add milk to the shopping list"
+        },
+        {
+          "bucket": "unjudged (no success predicate)",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "small-talk",
+          "correct": null,
+          "effects": [],
+          "generations": 1,
+          "id": "nevermind",
+          "input_tokens": 2894,
+          "output_tokens": 82,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "No problem! Let me know if you need anything else.",
+          "tools": [],
+          "utterance": "never mind"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "query",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "is-garage-open",
+          "input_tokens": 8243,
+          "output_tokens": 172,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Yes, the garage door is open.",
+          "tools": [
+            {
+              "args": {
+                "domain": "cover",
+                "name": "Garage Door"
+              },
+              "name": "GetLiveContext"
+            }
+          ],
+          "utterance": "is the garage door open?"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "compound",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "compound-two-devices",
+          "input_tokens": 8693,
+          "output_tokens": 314,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "llm",
+          "speech": "Done! I've turned off the kitchen light and the bedroom fan.",
+          "tools": [
+            {
+              "args": {
+                "domain": [
+                  "light"
+                ],
+                "name": "Kitchen Light"
+              },
+              "name": "HassTurnOff"
+            },
+            {
+              "args": {
+                "domain": [
+                  "fan"
+                ],
+                "name": "Bedroom Fan"
+              },
+              "name": "HassTurnOff"
+            }
+          ],
+          "utterance": "turn off the kitchen light and the bedroom fan"
+        },
+        {
+          "bucket": "wrong action",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "implicit",
+          "correct": false,
+          "effects": [],
+          "generations": 2,
+          "id": "implicit-cold",
+          "input_tokens": 6917,
+          "output_tokens": 322,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "llm",
+          "speech": "The thermostat in the living room is currently set to 20\u00b0C and the current temperature is 19\u00b0C. It's already in heating mode. Would you like me to:\n\n1. **Increase the temperature** to warm up faster? I can set it higher if you'd like.\n2. Or would you prefer another option, like turning on a fan, adjusting lighting, or something else?\n\nLet me know what temperature you'd be comfortable with, and I'll adjust it for you.",
+          "tools": [
+            {
+              "args": {
+                "area": "living room",
+                "domain": "climate"
+              },
+              "name": "GetLiveContext"
+            }
+          ],
+          "utterance": "I'm cold"
+        },
+        {
+          "bucket": "wrong action",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "implicit",
+          "correct": false,
+          "effects": [],
+          "generations": 1,
+          "id": "implicit-too-dark",
+          "input_tokens": 3174,
+          "output_tokens": 698,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "llm",
+          "speech": "I'd like to turn on the lights in the living room for you, but I don't currently have the capability to control lights with my available tools. \n\nYou can turn on the living room lights by:\n- Using your Home Assistant interface directly\n- Asking your voice assistant to \"turn on the living room lights\"\n- Using a physical switch if one is available\n\nApologies for the limitation!",
+          "tools": [],
+          "utterance": "it's too dark in here"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "query",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "reasoning-did-i-leave-garage",
+          "input_tokens": 8902,
+          "output_tokens": 174,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "llm",
+          "speech": "Yes, your garage door is currently open. Would you like me to close it?",
+          "tools": [
+            {
+              "args": {
+                "name": "Garage Door"
+              },
+              "name": "GetLiveContext"
+            }
+          ],
+          "utterance": "did I leave the garage door open?"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "knowledge",
+          "correct": true,
+          "effects": [],
+          "generations": 1,
+          "id": "knowledge-capital-france",
+          "input_tokens": 3659,
+          "output_tokens": 128,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "llm",
+          "speech": "The capital of France is Paris.",
+          "tools": [],
+          "utterance": "what's the capital of France?"
+        },
+        {
+          "bucket": "unjudged (no success predicate)",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "knowledge",
+          "correct": null,
+          "effects": [],
+          "generations": 1,
+          "id": "conditional-reminder",
+          "input_tokens": 4337,
+          "output_tokens": 377,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": false,
+          "routed_locally": false,
+          "routing_truth": "llm",
+          "speech": "I don't have the ability to create reminders or conditional alerts with the available tools. However, I can help you in a couple of ways:\n\n1. **Check the garage door now**: I can check if your garage door is currently open or closed\n2. **Use Home Assistant automations**: You could set up an automation in Home Assistant that sends you a notification if the garage door is still open after a certain time\n\nWould you like me to check the current state of your garage door first?",
+          "tools": [],
+          "utterance": "remind me in an hour if I haven't closed the garage door"
+        },
+        {
+          "bucket": "unjudged (no success predicate)",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "knowledge",
+          "correct": null,
+          "effects": [],
+          "generations": 1,
+          "id": "remember-fact",
+          "input_tokens": 3894,
+          "output_tokens": 187,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": false,
+          "routed_locally": false,
+          "routing_truth": "llm",
+          "speech": "I can't store or remember passwords. For security reasons, sensitive credentials like WiFi passwords should be:\n\n- Stored in a secure password manager\n- Kept in a safe physical location\n- Never shared with voice assistants or AI tools\n\nIf you need help with something in your home automation system, I'm happy to assist with that instead.",
+          "tools": [],
+          "utterance": "remember the wifi password is hunter2-galaxy"
+        },
+        {
+          "bucket": "unjudged (no success predicate)",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 0,
+          "category": "knowledge",
+          "correct": null,
+          "effects": [],
+          "generations": 1,
+          "id": "undo-last",
+          "input_tokens": 2895,
+          "output_tokens": 114,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": false,
+          "routed_locally": false,
+          "routing_truth": "llm",
+          "speech": "I don't have any previous action to undo - this is the start of our conversation. Could you let me know what you'd like me to help you with?",
+          "tools": [],
+          "utterance": "undo that"
+        }
+      ],
+      "cost_totals": {
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "generations": 44,
+        "input_tokens": 176594,
+        "output_tokens": 5513
+      }
+    },
+    "full": {
+      "buckets": {
+        "resolved after clarification": 0,
+        "resolved by LLM, correct": 17,
+        "resolved locally (hassil)": 0,
+        "unjudged (no success predicate)": 4,
+        "unresolved / \"I don't understand\"": 0,
+        "wrong action": 4
+      },
+      "cases": [
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 5500,
+          "cache_read_tokens": 5500,
+          "category": "query",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "current-time",
+          "input_tokens": 830,
+          "output_tokens": 97,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "It's currently **7:43 PM** (19:43) on Tuesday, August 4th, 2026.",
+          "tools": [
+            {
+              "args": {},
+              "name": "GetDateTime"
+            }
+          ],
+          "utterance": "what time is it?"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 11000,
+          "category": "query",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "current-date",
+          "input_tokens": 832,
+          "output_tokens": 83,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Today is Tuesday, August 4th, 2026.",
+          "tools": [
+            {
+              "args": {},
+              "name": "GetDateTime"
+            }
+          ],
+          "utterance": "what's the date today?"
+        },
+        {
+          "bucket": "wrong action",
+          "cache_creation_tokens": 5587,
+          "cache_read_tokens": 5587,
+          "category": "device-control",
+          "correct": false,
+          "effects": [],
+          "generations": 2,
+          "id": "turn-off-all-lights",
+          "input_tokens": 950,
+          "output_tokens": 179,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Done! I've turned off the lights in the living room.",
+          "tools": [
+            {
+              "args": {
+                "area": "living room",
+                "domain": [
+                  "light"
+                ]
+              },
+              "name": "HassTurnOff"
+            }
+          ],
+          "utterance": "turn off the lights"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 5601,
+          "cache_read_tokens": 5601,
+          "category": "device-control",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "turn-on-kitchen-light",
+          "input_tokens": 918,
+          "output_tokens": 161,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Done! The kitchen light is now on.",
+          "tools": [
+            {
+              "args": {
+                "name": "Kitchen Light"
+              },
+              "name": "HassTurnOn"
+            }
+          ],
+          "utterance": "turn on the kitchen light"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 5646,
+          "cache_read_tokens": 5646,
+          "category": "device-control",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "turn-off-living-room-lamp",
+          "input_tokens": 976,
+          "output_tokens": 214,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Done! The living room lamp is now off.",
+          "tools": [
+            {
+              "args": {
+                "name": "Living Room Lamp"
+              },
+              "name": "HassTurnOff"
+            }
+          ],
+          "utterance": "turn off the living room lamp"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 5617,
+          "cache_read_tokens": 5617,
+          "category": "device-control",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "set-bedroom-brightness",
+          "input_tokens": 990,
+          "output_tokens": 231,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Done! I've set the bedroom light to 30% brightness.",
+          "tools": [
+            {
+              "args": {
+                "brightness": 30,
+                "name": "Bedroom Light"
+              },
+              "name": "HassLightSet"
+            }
+          ],
+          "utterance": "set the bedroom light to 30%"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 5608,
+          "cache_read_tokens": 5608,
+          "category": "device-control",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "open-garage-door",
+          "input_tokens": 983,
+          "output_tokens": 223,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "The garage door is now open.",
+          "tools": [
+            {
+              "args": {
+                "domain": [
+                  "cover"
+                ],
+                "name": "Garage Door"
+              },
+              "name": "HassTurnOn"
+            }
+          ],
+          "utterance": "open the garage door"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 5646,
+          "cache_read_tokens": 5646,
+          "category": "device-control",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "close-blinds",
+          "input_tokens": 1097,
+          "output_tokens": 332,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Done! I've closed the living room blinds.",
+          "tools": [
+            {
+              "args": {
+                "domain": [
+                  "cover"
+                ],
+                "name": "Living Room Blinds",
+                "position": 0
+              },
+              "name": "HassSetPosition"
+            }
+          ],
+          "utterance": "close the living room blinds"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 11292,
+          "category": "device-control",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "set-blinds-position",
+          "input_tokens": 987,
+          "output_tokens": 217,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Done! I've set the living room blinds to 50%.",
+          "tools": [
+            {
+              "args": {
+                "name": "Living Room Blinds",
+                "position": 50
+              },
+              "name": "HassSetPosition"
+            }
+          ],
+          "utterance": "set the living room blinds to 50%"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 11292,
+          "category": "query",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "room-temperature",
+          "input_tokens": 984,
+          "output_tokens": 207,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "The current temperature in the living room is 19\u00b0C. The thermostat is set to maintain 20\u00b0C in heating mode.",
+          "tools": [
+            {
+              "args": {
+                "area": "living room",
+                "domain": "climate"
+              },
+              "name": "GetLiveContext"
+            }
+          ],
+          "utterance": "what's the temperature in the living room?"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 11000,
+          "category": "query",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "weather",
+          "input_tokens": 921,
+          "output_tokens": 162,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "The weather is sunny with a temperature of 22\u00b0C (or about 72\u00b0F).",
+          "tools": [
+            {
+              "args": {
+                "domain": "weather"
+              },
+              "name": "GetLiveContext"
+            }
+          ],
+          "utterance": "what's the weather?"
+        },
+        {
+          "bucket": "wrong action",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 11292,
+          "category": "media",
+          "correct": false,
+          "effects": [],
+          "generations": 2,
+          "id": "set-volume",
+          "input_tokens": 1091,
+          "output_tokens": 310,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Done! I've set the Living Room Speaker volume to 40%.",
+          "tools": [
+            {
+              "args": {
+                "area": "living room",
+                "domain": [
+                  "media_player"
+                ],
+                "volume_level": 0.4
+              },
+              "name": "HassSetVolume"
+            }
+          ],
+          "utterance": "set the living room volume to 40%"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 11000,
+          "category": "media",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "pause-music",
+          "input_tokens": 1029,
+          "output_tokens": 260,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Done! I've paused the music on the Living Room Speaker.",
+          "tools": [
+            {
+              "args": {
+                "area": "living room",
+                "domain": [
+                  "media_player"
+                ]
+              },
+              "name": "HassMediaPause"
+            }
+          ],
+          "utterance": "pause the music"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 11000,
+          "category": "timer",
+          "correct": true,
+          "effects": [
+            {
+              "data": {
+                "device_id": "56ceaf0fbc7a5cd1d9352edc93cdcc85",
+                "name": null,
+                "seconds": 600
+              },
+              "kind": "timer.started"
+            }
+          ],
+          "generations": 2,
+          "id": "start-timer",
+          "input_tokens": 939,
+          "output_tokens": 198,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Done! I've set a 10-minute timer for you.",
+          "tools": [
+            {
+              "args": {
+                "minutes": 10
+              },
+              "name": "HassStartTimer"
+            }
+          ],
+          "utterance": "set a timer for 10 minutes"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 5585,
+          "cache_read_tokens": 5585,
+          "category": "list",
+          "correct": true,
+          "effects": [
+            {
+              "data": {
+                "entity_id": "todo.shopping_list",
+                "summary": "Milk"
+              },
+              "kind": "todo.item_created"
+            }
+          ],
+          "generations": 2,
+          "id": "add-shopping-item",
+          "input_tokens": 940,
+          "output_tokens": 181,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Done! I've added milk to your shopping list.",
+          "tools": [
+            {
+              "args": {
+                "item": "milk",
+                "name": "Shopping List"
+              },
+              "name": "HassListAddItem"
+            }
+          ],
+          "utterance": "add milk to the shopping list"
+        },
+        {
+          "bucket": "unjudged (no success predicate)",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 5500,
+          "category": "small-talk",
+          "correct": null,
+          "effects": [],
+          "generations": 1,
+          "id": "nevermind",
+          "input_tokens": 355,
+          "output_tokens": 79,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "No problem! Let me know if you need anything else.",
+          "tools": [],
+          "utterance": "never mind"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 11216,
+          "category": "query",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "is-garage-open",
+          "input_tokens": 941,
+          "output_tokens": 150,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "local",
+          "speech": "Yes, the garage door is open.",
+          "tools": [
+            {
+              "args": {
+                "name": "Garage Door"
+              },
+              "name": "GetLiveContext"
+            }
+          ],
+          "utterance": "is the garage door open?"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 5631,
+          "cache_read_tokens": 5631,
+          "category": "compound",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "compound-two-devices",
+          "input_tokens": 1102,
+          "output_tokens": 245,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "llm",
+          "speech": "Done! I've turned off the kitchen light and the bedroom fan.",
+          "tools": [
+            {
+              "args": {
+                "domain": [
+                  "light"
+                ],
+                "name": "Kitchen Light"
+              },
+              "name": "HassTurnOff"
+            },
+            {
+              "args": {
+                "domain": [
+                  "fan"
+                ],
+                "name": "Bedroom Fan"
+              },
+              "name": "HassTurnOff"
+            }
+          ],
+          "utterance": "turn off the kitchen light and the bedroom fan"
+        },
+        {
+          "bucket": "wrong action",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 16500,
+          "category": "implicit",
+          "correct": false,
+          "effects": [],
+          "generations": 3,
+          "id": "implicit-cold",
+          "input_tokens": 1736,
+          "output_tokens": 304,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "llm",
+          "speech": "Done! I've raised the temperature to 22\u00b0C. That should warm things up for you soon.",
+          "tools": [
+            {
+              "args": {
+                "area": "living room",
+                "domain": "climate"
+              },
+              "name": "GetLiveContext"
+            },
+            {
+              "args": {
+                "name": "Thermostat",
+                "temperature": 22.0
+              },
+              "name": "HassClimateSetTemperature"
+            }
+          ],
+          "utterance": "I'm cold"
+        },
+        {
+          "bucket": "wrong action",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 11000,
+          "category": "implicit",
+          "correct": false,
+          "effects": [],
+          "generations": 2,
+          "id": "implicit-too-dark",
+          "input_tokens": 972,
+          "output_tokens": 197,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "llm",
+          "speech": "Done! I've turned on the living room light for you.",
+          "tools": [
+            {
+              "args": {
+                "area": "living room",
+                "domain": [
+                  "light"
+                ]
+              },
+              "name": "HassTurnOn"
+            }
+          ],
+          "utterance": "it's too dark in here"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 11216,
+          "category": "query",
+          "correct": true,
+          "effects": [],
+          "generations": 2,
+          "id": "reasoning-did-i-leave-garage",
+          "input_tokens": 969,
+          "output_tokens": 183,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "llm",
+          "speech": "Yes, your garage door is currently open. Would you like me to close it?",
+          "tools": [
+            {
+              "args": {
+                "name": "Garage Door"
+              },
+              "name": "GetLiveContext"
+            }
+          ],
+          "utterance": "did I leave the garage door open?"
+        },
+        {
+          "bucket": "resolved by LLM, correct",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 5500,
+          "category": "knowledge",
+          "correct": true,
+          "effects": [],
+          "generations": 1,
+          "id": "knowledge-capital-france",
+          "input_tokens": 360,
+          "output_tokens": 65,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": true,
+          "routed_locally": false,
+          "routing_truth": "llm",
+          "speech": "The capital of France is Paris.",
+          "tools": [],
+          "utterance": "what's the capital of France?"
+        },
+        {
+          "bucket": "unjudged (no success predicate)",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 11216,
+          "category": "knowledge",
+          "correct": null,
+          "effects": [],
+          "generations": 2,
+          "id": "conditional-reminder",
+          "input_tokens": 1182,
+          "output_tokens": 444,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": false,
+          "routed_locally": false,
+          "routing_truth": "llm",
+          "speech": "I've set a 1-hour timer to remind you to check the garage door. The timer will alert you in one hour.",
+          "tools": [
+            {
+              "args": {
+                "conversation_command": "remind me to check if the garage door is closed",
+                "hours": 1,
+                "name": "Close garage door"
+              },
+              "name": "HassStartTimer"
+            }
+          ],
+          "utterance": "remind me in an hour if I haven't closed the garage door"
+        },
+        {
+          "bucket": "unjudged (no success predicate)",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 5500,
+          "category": "knowledge",
+          "correct": null,
+          "effects": [],
+          "generations": 1,
+          "id": "remember-fact",
+          "input_tokens": 362,
+          "output_tokens": 251,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": false,
+          "routed_locally": false,
+          "routing_truth": "llm",
+          "speech": "I appreciate you sharing that, but I should let you know:\n\n1. **I can't store information between conversations** - I don't have memory that persists, so I won't be able to recall this later.\n\n2. **For security reasons**, it's best not to share passwords with AI assistants or in chat systems. Instead, consider:\n   - Storing passwords in a password manager (like Bitwarden, 1Password, or KeePass)\n   - Keeping them written down securely offline\n   - Using your router's built-in password management\n\nIf you need to access your wifi password later, you can typically retrieve it from your router's admin panel or settings.",
+          "tools": [],
+          "utterance": "remember the wifi password is hunter2-galaxy"
+        },
+        {
+          "bucket": "unjudged (no success predicate)",
+          "cache_creation_tokens": 0,
+          "cache_read_tokens": 5500,
+          "category": "knowledge",
+          "correct": null,
+          "effects": [],
+          "generations": 1,
+          "id": "undo-last",
+          "input_tokens": 356,
+          "output_tokens": 125,
+          "provider_options": {
+            "web_fetch": false,
+            "web_search": false
+          },
+          "resolved": true,
+          "resolves_at_wave0": false,
+          "routed_locally": false,
+          "routing_truth": "llm",
+          "speech": "I don't have any previous actions to undo in our conversation. This is the start of our chat. \n\nWhat would you like me to help you with?",
+          "tools": [],
+          "utterance": "undo that"
+        }
+      ],
+      "cost_totals": {
+        "cache_creation_tokens": 50421,
+        "cache_read_tokens": 211445,
+        "generations": 47,
+        "input_tokens": 22802,
+        "output_tokens": 5098
+      }
+    }
+  },
+  "exposure": {
+    "avg_exposed_after": 17.12,
+    "avg_exposed_before": 31.0
+  },
+  "pairs": [
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassLightSet",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassSetPosition",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassTurnOff",
+        "HassTurnOn",
+        "HassUnpauseTimer",
+        "find_entities"
+      ],
+      "enforced_correct": true,
+      "exposed_after": 17,
+      "exposed_before": 31,
+      "full_correct": true,
+      "id": "current-time",
+      "order": "full\u2192enforced",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "GetDateTime"
+      ]
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassLightSet",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassSetVolume",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassTurnOff",
+        "HassTurnOn",
+        "HassUnpauseTimer"
+      ],
+      "enforced_correct": true,
+      "exposed_after": 18,
+      "exposed_before": 31,
+      "full_correct": true,
+      "id": "current-date",
+      "order": "enforced\u2192full",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "GetDateTime"
+      ]
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassListAddItem",
+        "HassListCompleteItem",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassSetPosition",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassUnpauseTimer",
+        "todo_get_items"
+      ],
+      "enforced_correct": false,
+      "exposed_after": 18,
+      "exposed_before": 31,
+      "full_correct": false,
+      "id": "turn-off-all-lights",
+      "order": "full\u2192enforced",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "HassTurnOff"
+      ]
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassListAddItem",
+        "HassListCompleteItem",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassUnpauseTimer",
+        "find_entities",
+        "todo_get_items"
+      ],
+      "enforced_correct": true,
+      "exposed_after": 18,
+      "exposed_before": 31,
+      "full_correct": true,
+      "id": "turn-on-kitchen-light",
+      "order": "enforced\u2192full",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "HassTurnOn"
+      ]
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassListAddItem",
+        "HassListCompleteItem",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassUnpauseTimer",
+        "find_entities",
+        "todo_get_items"
+      ],
+      "enforced_correct": true,
+      "exposed_after": 18,
+      "exposed_before": 31,
+      "full_correct": true,
+      "id": "turn-off-living-room-lamp",
+      "order": "full\u2192enforced",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "HassTurnOff"
+      ]
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassListAddItem",
+        "HassListCompleteItem",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassUnpauseTimer",
+        "find_entities",
+        "todo_get_items"
+      ],
+      "enforced_correct": true,
+      "exposed_after": 18,
+      "exposed_before": 31,
+      "full_correct": true,
+      "id": "set-bedroom-brightness",
+      "order": "enforced\u2192full",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "HassLightSet"
+      ]
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassListAddItem",
+        "HassListCompleteItem",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassSetVolume",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassUnpauseTimer",
+        "todo_get_items"
+      ],
+      "enforced_correct": true,
+      "exposed_after": 18,
+      "exposed_before": 31,
+      "full_correct": true,
+      "id": "open-garage-door",
+      "order": "full\u2192enforced",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "HassTurnOn"
+      ]
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassListAddItem",
+        "HassListCompleteItem",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassSetVolume",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassUnpauseTimer",
+        "todo_get_items"
+      ],
+      "enforced_correct": true,
+      "exposed_after": 18,
+      "exposed_before": 31,
+      "full_correct": true,
+      "id": "close-blinds",
+      "order": "enforced\u2192full",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "HassSetPosition"
+      ]
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassListAddItem",
+        "HassListCompleteItem",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassUnpauseTimer",
+        "find_entities",
+        "todo_get_items"
+      ],
+      "enforced_correct": true,
+      "exposed_after": 18,
+      "exposed_before": 31,
+      "full_correct": true,
+      "id": "set-blinds-position",
+      "order": "full\u2192enforced",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "HassSetPosition"
+      ]
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassLightSet",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassSetVolume",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassTurnOff",
+        "HassTurnOn",
+        "HassUnpauseTimer"
+      ],
+      "enforced_correct": true,
+      "exposed_after": 18,
+      "exposed_before": 31,
+      "full_correct": true,
+      "id": "room-temperature",
+      "order": "enforced\u2192full",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "GetLiveContext"
+      ]
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassLightSet",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassSetVolume",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassTurnOff",
+        "HassTurnOn",
+        "HassUnpauseTimer"
+      ],
+      "enforced_correct": true,
+      "exposed_after": 18,
+      "exposed_before": 31,
+      "full_correct": true,
+      "id": "weather",
+      "order": "full\u2192enforced",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "GetLiveContext"
+      ]
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassSetPosition",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassTurnOff",
+        "HassTurnOn",
+        "HassUnpauseTimer",
+        "find_entities"
+      ],
+      "enforced_correct": false,
+      "exposed_after": 18,
+      "exposed_before": 31,
+      "full_correct": false,
+      "id": "set-volume",
+      "order": "enforced\u2192full",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "HassSetVolume"
+      ]
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassLightSet",
+        "HassListAddItem",
+        "HassListCompleteItem",
+        "HassPauseTimer",
+        "HassSetVolume",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassTurnOff",
+        "HassTurnOn",
+        "HassUnpauseTimer",
+        "find_entities",
+        "todo_get_items"
+      ],
+      "enforced_correct": true,
+      "exposed_after": 18,
+      "exposed_before": 31,
+      "full_correct": true,
+      "id": "pause-music",
+      "order": "full\u2192enforced",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "HassMediaPause"
+      ]
+    },
+    {
+      "dropped": [
+        "HassClimateSetTemperature",
+        "HassLightSet",
+        "HassListAddItem",
+        "HassListCompleteItem",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassSetPosition",
+        "HassTurnOff",
+        "HassTurnOn",
+        "find_entities",
+        "todo_get_items"
+      ],
+      "enforced_correct": true,
+      "exposed_after": 18,
+      "exposed_before": 31,
+      "full_correct": true,
+      "id": "start-timer",
+      "order": "enforced\u2192full",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "HassStartTimer"
+      ]
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassSetPosition",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassTurnOff",
+        "HassTurnOn",
+        "HassUnpauseTimer",
+        "find_entities"
+      ],
+      "enforced_correct": true,
+      "exposed_after": 18,
+      "exposed_before": 31,
+      "full_correct": true,
+      "id": "add-shopping-item",
+      "order": "full\u2192enforced",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "HassListAddItem"
+      ]
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassClimateSetTemperature",
+        "HassLightSet",
+        "HassListAddItem",
+        "HassListCompleteItem",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassSetPosition",
+        "HassSetVolume",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassTurnOff",
+        "HassTurnOn",
+        "HassUnpauseTimer",
+        "find_entities",
+        "todo_get_items"
+      ],
+      "enforced_correct": null,
+      "exposed_after": 12,
+      "exposed_before": 31,
+      "full_correct": null,
+      "id": "nevermind",
+      "order": "enforced\u2192full",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": []
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassLightSet",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassSetVolume",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassTurnOff",
+        "HassTurnOn",
+        "HassUnpauseTimer"
+      ],
+      "enforced_correct": true,
+      "exposed_after": 18,
+      "exposed_before": 31,
+      "full_correct": true,
+      "id": "is-garage-open",
+      "order": "full\u2192enforced",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "GetLiveContext"
+      ]
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassListAddItem",
+        "HassListCompleteItem",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassUnpauseTimer",
+        "find_entities",
+        "todo_get_items"
+      ],
+      "enforced_correct": true,
+      "exposed_after": 18,
+      "exposed_before": 31,
+      "full_correct": true,
+      "id": "compound-two-devices",
+      "order": "enforced\u2192full",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "HassTurnOff"
+      ]
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassClimateSetTemperature",
+        "HassLightSet",
+        "HassListAddItem",
+        "HassListCompleteItem",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassSetPosition",
+        "HassSetVolume",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassTurnOff",
+        "HassTurnOn",
+        "HassUnpauseTimer",
+        "todo_get_items"
+      ],
+      "enforced_correct": false,
+      "exposed_after": 13,
+      "exposed_before": 31,
+      "full_correct": false,
+      "id": "implicit-cold",
+      "order": "full\u2192enforced",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "GetLiveContext",
+        "HassClimateSetTemperature"
+      ]
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassLightSet",
+        "HassListAddItem",
+        "HassListCompleteItem",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassSetPosition",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassTurnOff",
+        "HassTurnOn",
+        "HassUnpauseTimer",
+        "find_entities",
+        "todo_get_items"
+      ],
+      "enforced_correct": false,
+      "exposed_after": 14,
+      "exposed_before": 31,
+      "full_correct": false,
+      "id": "implicit-too-dark",
+      "order": "enforced\u2192full",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "HassTurnOn"
+      ]
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassListAddItem",
+        "HassListCompleteItem",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassSetVolume",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassUnpauseTimer",
+        "todo_get_items"
+      ],
+      "enforced_correct": true,
+      "exposed_after": 18,
+      "exposed_before": 31,
+      "full_correct": true,
+      "id": "reasoning-did-i-leave-garage",
+      "order": "full\u2192enforced",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "GetLiveContext"
+      ]
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassLightSet",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassTurnOff",
+        "HassTurnOn",
+        "HassUnpauseTimer",
+        "find_entities"
+      ],
+      "enforced_correct": true,
+      "exposed_after": 18,
+      "exposed_before": 31,
+      "full_correct": true,
+      "id": "knowledge-capital-france",
+      "order": "enforced\u2192full",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": []
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassListAddItem",
+        "HassListCompleteItem",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassSetVolume",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassUnpauseTimer",
+        "todo_get_items"
+      ],
+      "enforced_correct": null,
+      "exposed_after": 18,
+      "exposed_before": 31,
+      "full_correct": null,
+      "id": "conditional-reminder",
+      "order": "full\u2192enforced",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": [
+        "HassStartTimer"
+      ]
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassLightSet",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassSetVolume",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassTurnOff",
+        "HassTurnOn",
+        "HassUnpauseTimer"
+      ],
+      "enforced_correct": null,
+      "exposed_after": 18,
+      "exposed_before": 31,
+      "full_correct": null,
+      "id": "remember-fact",
+      "order": "enforced\u2192full",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": []
+    },
+    {
+      "dropped": [
+        "HassCancelTimer",
+        "HassClimateSetTemperature",
+        "HassLightSet",
+        "HassListAddItem",
+        "HassListCompleteItem",
+        "HassMediaNext",
+        "HassMediaPause",
+        "HassMediaPrevious",
+        "HassMediaUnpause",
+        "HassPauseTimer",
+        "HassSetPosition",
+        "HassSetVolume",
+        "HassStartTimer",
+        "HassTimerStatus",
+        "HassTurnOff",
+        "HassTurnOn",
+        "HassUnpauseTimer",
+        "find_entities",
+        "todo_get_items"
+      ],
+      "enforced_correct": null,
+      "exposed_after": 12,
+      "exposed_before": 31,
+      "full_correct": null,
+      "id": "undo-last",
+      "order": "full\u2192enforced",
+      "regressed": false,
+      "selection_attributed": false,
+      "used_tools": []
+    }
+  ],
+  "run": {
+    "budget": 8,
+    "cases": 25,
+    "corpus": "wave0_golden_set.yaml",
+    "enforced": true,
+    "kind": "wave1-capability-selection-gate",
+    "model": "claude-haiku-4-5",
+    "pair_order": "alternating",
+    "prefer_local": false,
+    "provider_options": "per-case",
+    "timestamp": "2026-08-05T02:46:08.848118+00:00"
+  },
+  "task_success": {
+    "enforced": 17,
+    "full": 17,
+    "regressions": 0,
+    "selection_attributed_regressions": 0,
+    "total": 25,
+    "verdict": "PASS"
+  }
+}
