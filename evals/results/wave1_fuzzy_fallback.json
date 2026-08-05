@@ -1,0 +1,243 @@
+{
+  "buckets": {
+    "resolved after clarification": 0,
+    "resolved by LLM, correct": 6,
+    "resolved locally (hassil)": 0,
+    "unjudged (no success predicate)": 0,
+    "unresolved / \"I don't understand\"": 0,
+    "wrong action": 0
+  },
+  "cases": [
+    {
+      "actuated_names": [
+        "floor lamp",
+        "light.den_floor"
+      ],
+      "bucket": "resolved by LLM, correct",
+      "category": "device-control",
+      "changed": [
+        "light.den_floor"
+      ],
+      "correct": true,
+      "id": "fuzzy-floor-lamp",
+      "path": "consumer1_fallback",
+      "speech": "Done! I've turned on the floor lamp in the den.",
+      "tools": [
+        {
+          "args": {
+            "area": "den",
+            "domain": [
+              "light"
+            ],
+            "name": "floor lamp"
+          },
+          "name": "HassTurnOn"
+        },
+        {
+          "args": {
+            "area": "den",
+            "domain": [
+              "light"
+            ],
+            "name": "light.den_floor"
+          },
+          "name": "HassTurnOn"
+        }
+      ],
+      "unexpected_changes": {},
+      "used_find_entities": false,
+      "utterance": "turn on the floor lamp in the den"
+    },
+    {
+      "actuated_names": [
+        "reading light",
+        "light.living_couch"
+      ],
+      "bucket": "resolved by LLM, correct",
+      "category": "device-control",
+      "changed": [
+        "light.living_couch"
+      ],
+      "correct": true,
+      "id": "fuzzy-reading-light",
+      "path": "consumer1_fallback",
+      "speech": "Done! I've turned on the Sofa Reading Light in the living room.",
+      "tools": [
+        {
+          "args": {
+            "area": "living room",
+            "domain": [
+              "light"
+            ],
+            "name": "reading light"
+          },
+          "name": "HassTurnOn"
+        },
+        {
+          "args": {
+            "area": "living room",
+            "domain": [
+              "light"
+            ],
+            "name": "light.living_couch"
+          },
+          "name": "HassTurnOn"
+        }
+      ],
+      "unexpected_changes": {},
+      "used_find_entities": false,
+      "utterance": "turn on the reading light in the living room"
+    },
+    {
+      "actuated_names": [
+        "bedside lamp",
+        "light.bedroom_bedside"
+      ],
+      "bucket": "resolved by LLM, correct",
+      "category": "device-control",
+      "changed": [
+        "light.bedroom_bedside"
+      ],
+      "correct": true,
+      "id": "fuzzy-bedside-lamp",
+      "path": "consumer1_fallback",
+      "speech": "Done! I've turned on the bedside lamp in the bedroom.",
+      "tools": [
+        {
+          "args": {
+            "area": "bedroom",
+            "domain": [
+              "light"
+            ],
+            "name": "bedside lamp"
+          },
+          "name": "HassTurnOn"
+        },
+        {
+          "args": {
+            "area": "bedroom",
+            "domain": [
+              "light"
+            ],
+            "name": "light.bedroom_bedside"
+          },
+          "name": "HassTurnOn"
+        }
+      ],
+      "unexpected_changes": {},
+      "used_find_entities": false,
+      "utterance": "turn on the bedside lamp in the bedroom"
+    },
+    {
+      "actuated_names": [],
+      "bucket": "resolved by LLM, correct",
+      "category": "device-control",
+      "changed": [
+        "cover.office_shade"
+      ],
+      "correct": true,
+      "id": "fuzzy-office-shade",
+      "path": "structured_slots",
+      "speech": "Done! I've closed the roller shade in the office.",
+      "tools": [
+        {
+          "args": {
+            "area": "office",
+            "device_class": [
+              "shade"
+            ],
+            "domain": [
+              "cover"
+            ]
+          },
+          "name": "HassTurnOff"
+        }
+      ],
+      "unexpected_changes": {},
+      "used_find_entities": false,
+      "utterance": "close the roller shade in the office"
+    },
+    {
+      "actuated_names": [
+        "under cabinet lights",
+        "light.kitchen_strip"
+      ],
+      "bucket": "resolved by LLM, correct",
+      "category": "device-control",
+      "changed": [
+        "light.kitchen_strip"
+      ],
+      "correct": true,
+      "id": "fuzzy-under-cabinet",
+      "path": "consumer1_fallback",
+      "speech": "Done! I've turned on the under cabinet lights in the kitchen.",
+      "tools": [
+        {
+          "args": {
+            "area": "kitchen",
+            "domain": [
+              "light"
+            ],
+            "name": "under cabinet lights"
+          },
+          "name": "HassTurnOn"
+        },
+        {
+          "args": {
+            "area": "kitchen",
+            "domain": [
+              "light"
+            ],
+            "name": "light.kitchen_strip"
+          },
+          "name": "HassTurnOn"
+        }
+      ],
+      "unexpected_changes": {},
+      "used_find_entities": false,
+      "utterance": "turn on the under cabinet lights in the kitchen"
+    },
+    {
+      "actuated_names": [
+        "lamp"
+      ],
+      "bucket": "resolved by LLM, correct",
+      "category": "device-control",
+      "changed": [],
+      "correct": true,
+      "id": "ambiguous-lamp",
+      "path": "asked_no_action",
+      "speech": "I don't see a lamp in the hallway. You have lights in the bedroom, den, kitchen, living room, and office. Which lamp would you like me to turn on?",
+      "tools": [
+        {
+          "args": {
+            "area": "hallway",
+            "domain": [
+              "light"
+            ],
+            "name": "lamp"
+          },
+          "name": "HassTurnOn"
+        }
+      ],
+      "unexpected_changes": {},
+      "used_find_entities": false,
+      "utterance": "turn on the lamp"
+    }
+  ],
+  "paths": {
+    "asked_no_action": 1,
+    "consumer1_fallback": 4,
+    "structured_slots": 1
+  },
+  "run": {
+    "cases": 6,
+    "consumer1_correct": 4,
+    "corpus": "wave1_fuzzy_fallback.yaml",
+    "entity_summary": true,
+    "kind": "wave1-fuzzy-fallback",
+    "model": "claude-haiku-4-5",
+    "name_injection": false,
+    "timestamp": "2026-08-05T05:47:14.365308+00:00"
+  }
+}

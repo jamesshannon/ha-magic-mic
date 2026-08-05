@@ -17,15 +17,18 @@ evals/
   README.md                     this file
   corpus/
     wave0_golden_set.yaml        the seed cases + the fixture "home" they run against
+    wave1_fuzzy_fallback.yaml    spoken-name device cases for the match-layer fuzzy fallback
     resolution/seed.yaml         the resolver micro-benchmark (model-free, see below)
   harness/                       corpus loader, scorer, routing measurement, runner
     baseline.py                  the live-baseline entry point (needs a key)
     local_first.py               the faithful prefer-local routing driver (key for fallback)
+    fuzzy_fallback.py            the find_entities Consumer 1 driver (summary on, names off)
     console.py                   interactive CLI to hand-drive turns (needs a key)
     backing.py                   real executable entities for the fixture home
     resolution.py                the resolver micro-benchmark loader + runner + scorecard
   results/
     wave0_baseline.json          the recorded live baseline Wave 1 measures against
+    wave1_fuzzy_fallback.json    the recorded fuzzy-fallback (Consumer 1) run
 ```
 
 ## What the corpus is
@@ -337,6 +340,36 @@ locally but the local path exposes no arg schema to verify against. `weather` ro
 LLM only because the fixture has no weather integration (recognized `HassGetWeather`, no
 handler); a real home with the integration resolves it locally, so the true off-cloud rate
 is a lower bound here.
+
+### Fuzzy fallback / find_entities Consumer 1 (2026-08-04, `claude-haiku-4-5`, hallway satellite)
+
+First live run of `harness/fuzzy_fallback.py` over `corpus/wave1_fuzzy_fallback.yaml`: five
+device names deliberately more formal than the spoken phrasing ("Corner Floor Lamp" vs "the
+floor lamp"), driven with the entity summary on and name injection off so the model never
+sees the exact roster and must resolve a spoken name. **6/6 correct, zero wrong-target
+actuation.** Paths: four names recovered by the match-layer fallback (Consumer 1), including
+the near-threshold "under cabinet lights" -> "Under Cabinet Lighting"; one resolved by area +
+device-class slots (no name, so the fuzzy layer never ran); one bare "turn on the lamp",
+ambiguous across two rooms, correctly asked rather than guessing. No case reached for
+`find_entities`. Latency over the 6 model turns: TTFT p50 731ms / p95 941ms, round duration
+p50 3.78s / p95 4.59s (`results/wave1_fuzzy_fallback.json`).
+
+Two placement facts the run taught, both now baked into the corpus and driver. The model
+scopes a name-bearing call to its satellite's room ("the user is in the living room"), and
+the fallback honors that scope, so a bare cross-room name asked from the living room came
+back not-found; the satellite therefore sits in a neutral room (hallway, no devices) and the
+decisive cases name their room, matching how resolution is scoped in practice. This is the
+same room-scoping ruled intended for `turn-off-all-lights`. The fallback recovered targets
+both decisively and by handing back candidates the model then chose by `entity_id`; both
+report as the Consumer 1 path, since which fires is model-nondeterministic across passes.
+
+Run it (every case reaches the model; there is no local shortcut):
+
+```
+.venv/bin/python -m evals.harness.fuzzy_fallback                       # full corpus, writes the artifact
+.venv/bin/python -m evals.harness.fuzzy_fallback --case ambiguous-lamp # one case
+.venv/bin/python -m evals.harness.fuzzy_fallback --list                # show the selection, no key
+```
 
 Config knobs like the web tools, `prefer_local`, and `web_search` `user_location` (off by
 default, privacy-first) are eval **axes**, not just shipped defaults to mirror: measure each

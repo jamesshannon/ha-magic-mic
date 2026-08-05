@@ -259,6 +259,27 @@ with action-specific tightening left to the open threshold question. Scope: the 
 fires on a NAME *miss* only; a `DUPLICATE_NAME` (two entities sharing one exact name) is a
 different reason and is left to HA's own handling.
 
+**As built (live).** `evals/harness/fuzzy_fallback.py` drives the fuzzy corpus
+(`evals/corpus/wave1_fuzzy_fallback.yaml`, five device names deliberately more formal than
+the spoken phrasing) through the live testbed agent with the entity summary on and name
+injection off, so the model never sees the exact roster and must resolve a spoken name. On
+claude-haiku-4-5 the first pass scored 6/6 correct with no wrong-target actuation: four
+device names were recovered by the match-layer fallback, the near-threshold "under cabinet
+lights" -> "Under Cabinet Lighting" among them, and no case reached for `find_entities`. One
+case ("close the roller shade in the office") resolved by area + device-class slots, so the
+fuzzy layer never ran; the bare "turn on the lamp", ambiguous across two rooms, correctly
+asked rather than guessing (`evals/results/wave1_fuzzy_fallback.json`).
+
+Two placement facts the run surfaced. The model scopes a name-bearing call to its
+satellite's room ("the user is in the living room"), and the fallback honors that scope: a
+first pass from the living room with bare names sent "turn on the floor lamp" to the living
+room, found no floor lamp there, and asked. So the measurement satellite sits in a neutral
+room and the decisive cases name their room, matching how resolution is scoped in practice.
+This is the same room-scoping already ruled intended for `turn-off-all-lights`. The fallback
+recovered the target both decisively (a single `HassTurnOn` on the spoken name) and by
+handing back candidates the model then chose by `entity_id`; the run reports both as the
+Consumer 1 path, since which one fires is model-nondeterministic across passes.
+
 ### Consumer 2 — `find_entities` tool (decoupled resolution)
 
 Justified where resolution is **separated from an intent that's firing now**, so
@@ -418,9 +439,12 @@ tool.
 ## Evaluation gate
 
 The deterministic resolver corpus gates ranking, acceptance, ambiguity, and localization
-thresholds. The single-turn LLM runner gates direct resolution and wrong-target effects. A
-scripted multi-turn trajectory is required before claiming disambiguation success or fewer
-turns: it must carry the same `conversation_id`, answer the candidate question, permit a
+thresholds. The single-turn LLM runner gates direct resolution and wrong-target effects; it
+is `evals/harness/fuzzy_fallback.py` over `wave1_fuzzy_fallback.yaml`, which state-scores each
+case (so a wrong-target resolution actuates the wrong device and fails) and classifies which
+resolution path each turn took (match-layer fallback, `find_entities`, structured slots, or
+asked). A scripted multi-turn trajectory is required before claiming disambiguation success or
+fewer turns: it must carry the same `conversation_id`, answer the candidate question, permit a
 correction or unrelated replacement command, and score the final world state. Direct fuzzy
 resolution may land before that driver; the clarification claim may not.
 
