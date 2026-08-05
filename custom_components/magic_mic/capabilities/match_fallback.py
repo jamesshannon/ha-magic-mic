@@ -58,13 +58,16 @@ def resolve_name_miss(
     ambiguous and not-found cases.
 
     A named entity resolves house-wide, the way HA core's `_filter_by_name` matches before any
-    area logic (`intent.py`): a uniquely named device resolves from any room, and the
-    requesting room is only a preference that breaks a tie. The room comes from context (the
-    satellite `device_id`), not from whatever `area` the model chose to pass; a model-supplied
-    area that just echoes the device's own room must not become a hard filter, or "turn on the
-    floor lamp" from the living room never finds the den's floor lamp. A genuinely *different*
-    spoken room (or any spoken floor) is still honored as a hard scope, exactly as HA core
+    area logic (`intent.py`): a uniquely named device resolves from any room. When the request
+    carries no spoken area, the requesting room (from context, the satellite `device_id`) is
+    applied only as a tiebreak for a genuinely ambiguous name, mirroring core's soft
+    `preferred_area_id`. A spoken `area`/`floor` is honored as a hard scope, exactly as core
     would, so "the reading light in the kitchen" does not cross rooms.
+
+    The model is expected to pass `area`/`floor` only when the user names a location, not to
+    echo its own room onto a named request (see the prompt guidance in `localization`); if it
+    does echo, the echoed room scopes the search and a device elsewhere misses, which is a
+    prompt-adherence signal for the evals to catch rather than something this layer papers over.
     """
     if error.result.no_match_reason is not intent.MatchFailedReason.NAME:
         return None
@@ -75,22 +78,20 @@ def resolve_name_miss(
         return None
 
     registries = Registries(hass)
-    device_area_id = _device_area_id(registries, llm_context.device_id)
-    spoken_area_id = _area_id(registries, constraints.area_name)
-    honor_scope = bool(constraints.floor_name) or (
-        spoken_area_id is not None and spoken_area_id != device_area_id
+    # A spoken area/floor scopes the search; absent one, the requesting room is a tiebreak only.
+    scoped = bool(constraints.area_name) or bool(constraints.floor_name)
+    prefer_area_id = (
+        None if scoped else _device_area_id(registries, llm_context.device_id)
     )
-    prefer_area_id = None if honor_scope else device_area_id
 
     # Recover the candidate set with the structured filters (domain/device_class/state/
-    # exposure) but without the name. The area/floor are dropped unless the caller genuinely
-    # scoped to a different room, so the fuzzy match runs house-wide and the room is applied as
-    # a preference below.
+    # exposure, plus any spoken area/floor) but without the name, so the fuzzy match runs over
+    # the set the exact name match ran against.
     match = intent.async_match_targets(
         hass,
         intent.MatchTargetsConstraints(
-            area_name=constraints.area_name if honor_scope else None,
-            floor_name=constraints.floor_name if honor_scope else None,
+            area_name=constraints.area_name,
+            floor_name=constraints.floor_name,
             domains=constraints.domains,
             device_classes=constraints.device_classes,
             features=constraints.features,
@@ -134,14 +135,6 @@ def _device_area_id(registries: Registries, device_id: str | None) -> str | None
         return None
     device = registries.devices.async_get(device_id)
     return device.area_id if device else None
-
-
-def _area_id(registries: Registries, area_name: str | None) -> str | None:
-    """Resolve a spoken area name to its id, or None when absent or unknown."""
-    if not area_name:
-        return None
-    match = next(iter(intent.find_areas(area_name, registries.areas)), None)
-    return match.id if match else None
 
 
 def _prefer_area(

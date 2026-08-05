@@ -160,18 +160,44 @@ async def test_no_fuzzy_hit_returns_not_found(
     assert fallback.tool_result["error"] == "name_not_found"
 
 
-async def test_unique_name_resolves_across_rooms_despite_echoed_area(
+async def test_unique_name_resolves_across_rooms_with_no_spoken_area(
     hass: HomeAssistant, conversation_strings: ConversationStrings
 ) -> None:
-    """A uniquely named device in another room resolves; the device's own room is no filter.
+    """A uniquely named device in another room resolves house-wide from the request's room.
 
-    The model, standing in the living room, echoes ``area="living room"`` onto the call. That
-    must not scope the search: "the floor lamp" is unique house-wide, so it resolves the den
-    lamp regardless of the room the request came from.
+    No area is spoken (the model is prompted to omit it), so "the floor lamp" resolves the den
+    lamp from a living-room satellite; the device's own room is not a filter.
     """
     living = _area(hass, "Living Room")
     den = _area(hass, "Den")
     den_lamp = _register(hass, "light.den_floor", "Corner Floor Lamp", area_id=den)
+    _register(hass, "light.living_couch", "Sofa Reading Light", area_id=living)
+    satellite = _satellite_in(hass, living)
+
+    fallback = resolve_name_miss(
+        hass,
+        _llm_context(device_id=satellite),
+        _name_miss("floor lamp", domains=["light"]),
+        conversation_strings,
+    )
+
+    assert fallback is not None
+    assert fallback.entity_id == den_lamp
+
+
+async def test_echoed_device_room_scopes_and_misses(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
+    """A spoken area is a hard scope, so echoing the device's own room misses across rooms.
+
+    This is deliberate: the fallback trusts the prompt (pass area only for a named location)
+    and does not second-guess a supplied area. If the model echoes ``area="living room"`` onto
+    "the floor lamp", the den lamp is filtered out and comes back not-found, the signal the
+    evals watch for rather than something this layer papers over.
+    """
+    living = _area(hass, "Living Room")
+    den = _area(hass, "Den")
+    _register(hass, "light.den_floor", "Corner Floor Lamp", area_id=den)
     _register(hass, "light.living_couch", "Sofa Reading Light", area_id=living)
     satellite = _satellite_in(hass, living)
 
@@ -183,7 +209,8 @@ async def test_unique_name_resolves_across_rooms_despite_echoed_area(
     )
 
     assert fallback is not None
-    assert fallback.entity_id == den_lamp
+    assert fallback.entity_id is None
+    assert fallback.tool_result["error"] == "name_not_found"
 
 
 async def test_different_spoken_room_is_honored_as_scope(

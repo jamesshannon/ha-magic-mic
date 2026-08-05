@@ -259,20 +259,26 @@ with action-specific tightening left to the open threshold question. Scope: the 
 fires on a NAME *miss* only; a `DUPLICATE_NAME` (two entities sharing one exact name) is a
 different reason and is left to HA's own handling.
 
-**Room is a preference, not a filter.** The fuzzy re-match runs house-wide, mirroring HA
-core's `_filter_by_name` (which matches the name across all exposed entities *before* any area
-logic): a uniquely named device resolves from any room, so "turn on the floor lamp" from the
-hallway finds the den's floor lamp. The requesting room comes from context (the satellite
-`device_id` on the `LLMContext`, the way core derives its match preference), never from the
-`area` the model chose to pass. This matters because the model tends to echo its own room onto
-a name-bearing call ("the user is in the living room, I'll add the area"); left as a hard
-`area_name` constraint that scopes the search and misses a device elsewhere, which HA core
-itself would also miss on (`MatchFailedReason.AREA`). So an echoed own-room area is ignored,
-and the room is applied only to break a genuine tie: when the house-wide match is ambiguous,
-`_prefer_area` keeps the in-room candidates and re-applies the same accept/margin guard, so
-context can settle a tie decisively but never force a fuzzy physical action. A model-supplied
-area that is a *different* room than the satellite's (or any spoken floor) is honored as a
-hard scope, exactly as core would, so "the reading light in the kitchen" does not cross rooms.
+**Room is a preference, not a filter.** When no area is spoken, the fuzzy re-match runs
+house-wide, mirroring HA core's `_filter_by_name` (which matches the name across all exposed
+entities *before* any area logic): a uniquely named device resolves from any room, so "turn on
+the floor lamp" from the hallway finds the den's floor lamp. The requesting room comes from
+context (the satellite `device_id` on the `LLMContext`, the way core injects a soft
+`preferred_area_id`) and is applied only to break a genuine tie: when the house-wide match is
+ambiguous, `_prefer_area` keeps the in-room candidates and re-applies the same accept/margin
+guard, so context can settle a tie decisively but never force a fuzzy physical action. A
+spoken `area`/`floor` is honored as a hard scope, exactly as core would, so "the reading light
+in the kitchen" does not cross rooms.
+
+This trusts the prompt over the model: the system prompt tells the model to pass `area`/`floor`
+only when the user names a location, not to echo its own room onto a named request (the room is
+supplied deterministically from context, as core does by stripping `preferred_area_id` from the
+model and injecting the device's area). If the model ignores that and echoes its room, the
+echoed area scopes the search and a device elsewhere misses, exactly as core would miss on a
+supplied-but-wrong area. That is left as a prompt-adherence signal for the evals to catch rather
+than something the match layer papers over with an echo-detection heuristic, which was tried and
+removed: it cannot tell an echo from a user who genuinely names their own room, and guessing
+there mis-scopes a real request.
 
 **As built (live).** `evals/harness/fuzzy_fallback.py` drives the fuzzy corpus
 (`evals/corpus/wave1_fuzzy_fallback.yaml`, five device names deliberately more formal than the
