@@ -270,6 +270,15 @@ guard, so context can settle a tie decisively but never force a fuzzy physical a
 spoken `area`/`floor` is honored as a hard scope, exactly as core would, so "the reading light
 in the kitchen" does not cross rooms.
 
+This room-preference is not a property of the match-layer fallback; it lives in the shared
+resolve step (`entity_candidates.resolve_name_over_states`) that both consumers call, so
+`find_entities` breaks the same tie the same way. "The reading light" resolves to the same
+device whether it arrives as a device-control name-miss (Consumer 1) or a `find_entities` call
+(Consumer 2), and neither ever filters out a uniquely named cross-room device. `find_entities`
+supplies the preference only when its `area`/`floor` arg is absent; a spoken area is already the
+hard filter, and the no-name structured list ("what lights are on?") has no name to break, so it
+is never silently narrowed to the requesting room.
+
 This trusts the prompt over the model: the system prompt tells the model to pass `area`/`floor`
 only when the user names a location, not to echo its own room onto a named request (the room is
 supplied deterministically from context, as core does by stripping `preferred_area_id` from the
@@ -331,9 +340,11 @@ find_entities(
 
 Implementation reuses HA: call `async_match_targets` with everything *except*
 `name` (structured filters + `assistant=` exposure, `allow_duplicate_names=True`)
-to get the valid candidate set, then apply the **same scorer + guard** as
-Consumer 1. If `name` is absent it's a pure structured list ("the kitchen lights")
-— returning `entity_id`s, which is what `GetLiveContext` can't do today.
+to get the valid candidate set, then hand the matched states to the same shared
+`resolve_name_over_states` Consumer 1 uses, so the scorer, the accept/margin guard, and the
+requesting-room tiebreak are one implementation, not two that can drift. If `name` is absent
+it's a pure structured list ("the kitchen lights") — returning `entity_id`s, which is what
+`GetLiveContext` can't do today, and with no name to score the room preference does not apply.
 
 ### Name alternatives (OR without a query language)
 

@@ -22,7 +22,7 @@ from homeassistant.helpers import (
 )
 from homeassistant.util.json import JsonObjectType
 
-from .fuzzy import Candidate
+from .fuzzy import Candidate, Resolution, resolve, resolve_candidates
 
 
 class Registries:
@@ -89,6 +89,70 @@ def entity_result(
     if score is not None:
         result["score"] = round(score, 1)
     return result
+
+
+def resolve_name_over_states(
+    hass: HomeAssistant,
+    registries: Registries,
+    states: list[State],
+    name: str | list[str],
+    *,
+    prefer_area_id: str | None,
+    limit: int,
+) -> Resolution:
+    """Fuzzy-resolve a spoken name over an already-matched, exposure-scoped candidate set.
+
+    The shared middle of both resolver consumers (the match-layer fuzzy fallback and the
+    `find_entities` tool): build each state's scorer input, score the name against them, and,
+    when the house-wide match is ambiguous and a requesting room is supplied, break the tie
+    toward that room. A uniquely named device resolves house-wide regardless of the room, so
+    the room only ever settles a genuine ambiguity and never filters out a cross-room match.
+    Each consumer owns its own `MatchTargetsConstraints`, no-match handling, and mapping of the
+    returned `Resolution` onto its own contract; only this step, the one that just drifted
+    between them, lives here.
+    """
+    candidates = {
+        state.entity_id: build_candidate(hass, registries, state) for state in states
+    }
+    resolution = resolve_candidates(name, candidates, limit)
+    if resolution.match is None and prefer_area_id is not None:
+        resolution = _prefer_area(resolution, prefer_area_id, registries, limit)
+    return resolution
+
+
+def device_area_id(registries: Registries, device_id: str | None) -> str | None:
+    """Return the requesting satellite's area, the room to prefer (HA-core semantics)."""
+    if device_id is None:
+        return None
+    device = registries.devices.async_get(device_id)
+    return device.area_id if device else None
+
+
+def _prefer_area(
+    resolution: Resolution,
+    prefer_area_id: str,
+    registries: Registries,
+    limit: int,
+) -> Resolution:
+    """Break an ambiguous resolution toward the requesting room, decisively or not at all.
+
+    The room is a preference, not a filter: it only runs when the house-wide match was
+    ambiguous, keeps just the in-room candidates, and re-applies the same accept/margin guard.
+    A single strong in-room winner resolves; anything still ambiguous is left for the caller to
+    ask about, so context can settle a tie but never force a fuzzy physical action.
+    """
+    if not resolution.ambiguous:
+        return resolution
+    in_area = [
+        scored
+        for scored in resolution.candidates
+        if (area := resolve_area(registries, scored.key)) is not None
+        and area.id == prefer_area_id
+    ]
+    if not in_area:
+        return resolution
+    narrowed = resolve(in_area, limit)
+    return narrowed if narrowed.match is not None else resolution
 
 
 def resolve_area(registries: Registries, entity_id: str) -> ar.AreaEntry | None:

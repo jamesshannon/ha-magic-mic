@@ -22,8 +22,12 @@ from homeassistant.helpers import intent, llm
 from homeassistant.util.json import JsonObjectType
 
 from ..const import FIND_ENTITIES_DEFAULT_LIMIT
-from ..entity_candidates import Registries, build_candidate, entity_result, resolve_area
-from ..fuzzy import Resolution, resolve, resolve_candidates
+from ..entity_candidates import (
+    Registries,
+    device_area_id,
+    entity_result,
+    resolve_name_over_states,
+)
 from .localization import ConversationStrings
 
 
@@ -81,7 +85,7 @@ def resolve_name_miss(
     # A spoken area/floor scopes the search; absent one, the requesting room is a tiebreak only.
     scoped = bool(constraints.area_name) or bool(constraints.floor_name)
     prefer_area_id = (
-        None if scoped else _device_area_id(registries, llm_context.device_id)
+        None if scoped else device_area_id(registries, llm_context.device_id)
     )
 
     # Recover the candidate set with the structured filters (domain/device_class/state/
@@ -103,13 +107,9 @@ def resolve_name_miss(
     if not match.is_match:
         return NameFallback(tool_result=_not_found(name, strings))
 
-    candidates = {
-        state.entity_id: build_candidate(hass, registries, state)
-        for state in match.states
-    }
-    resolution = resolve_candidates(name, candidates, limit)
-    if resolution.match is None and prefer_area_id is not None:
-        resolution = _prefer_area(resolution, prefer_area_id, registries, limit)
+    resolution = resolve_name_over_states(
+        hass, registries, match.states, name, prefer_area_id=prefer_area_id, limit=limit
+    )
     if resolution.match is not None:
         return NameFallback(entity_id=resolution.match.key)
 
@@ -127,41 +127,6 @@ def resolve_name_miss(
             "success": False,
         }
     )
-
-
-def _device_area_id(registries: Registries, device_id: str | None) -> str | None:
-    """Return the requesting satellite's area, the room to prefer (HA-core semantics)."""
-    if device_id is None:
-        return None
-    device = registries.devices.async_get(device_id)
-    return device.area_id if device else None
-
-
-def _prefer_area(
-    resolution: Resolution,
-    prefer_area_id: str,
-    registries: Registries,
-    limit: int,
-) -> Resolution:
-    """Break an ambiguous resolution toward the requesting room, decisively or not at all.
-
-    The room is a preference, not a filter: it only runs when the house-wide match was
-    ambiguous, keeps just the in-room candidates, and re-applies the same accept/margin guard.
-    A single strong in-room winner resolves; anything still ambiguous is left for the model to
-    ask about, so context can settle a tie but never force a fuzzy physical action.
-    """
-    if not resolution.ambiguous:
-        return resolution
-    in_area = [
-        scored
-        for scored in resolution.candidates
-        if (area := resolve_area(registries, scored.key)) is not None
-        and area.id == prefer_area_id
-    ]
-    if not in_area:
-        return resolution
-    narrowed = resolve(in_area, limit)
-    return narrowed if narrowed.match is not None else resolution
 
 
 def _not_found(name: str, strings: ConversationStrings) -> JsonObjectType:

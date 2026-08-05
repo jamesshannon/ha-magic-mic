@@ -21,8 +21,12 @@ from homeassistant.helpers import config_validation as cv, intent, llm
 from homeassistant.util.json import JsonObjectType
 
 from ..const import FIND_ENTITIES_DEFAULT_LIMIT, FIND_ENTITIES_MAX_LIMIT
-from ..entity_candidates import Registries, build_candidate, entity_result
-from ..fuzzy import resolve_candidates
+from ..entity_candidates import (
+    Registries,
+    device_area_id,
+    entity_result,
+    resolve_name_over_states,
+)
 from ..tool_policy import EffectClass, StaticToolPolicy, tool_policy
 from .localization import ConversationStrings
 
@@ -149,11 +153,22 @@ class FindEntitiesTool(llm.Tool):
             ]
             return {"success": True, "results": results}
 
-        candidates = {
-            state.entity_id: build_candidate(hass, registries, state)
-            for state in match_result.states
-        }
-        resolution = resolve_candidates(name_alternatives, candidates, limit)
+        # No spoken area/floor: prefer the requesting room as a tiebreak only, matching the
+        # match-layer fallback, so "the reading light" resolves the same whichever path it
+        # arrives on. A spoken area/floor is already the hard filter above, so it suppresses the
+        # preference; a uniquely named device still resolves house-wide either way.
+        scoped = bool(args.get("area")) or bool(args.get("floor"))
+        prefer_area_id = (
+            None if scoped else device_area_id(registries, llm_context.device_id)
+        )
+        resolution = resolve_name_over_states(
+            hass,
+            registries,
+            match_result.states,
+            name_alternatives,
+            prefer_area_id=prefer_area_id,
+            limit=limit,
+        )
 
         chosen = (
             [resolution.match]

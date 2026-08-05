@@ -71,15 +71,29 @@ def _register(
     return entry.entity_id
 
 
-def _llm_context(assistant: str | None = ASSISTANT) -> llm.LLMContext:
-    """Build a minimal LLMContext for the given assistant."""
+def _llm_context(
+    assistant: str | None = ASSISTANT, device_id: str | None = None
+) -> llm.LLMContext:
+    """Build a minimal LLMContext for the given assistant and requesting device."""
     return llm.LLMContext(
         platform="magic_mic",
         context=None,
         language="en",
         assistant=assistant,
-        device_id=None,
+        device_id=device_id,
     )
+
+
+def _satellite_in(hass: HomeAssistant, area_id: str) -> str:
+    """Register a device placed in the given area and return its id (the requesting room)."""
+    config_entry = MockConfigEntry(domain="test")
+    config_entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={("test", f"sat-{area_id}")},
+    )
+    dr.async_get(hass).async_update_device(device.id, area_id=area_id)
+    return device.id
 
 
 async def _call(
@@ -87,13 +101,14 @@ async def _call(
     strings: ConversationStrings,
     args: dict,
     assistant: str | None = ASSISTANT,
+    device_id: str | None = None,
 ):
     """Invoke find_entities with the given tool args."""
     tool = FindEntitiesTool(strings)
     return await tool.async_call(
         hass,
         llm.ToolInput(tool_name="find_entities", tool_args=args),
-        _llm_context(assistant),
+        _llm_context(assistant, device_id),
     )
 
 
@@ -158,6 +173,77 @@ async def test_close_names_return_ambiguous_shortlist(
     assert result["ambiguous"] is True
     ids = {row["entity_id"] for row in result["results"]}
     assert ids == {"light.lamp", "light.ceiling"}
+
+
+async def test_requesting_room_breaks_ambiguous_name(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
+    """The requesting room settles a house-wide tie, matching the match-layer fallback.
+
+    Two "reading light"s in different rooms are ambiguous house-wide; a request from the
+    living room resolves the living-room one decisively instead of returning the shortlist.
+    """
+    living = ar.async_get(hass).async_create("Living Room").id
+    bedroom = ar.async_get(hass).async_create("Bedroom").id
+    target = _register(hass, "light.lr_reading", "Sofa Reading Light", area_id=living)
+    _register(hass, "light.br_reading", "Bedside Reading Light", area_id=bedroom)
+
+    result = await _call(
+        hass,
+        conversation_strings,
+        {"name": "reading light"},
+        device_id=_satellite_in(hass, living),
+    )
+
+    assert result["success"] is True
+    assert "ambiguous" not in result
+    assert [row["entity_id"] for row in result["results"]] == [target]
+
+
+async def test_unique_name_resolves_across_rooms_despite_requesting_room(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
+    """The room is a preference, not a filter: a unique cross-room name still resolves.
+
+    A device-less request from the hallway must still find the one den floor lamp; scoping to
+    the requesting room would drop it (the cross-room miss this preference must not cause).
+    """
+    hallway = ar.async_get(hass).async_create("Hallway").id
+    den = ar.async_get(hass).async_create("Den").id
+    target = _register(hass, "light.den_floor", "Corner Floor Lamp", area_id=den)
+
+    result = await _call(
+        hass,
+        conversation_strings,
+        {"name": "floor lamp"},
+        device_id=_satellite_in(hass, hallway),
+    )
+
+    assert result["success"] is True
+    assert "ambiguous" not in result
+    assert [row["entity_id"] for row in result["results"]] == [target]
+
+
+async def test_ambiguous_stays_ambiguous_without_a_requesting_room(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
+    """With no in-room candidate to prefer, the tie is left for the model to resolve."""
+    living = ar.async_get(hass).async_create("Living Room").id
+    bedroom = ar.async_get(hass).async_create("Bedroom").id
+    hallway = ar.async_get(hass).async_create("Hallway").id
+    _register(hass, "light.lr_reading", "Sofa Reading Light", area_id=living)
+    _register(hass, "light.br_reading", "Bedside Reading Light", area_id=bedroom)
+
+    result = await _call(
+        hass,
+        conversation_strings,
+        {"name": "reading light"},
+        device_id=_satellite_in(hass, hallway),
+    )
+
+    assert result["success"] is True
+    assert result["ambiguous"] is True
+    assert len(result["results"]) == 2
 
 
 async def test_unmatched_name_returns_empty(
