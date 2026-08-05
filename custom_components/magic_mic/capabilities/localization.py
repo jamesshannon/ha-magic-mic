@@ -14,6 +14,7 @@ _PREFIX = f"component.{DOMAIN}.conversation."
 class ConversationStrings:
     """Request-language strings used in Magic Mic prompts and tool schemas."""
 
+    area_usage_instruction: str
     entity_summary_header: str
     find_entities_description: str
     find_entities_error_invalid_area: str
@@ -47,6 +48,7 @@ async def async_get_conversation_strings(
         return translations[f"{_PREFIX}{key}"]
 
     return ConversationStrings(
+        area_usage_instruction=translated("area_usage.instruction"),
         entity_summary_header=translated("entity_summary.header"),
         find_entities_description=translated("find_entities.description"),
         find_entities_error_invalid_area=translated(

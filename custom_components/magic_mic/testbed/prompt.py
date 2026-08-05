@@ -75,7 +75,13 @@ class EntitySummaryAssistAPI(AssistAPI):
     def _async_get_exposed_entities_prompt(
         self, exposed_entities: dict | None
     ) -> list[str]:
-        """Return the entity summary in place of the exposed-entity roster."""
+        """Return the entity summary in place of the exposed-entity roster.
+
+        The summary retires the exact names, so the model reasons about rooms from counts; the
+        area-usage instruction rides alongside it to keep the model from echoing its own room
+        onto a named request (find-entities.md "Room is a preference"): the room is supplied
+        from context, and a named device is matched house-wide.
+        """
         if (
             not exposed_entities
             or not exposed_entities["entities"]
@@ -88,7 +94,7 @@ class EntitySummaryAssistAPI(AssistAPI):
             self._assistant,
             self._strings,
         )
-        return [summary] if summary else []
+        return [summary, self._strings.area_usage_instruction] if summary else []
 
 
 @callback

@@ -27,6 +27,7 @@ from .streaming import create_content_block
 ASSISTANT = conversation.DOMAIN
 ENTITY_SUMMARY_HEADER = "Each line lists an area and the number of devices"
 NAME_INJECTION_HEADER = "Each line lists one request-relevant entity name and entity_id"
+AREA_USAGE_INSTRUCTION = "Pass an area or floor to a device tool only when the user"
 
 
 class ExtraAPI(llm.API):
@@ -111,6 +112,9 @@ async def test_api_prompt_carries_summary_not_roster(hass: HomeAssistant) -> Non
     # The roster marker and the specific device name must be gone.
     assert "Static Context" not in instance.api_prompt
     assert "Reading Lamp" not in instance.api_prompt
+    # The area-usage instruction rides with the summary, so the model does not echo its own
+    # room onto a named request (find-entities.md "Room is a preference").
+    assert AREA_USAGE_INSTRUCTION in instance.api_prompt
 
 
 async def test_no_entities_prompt_preserved(hass: HomeAssistant) -> None:
@@ -118,6 +122,7 @@ async def test_no_entities_prompt_preserved(hass: HomeAssistant) -> None:
     instance = await EntitySummaryAssistAPI(hass).async_get_api_instance(_llm_context())
 
     assert ENTITY_SUMMARY_HEADER not in instance.api_prompt
+    assert AREA_USAGE_INSTRUCTION not in instance.api_prompt
     assert instance.api_prompt == llm.NO_ENTITIES_PROMPT
 
 
