@@ -36,6 +36,10 @@
         "invalid_area": "No existe ningún área llamada {filter_value}.",
         "invalid_floor": "No existe ninguna planta llamada {filter_value}."
       }
+    },
+    "match_fallback": {
+      "ambiguous": "Varias entidades coinciden con {name}. Pregunta al usuario a cuál se refiere.",
+      "not_found": "No se encontró ninguna entidad que coincida con {name}."
     }
   }
 }

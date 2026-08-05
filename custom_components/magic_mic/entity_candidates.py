@@ -20,6 +20,7 @@ from homeassistant.helpers import (
     floor_registry as fr,
     intent,
 )
+from homeassistant.util.json import JsonObjectType
 
 from .fuzzy import Candidate
 
@@ -55,6 +56,39 @@ def build_candidate(
         ):
             context.append(floor.name)
     return Candidate(names=tuple(names), context=tuple(context))
+
+
+def entity_result(
+    hass: HomeAssistant,
+    registries: Registries,
+    entity_id: str,
+    score: float | None = None,
+) -> JsonObjectType:
+    """Build one model-facing result row: id, name, place, domain, state, optional score.
+
+    Shared by every resolver consumer that hands entities back to the model (`find_entities`
+    and the match-layer fuzzy fallback), so a candidate row reads identically wherever it
+    surfaces.
+    """
+    state = hass.states.get(entity_id)
+    result: JsonObjectType = {
+        "entity_id": entity_id,
+        "name": state.name if state else entity_id,
+        "domain": entity_id.partition(".")[0],
+    }
+    if state is not None:
+        result["state"] = state.state
+
+    if (area := resolve_area(registries, entity_id)) is not None:
+        result["area"] = area.name
+        if area.floor_id and (
+            floor := registries.floors.async_get_floor(area.floor_id)
+        ):
+            result["floor"] = floor.name
+
+    if score is not None:
+        result["score"] = round(score, 1)
+    return result
 
 
 def resolve_area(registries: Registries, entity_id: str) -> ar.AreaEntry | None:

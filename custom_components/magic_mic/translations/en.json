@@ -65,6 +65,10 @@
         "invalid_area": "No area named {filter_value} exists.",
         "invalid_floor": "No floor named {filter_value} exists."
       }
+    },
+    "match_fallback": {
+      "ambiguous": "Several entities match {name}. Ask the user which one they mean.",
+      "not_found": "No entity matching {name} was found."
     }
   },
   "exceptions": {

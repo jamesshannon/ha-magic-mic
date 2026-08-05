@@ -26,6 +26,8 @@ class ConversationStrings:
     find_entities_field_limit: str
     find_entities_field_name: str
     find_entities_field_state: str
+    match_fallback_ambiguous: str
+    match_fallback_not_found: str
     name_injection_header: str
 
 
@@ -65,6 +67,8 @@ async def async_get_conversation_strings(
         find_entities_field_limit=translated("find_entities.fields.limit"),
         find_entities_field_name=translated("find_entities.fields.name"),
         find_entities_field_state=translated("find_entities.fields.state"),
+        match_fallback_ambiguous=translated("match_fallback.ambiguous"),
+        match_fallback_not_found=translated("match_fallback.not_found"),
         name_injection_header=translated("name_injection.header"),
     )
 

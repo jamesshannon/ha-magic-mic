@@ -21,7 +21,7 @@ from homeassistant.helpers import config_validation as cv, intent, llm
 from homeassistant.util.json import JsonObjectType
 
 from ..const import FIND_ENTITIES_DEFAULT_LIMIT, FIND_ENTITIES_MAX_LIMIT
-from ..entity_candidates import Registries, build_candidate, resolve_area
+from ..entity_candidates import Registries, build_candidate, entity_result
 from ..fuzzy import resolve_candidates
 from ..tool_policy import EffectClass, StaticToolPolicy, tool_policy
 from .localization import ConversationStrings
@@ -144,7 +144,7 @@ class FindEntitiesTool(llm.Tool):
             # Pure structured list: return the matched set as-is, most relevant first
             # is undefined, so keep HA's order and just cap it.
             results = [
-                _entity_result(hass, registries, state.entity_id)
+                entity_result(hass, registries, state.entity_id)
                 for state in match_result.states[:limit]
             ]
             return {"success": True, "results": results}
@@ -161,7 +161,7 @@ class FindEntitiesTool(llm.Tool):
             else resolution.candidates
         )
         results = [
-            _entity_result(hass, registries, scored.key, score=scored.score)
+            entity_result(hass, registries, scored.key, score=scored.score)
             for scored in chosen
         ]
         response: JsonObjectType = {"success": True, "results": results}
@@ -177,34 +177,6 @@ def async_get_tools(
 ) -> list[llm.Tool]:
     """Return this capability's tools, in the core `llm.py` platform shape (§5.5)."""
     return [FindEntitiesTool(strings)]
-
-
-def _entity_result(
-    hass: HomeAssistant,
-    registries: Registries,
-    entity_id: str,
-    score: float | None = None,
-) -> JsonObjectType:
-    """Build one result row: id, friendly name, place, domain, state, optional score."""
-    state = hass.states.get(entity_id)
-    result: JsonObjectType = {
-        "entity_id": entity_id,
-        "name": state.name if state else entity_id,
-        "domain": entity_id.partition(".")[0],
-    }
-    if state is not None:
-        result["state"] = state.state
-
-    if (area := resolve_area(registries, entity_id)) is not None:
-        result["area"] = area.name
-        if area.floor_id and (
-            floor := registries.floors.async_get_floor(area.floor_id)
-        ):
-            result["floor"] = floor.name
-
-    if score is not None:
-        result["score"] = round(score, 1)
-    return result
 
 
 def _as_list(value: str | list[str] | None) -> list[str] | None:
