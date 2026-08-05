@@ -137,6 +137,102 @@
         "50": true,
         "8": true
       },
+      "id": "iv-goodnight",
+      "phrasing": "in_vocabulary",
+      "used": [
+        "good_night"
+      ],
+      "utterance": "night night"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "iv-goodmorning",
+      "phrasing": "in_vocabulary",
+      "used": [
+        "good_morning"
+      ],
+      "utterance": "morning routine"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "iv-reading",
+      "phrasing": "in_vocabulary",
+      "used": [
+        "reading_mode"
+      ],
+      "utterance": "book time"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "iv-water",
+      "phrasing": "in_vocabulary",
+      "used": [
+        "water_plants"
+      ],
+      "utterance": "watering time"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "iv-leaving",
+      "phrasing": "in_vocabulary",
+      "used": [
+        "leaving_home"
+      ],
+      "utterance": "leaving the house"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "iv-arriving",
+      "phrasing": "in_vocabulary",
+      "used": [
+        "arriving_home"
+      ],
+      "utterance": "I'm home"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
       "id": "oob-bedtime",
       "phrasing": "out_of_vocabulary",
       "used": [
@@ -265,6 +361,182 @@
         "50": true,
         "8": true
       },
+      "id": "oob-water",
+      "phrasing": "out_of_vocabulary",
+      "used": [
+        "water_plants"
+      ],
+      "utterance": "the plants are looking dry"
+    },
+    {
+      "coverage": {
+        "12": false,
+        "16": false,
+        "24": false,
+        "32": false,
+        "50": false,
+        "8": false
+      },
+      "id": "oob-coffee",
+      "phrasing": "out_of_vocabulary",
+      "used": [
+        "coffee_time"
+      ],
+      "utterance": "I could really use some caffeine"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "oob-security",
+      "phrasing": "out_of_vocabulary",
+      "used": [
+        "night_security"
+      ],
+      "utterance": "keep the house secure overnight"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
+      "id": "oob-romantic",
+      "phrasing": "out_of_vocabulary",
+      "used": [
+        "romantic_dinner"
+      ],
+      "utterance": "cozy dinner for just the two of us"
+    },
+    {
+      "coverage": {
+        "12": false,
+        "16": false,
+        "24": false,
+        "32": false,
+        "50": false,
+        "8": false
+      },
+      "id": "oob-workout",
+      "phrasing": "out_of_vocabulary",
+      "used": [
+        "workout"
+      ],
+      "utterance": "I'm about to hit the treadmill"
+    },
+    {
+      "coverage": {
+        "12": false,
+        "16": false,
+        "24": false,
+        "32": false,
+        "50": false,
+        "8": false
+      },
+      "id": "oob-relax",
+      "phrasing": "out_of_vocabulary",
+      "used": [
+        "relax"
+      ],
+      "utterance": "help me unwind for a while"
+    },
+    {
+      "coverage": {
+        "12": false,
+        "16": false,
+        "24": false,
+        "32": false,
+        "50": false,
+        "8": false
+      },
+      "id": "oob-news",
+      "phrasing": "out_of_vocabulary",
+      "used": [
+        "morning_news"
+      ],
+      "utterance": "catch me up on the headlines"
+    },
+    {
+      "coverage": {
+        "12": false,
+        "16": false,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": false
+      },
+      "id": "oob-fish",
+      "phrasing": "out_of_vocabulary",
+      "used": [
+        "feed_fish"
+      ],
+      "utterance": "the aquarium needs looking after"
+    },
+    {
+      "coverage": {
+        "12": false,
+        "16": false,
+        "24": false,
+        "32": false,
+        "50": false,
+        "8": false
+      },
+      "id": "oob-vacuum",
+      "phrasing": "out_of_vocabulary",
+      "used": [
+        "vacuum_downstairs"
+      ],
+      "utterance": "the floors down here need cleaning"
+    },
+    {
+      "coverage": {
+        "12": false,
+        "16": false,
+        "24": false,
+        "32": false,
+        "50": false,
+        "8": false
+      },
+      "id": "oob-sunset",
+      "phrasing": "out_of_vocabulary",
+      "used": [
+        "sunset_lights"
+      ],
+      "utterance": "it's getting dark, set the evening scene"
+    },
+    {
+      "coverage": {
+        "12": false,
+        "16": false,
+        "24": false,
+        "32": false,
+        "50": false,
+        "8": false
+      },
+      "id": "oob-bath",
+      "phrasing": "out_of_vocabulary",
+      "used": [
+        "bath_time"
+      ],
+      "utterance": "I'd like to take a long soak"
+    },
+    {
+      "coverage": {
+        "12": true,
+        "16": true,
+        "24": true,
+        "32": true,
+        "50": true,
+        "8": true
+      },
       "id": "base-turn-on-light",
       "phrasing": null,
       "used": [
@@ -307,291 +579,831 @@
   ],
   "recall": {
     "12": {
-      "avg_exposed_tools": 9.58,
-      "avg_saved_tools": 40.42,
-      "case_recall": 0.9474,
-      "cases_covered": 18,
-      "cases_total": 19,
+      "avg_exposed_tools": 9.92,
+      "avg_saved_tools": 40.08,
+      "case_recall": 0.75,
+      "cases_covered": 27,
+      "cases_total": 36,
       "misses": [
         {
           "id": "oob-focus",
           "missed": [
             "focus_mode"
           ]
+        },
+        {
+          "id": "oob-coffee",
+          "missed": [
+            "coffee_time"
+          ]
+        },
+        {
+          "id": "oob-workout",
+          "missed": [
+            "workout"
+          ]
+        },
+        {
+          "id": "oob-relax",
+          "missed": [
+            "relax"
+          ]
+        },
+        {
+          "id": "oob-news",
+          "missed": [
+            "morning_news"
+          ]
+        },
+        {
+          "id": "oob-fish",
+          "missed": [
+            "feed_fish"
+          ]
+        },
+        {
+          "id": "oob-vacuum",
+          "missed": [
+            "vacuum_downstairs"
+          ]
+        },
+        {
+          "id": "oob-sunset",
+          "missed": [
+            "sunset_lights"
+          ]
+        },
+        {
+          "id": "oob-bath",
+          "missed": [
+            "bath_time"
+          ]
         }
       ],
-      "tool_recall": 0.9474,
-      "tools_covered": 18,
-      "tools_total": 19
+      "tool_recall": 0.75,
+      "tools_covered": 27,
+      "tools_total": 36
     },
     "16": {
-      "avg_exposed_tools": 11.74,
-      "avg_saved_tools": 38.26,
-      "case_recall": 0.9474,
-      "cases_covered": 18,
-      "cases_total": 19,
+      "avg_exposed_tools": 12.56,
+      "avg_saved_tools": 37.44,
+      "case_recall": 0.75,
+      "cases_covered": 27,
+      "cases_total": 36,
       "misses": [
         {
           "id": "oob-focus",
           "missed": [
             "focus_mode"
           ]
+        },
+        {
+          "id": "oob-coffee",
+          "missed": [
+            "coffee_time"
+          ]
+        },
+        {
+          "id": "oob-workout",
+          "missed": [
+            "workout"
+          ]
+        },
+        {
+          "id": "oob-relax",
+          "missed": [
+            "relax"
+          ]
+        },
+        {
+          "id": "oob-news",
+          "missed": [
+            "morning_news"
+          ]
+        },
+        {
+          "id": "oob-fish",
+          "missed": [
+            "feed_fish"
+          ]
+        },
+        {
+          "id": "oob-vacuum",
+          "missed": [
+            "vacuum_downstairs"
+          ]
+        },
+        {
+          "id": "oob-sunset",
+          "missed": [
+            "sunset_lights"
+          ]
+        },
+        {
+          "id": "oob-bath",
+          "missed": [
+            "bath_time"
+          ]
         }
       ],
-      "tool_recall": 0.9474,
-      "tools_covered": 18,
-      "tools_total": 19
+      "tool_recall": 0.75,
+      "tools_covered": 27,
+      "tools_total": 36
     },
     "24": {
-      "avg_exposed_tools": 14.68,
-      "avg_saved_tools": 35.32,
-      "case_recall": 0.9474,
-      "cases_covered": 18,
-      "cases_total": 19,
+      "avg_exposed_tools": 16.33,
+      "avg_saved_tools": 33.67,
+      "case_recall": 0.7778,
+      "cases_covered": 28,
+      "cases_total": 36,
       "misses": [
         {
           "id": "oob-focus",
           "missed": [
             "focus_mode"
           ]
+        },
+        {
+          "id": "oob-coffee",
+          "missed": [
+            "coffee_time"
+          ]
+        },
+        {
+          "id": "oob-workout",
+          "missed": [
+            "workout"
+          ]
+        },
+        {
+          "id": "oob-relax",
+          "missed": [
+            "relax"
+          ]
+        },
+        {
+          "id": "oob-news",
+          "missed": [
+            "morning_news"
+          ]
+        },
+        {
+          "id": "oob-vacuum",
+          "missed": [
+            "vacuum_downstairs"
+          ]
+        },
+        {
+          "id": "oob-sunset",
+          "missed": [
+            "sunset_lights"
+          ]
+        },
+        {
+          "id": "oob-bath",
+          "missed": [
+            "bath_time"
+          ]
         }
       ],
-      "tool_recall": 0.9474,
-      "tools_covered": 18,
-      "tools_total": 19
+      "tool_recall": 0.7778,
+      "tools_covered": 28,
+      "tools_total": 36
     },
     "32": {
-      "avg_exposed_tools": 16.26,
-      "avg_saved_tools": 33.74,
-      "case_recall": 0.9474,
-      "cases_covered": 18,
-      "cases_total": 19,
+      "avg_exposed_tools": 19.03,
+      "avg_saved_tools": 30.97,
+      "case_recall": 0.7778,
+      "cases_covered": 28,
+      "cases_total": 36,
       "misses": [
         {
           "id": "oob-focus",
           "missed": [
             "focus_mode"
           ]
+        },
+        {
+          "id": "oob-coffee",
+          "missed": [
+            "coffee_time"
+          ]
+        },
+        {
+          "id": "oob-workout",
+          "missed": [
+            "workout"
+          ]
+        },
+        {
+          "id": "oob-relax",
+          "missed": [
+            "relax"
+          ]
+        },
+        {
+          "id": "oob-news",
+          "missed": [
+            "morning_news"
+          ]
+        },
+        {
+          "id": "oob-vacuum",
+          "missed": [
+            "vacuum_downstairs"
+          ]
+        },
+        {
+          "id": "oob-sunset",
+          "missed": [
+            "sunset_lights"
+          ]
+        },
+        {
+          "id": "oob-bath",
+          "missed": [
+            "bath_time"
+          ]
         }
       ],
-      "tool_recall": 0.9474,
-      "tools_covered": 18,
-      "tools_total": 19
+      "tool_recall": 0.7778,
+      "tools_covered": 28,
+      "tools_total": 36
     },
     "50": {
-      "avg_exposed_tools": 17.11,
-      "avg_saved_tools": 32.89,
-      "case_recall": 0.9474,
-      "cases_covered": 18,
-      "cases_total": 19,
+      "avg_exposed_tools": 20.33,
+      "avg_saved_tools": 29.67,
+      "case_recall": 0.7778,
+      "cases_covered": 28,
+      "cases_total": 36,
       "misses": [
         {
           "id": "oob-focus",
           "missed": [
             "focus_mode"
           ]
+        },
+        {
+          "id": "oob-coffee",
+          "missed": [
+            "coffee_time"
+          ]
+        },
+        {
+          "id": "oob-workout",
+          "missed": [
+            "workout"
+          ]
+        },
+        {
+          "id": "oob-relax",
+          "missed": [
+            "relax"
+          ]
+        },
+        {
+          "id": "oob-news",
+          "missed": [
+            "morning_news"
+          ]
+        },
+        {
+          "id": "oob-vacuum",
+          "missed": [
+            "vacuum_downstairs"
+          ]
+        },
+        {
+          "id": "oob-sunset",
+          "missed": [
+            "sunset_lights"
+          ]
+        },
+        {
+          "id": "oob-bath",
+          "missed": [
+            "bath_time"
+          ]
         }
       ],
-      "tool_recall": 0.9474,
-      "tools_covered": 18,
-      "tools_total": 19
+      "tool_recall": 0.7778,
+      "tools_covered": 28,
+      "tools_total": 36
     },
     "8": {
-      "avg_exposed_tools": 7.11,
-      "avg_saved_tools": 42.89,
-      "case_recall": 0.9474,
-      "cases_covered": 18,
-      "cases_total": 19,
+      "avg_exposed_tools": 7.28,
+      "avg_saved_tools": 42.72,
+      "case_recall": 0.75,
+      "cases_covered": 27,
+      "cases_total": 36,
       "misses": [
         {
           "id": "oob-focus",
           "missed": [
             "focus_mode"
           ]
+        },
+        {
+          "id": "oob-coffee",
+          "missed": [
+            "coffee_time"
+          ]
+        },
+        {
+          "id": "oob-workout",
+          "missed": [
+            "workout"
+          ]
+        },
+        {
+          "id": "oob-relax",
+          "missed": [
+            "relax"
+          ]
+        },
+        {
+          "id": "oob-news",
+          "missed": [
+            "morning_news"
+          ]
+        },
+        {
+          "id": "oob-fish",
+          "missed": [
+            "feed_fish"
+          ]
+        },
+        {
+          "id": "oob-vacuum",
+          "missed": [
+            "vacuum_downstairs"
+          ]
+        },
+        {
+          "id": "oob-sunset",
+          "missed": [
+            "sunset_lights"
+          ]
+        },
+        {
+          "id": "oob-bath",
+          "missed": [
+            "bath_time"
+          ]
         }
       ],
-      "tool_recall": 0.9474,
-      "tools_covered": 18,
-      "tools_total": 19
+      "tool_recall": 0.75,
+      "tools_covered": 27,
+      "tools_total": 36
     }
   },
   "recall_by_phrasing": {
     "in_vocabulary": {
       "12": {
-        "avg_exposed_tools": 10.25,
-        "avg_saved_tools": 39.75,
+        "avg_exposed_tools": 9.43,
+        "avg_saved_tools": 40.57,
         "case_recall": 1.0,
-        "cases_covered": 8,
-        "cases_total": 8,
+        "cases_covered": 14,
+        "cases_total": 14,
         "misses": [],
         "tool_recall": 1.0,
-        "tools_covered": 8,
-        "tools_total": 8
+        "tools_covered": 14,
+        "tools_total": 14
       },
       "16": {
-        "avg_exposed_tools": 12.88,
-        "avg_saved_tools": 37.12,
+        "avg_exposed_tools": 11.93,
+        "avg_saved_tools": 38.07,
         "case_recall": 1.0,
-        "cases_covered": 8,
-        "cases_total": 8,
+        "cases_covered": 14,
+        "cases_total": 14,
         "misses": [],
         "tool_recall": 1.0,
-        "tools_covered": 8,
-        "tools_total": 8
+        "tools_covered": 14,
+        "tools_total": 14
       },
       "24": {
-        "avg_exposed_tools": 15.5,
-        "avg_saved_tools": 34.5,
+        "avg_exposed_tools": 14.0,
+        "avg_saved_tools": 36.0,
         "case_recall": 1.0,
-        "cases_covered": 8,
-        "cases_total": 8,
+        "cases_covered": 14,
+        "cases_total": 14,
         "misses": [],
         "tool_recall": 1.0,
-        "tools_covered": 8,
-        "tools_total": 8
+        "tools_covered": 14,
+        "tools_total": 14
       },
       "32": {
-        "avg_exposed_tools": 16.5,
-        "avg_saved_tools": 33.5,
+        "avg_exposed_tools": 15.14,
+        "avg_saved_tools": 34.86,
         "case_recall": 1.0,
-        "cases_covered": 8,
-        "cases_total": 8,
+        "cases_covered": 14,
+        "cases_total": 14,
         "misses": [],
         "tool_recall": 1.0,
-        "tools_covered": 8,
-        "tools_total": 8
+        "tools_covered": 14,
+        "tools_total": 14
       },
       "50": {
-        "avg_exposed_tools": 16.75,
-        "avg_saved_tools": 33.25,
+        "avg_exposed_tools": 15.43,
+        "avg_saved_tools": 34.57,
         "case_recall": 1.0,
-        "cases_covered": 8,
-        "cases_total": 8,
+        "cases_covered": 14,
+        "cases_total": 14,
         "misses": [],
         "tool_recall": 1.0,
-        "tools_covered": 8,
-        "tools_total": 8
+        "tools_covered": 14,
+        "tools_total": 14
       },
       "8": {
-        "avg_exposed_tools": 7.5,
-        "avg_saved_tools": 42.5,
+        "avg_exposed_tools": 7.29,
+        "avg_saved_tools": 42.71,
         "case_recall": 1.0,
-        "cases_covered": 8,
-        "cases_total": 8,
+        "cases_covered": 14,
+        "cases_total": 14,
         "misses": [],
         "tool_recall": 1.0,
-        "tools_covered": 8,
-        "tools_total": 8
+        "tools_covered": 14,
+        "tools_total": 14
       }
     },
     "out_of_vocabulary": {
       "12": {
-        "avg_exposed_tools": 8.0,
-        "avg_saved_tools": 42.0,
-        "case_recall": 0.875,
-        "cases_covered": 7,
-        "cases_total": 8,
+        "avg_exposed_tools": 9.95,
+        "avg_saved_tools": 40.05,
+        "case_recall": 0.5263,
+        "cases_covered": 10,
+        "cases_total": 19,
         "misses": [
           {
             "id": "oob-focus",
             "missed": [
               "focus_mode"
             ]
+          },
+          {
+            "id": "oob-coffee",
+            "missed": [
+              "coffee_time"
+            ]
+          },
+          {
+            "id": "oob-workout",
+            "missed": [
+              "workout"
+            ]
+          },
+          {
+            "id": "oob-relax",
+            "missed": [
+              "relax"
+            ]
+          },
+          {
+            "id": "oob-news",
+            "missed": [
+              "morning_news"
+            ]
+          },
+          {
+            "id": "oob-fish",
+            "missed": [
+              "feed_fish"
+            ]
+          },
+          {
+            "id": "oob-vacuum",
+            "missed": [
+              "vacuum_downstairs"
+            ]
+          },
+          {
+            "id": "oob-sunset",
+            "missed": [
+              "sunset_lights"
+            ]
+          },
+          {
+            "id": "oob-bath",
+            "missed": [
+              "bath_time"
+            ]
           }
         ],
-        "tool_recall": 0.875,
-        "tools_covered": 7,
-        "tools_total": 8
+        "tool_recall": 0.5263,
+        "tools_covered": 10,
+        "tools_total": 19
       },
       "16": {
-        "avg_exposed_tools": 9.0,
-        "avg_saved_tools": 41.0,
-        "case_recall": 0.875,
-        "cases_covered": 7,
-        "cases_total": 8,
+        "avg_exposed_tools": 12.47,
+        "avg_saved_tools": 37.53,
+        "case_recall": 0.5263,
+        "cases_covered": 10,
+        "cases_total": 19,
         "misses": [
           {
             "id": "oob-focus",
             "missed": [
               "focus_mode"
             ]
+          },
+          {
+            "id": "oob-coffee",
+            "missed": [
+              "coffee_time"
+            ]
+          },
+          {
+            "id": "oob-workout",
+            "missed": [
+              "workout"
+            ]
+          },
+          {
+            "id": "oob-relax",
+            "missed": [
+              "relax"
+            ]
+          },
+          {
+            "id": "oob-news",
+            "missed": [
+              "morning_news"
+            ]
+          },
+          {
+            "id": "oob-fish",
+            "missed": [
+              "feed_fish"
+            ]
+          },
+          {
+            "id": "oob-vacuum",
+            "missed": [
+              "vacuum_downstairs"
+            ]
+          },
+          {
+            "id": "oob-sunset",
+            "missed": [
+              "sunset_lights"
+            ]
+          },
+          {
+            "id": "oob-bath",
+            "missed": [
+              "bath_time"
+            ]
           }
         ],
-        "tool_recall": 0.875,
-        "tools_covered": 7,
-        "tools_total": 8
+        "tool_recall": 0.5263,
+        "tools_covered": 10,
+        "tools_total": 19
       },
       "24": {
-        "avg_exposed_tools": 10.62,
-        "avg_saved_tools": 39.38,
-        "case_recall": 0.875,
-        "cases_covered": 7,
-        "cases_total": 8,
+        "avg_exposed_tools": 16.95,
+        "avg_saved_tools": 33.05,
+        "case_recall": 0.5789,
+        "cases_covered": 11,
+        "cases_total": 19,
         "misses": [
           {
             "id": "oob-focus",
             "missed": [
               "focus_mode"
             ]
+          },
+          {
+            "id": "oob-coffee",
+            "missed": [
+              "coffee_time"
+            ]
+          },
+          {
+            "id": "oob-workout",
+            "missed": [
+              "workout"
+            ]
+          },
+          {
+            "id": "oob-relax",
+            "missed": [
+              "relax"
+            ]
+          },
+          {
+            "id": "oob-news",
+            "missed": [
+              "morning_news"
+            ]
+          },
+          {
+            "id": "oob-vacuum",
+            "missed": [
+              "vacuum_downstairs"
+            ]
+          },
+          {
+            "id": "oob-sunset",
+            "missed": [
+              "sunset_lights"
+            ]
+          },
+          {
+            "id": "oob-bath",
+            "missed": [
+              "bath_time"
+            ]
           }
         ],
-        "tool_recall": 0.875,
-        "tools_covered": 7,
-        "tools_total": 8
+        "tool_recall": 0.5789,
+        "tools_covered": 11,
+        "tools_total": 19
       },
       "32": {
-        "avg_exposed_tools": 11.38,
-        "avg_saved_tools": 38.62,
-        "case_recall": 0.875,
-        "cases_covered": 7,
-        "cases_total": 8,
+        "avg_exposed_tools": 20.37,
+        "avg_saved_tools": 29.63,
+        "case_recall": 0.5789,
+        "cases_covered": 11,
+        "cases_total": 19,
         "misses": [
           {
             "id": "oob-focus",
             "missed": [
               "focus_mode"
             ]
+          },
+          {
+            "id": "oob-coffee",
+            "missed": [
+              "coffee_time"
+            ]
+          },
+          {
+            "id": "oob-workout",
+            "missed": [
+              "workout"
+            ]
+          },
+          {
+            "id": "oob-relax",
+            "missed": [
+              "relax"
+            ]
+          },
+          {
+            "id": "oob-news",
+            "missed": [
+              "morning_news"
+            ]
+          },
+          {
+            "id": "oob-vacuum",
+            "missed": [
+              "vacuum_downstairs"
+            ]
+          },
+          {
+            "id": "oob-sunset",
+            "missed": [
+              "sunset_lights"
+            ]
+          },
+          {
+            "id": "oob-bath",
+            "missed": [
+              "bath_time"
+            ]
           }
         ],
-        "tool_recall": 0.875,
-        "tools_covered": 7,
-        "tools_total": 8
+        "tool_recall": 0.5789,
+        "tools_covered": 11,
+        "tools_total": 19
       },
       "50": {
-        "avg_exposed_tools": 12.0,
-        "avg_saved_tools": 38.0,
-        "case_recall": 0.875,
-        "cases_covered": 7,
-        "cases_total": 8,
+        "avg_exposed_tools": 22.16,
+        "avg_saved_tools": 27.84,
+        "case_recall": 0.5789,
+        "cases_covered": 11,
+        "cases_total": 19,
         "misses": [
           {
             "id": "oob-focus",
             "missed": [
               "focus_mode"
             ]
+          },
+          {
+            "id": "oob-coffee",
+            "missed": [
+              "coffee_time"
+            ]
+          },
+          {
+            "id": "oob-workout",
+            "missed": [
+              "workout"
+            ]
+          },
+          {
+            "id": "oob-relax",
+            "missed": [
+              "relax"
+            ]
+          },
+          {
+            "id": "oob-news",
+            "missed": [
+              "morning_news"
+            ]
+          },
+          {
+            "id": "oob-vacuum",
+            "missed": [
+              "vacuum_downstairs"
+            ]
+          },
+          {
+            "id": "oob-sunset",
+            "missed": [
+              "sunset_lights"
+            ]
+          },
+          {
+            "id": "oob-bath",
+            "missed": [
+              "bath_time"
+            ]
           }
         ],
-        "tool_recall": 0.875,
-        "tools_covered": 7,
-        "tools_total": 8
+        "tool_recall": 0.5789,
+        "tools_covered": 11,
+        "tools_total": 19
       },
       "8": {
-        "avg_exposed_tools": 6.38,
-        "avg_saved_tools": 43.62,
-        "case_recall": 0.875,
-        "cases_covered": 7,
-        "cases_total": 8,
+        "avg_exposed_tools": 7.16,
+        "avg_saved_tools": 42.84,
+        "case_recall": 0.5263,
+        "cases_covered": 10,
+        "cases_total": 19,
         "misses": [
           {
             "id": "oob-focus",
             "missed": [
               "focus_mode"
             ]
+          },
+          {
+            "id": "oob-coffee",
+            "missed": [
+              "coffee_time"
+            ]
+          },
+          {
+            "id": "oob-workout",
+            "missed": [
+              "workout"
+            ]
+          },
+          {
+            "id": "oob-relax",
+            "missed": [
+              "relax"
+            ]
+          },
+          {
+            "id": "oob-news",
+            "missed": [
+              "morning_news"
+            ]
+          },
+          {
+            "id": "oob-fish",
+            "missed": [
+              "feed_fish"
+            ]
+          },
+          {
+            "id": "oob-vacuum",
+            "missed": [
+              "vacuum_downstairs"
+            ]
+          },
+          {
+            "id": "oob-sunset",
+            "missed": [
+              "sunset_lights"
+            ]
+          },
+          {
+            "id": "oob-bath",
+            "missed": [
+              "bath_time"
+            ]
           }
         ],
-        "tool_recall": 0.875,
-        "tools_covered": 7,
-        "tools_total": 8
+        "tool_recall": 0.5263,
+        "tools_covered": 10,
+        "tools_total": 19
       }
     }
   },
@@ -605,14 +1417,14 @@
       32,
       50
     ],
-    "cases_scorable": 19,
-    "cases_total": 19,
+    "cases_scorable": 36,
+    "cases_total": 36,
     "catalog_bundles": 38,
     "catalog_tools": 50,
     "enforced": false,
     "kind": "wave1-capability-selection-shadow",
     "source_artifact": "wave1_scripts.yaml",
-    "timestamp": "2026-08-04T20:06:16.761344+00:00"
+    "timestamp": "2026-08-05T15:50:48.843714+00:00"
   },
   "uncatalogued_tools": []
 }

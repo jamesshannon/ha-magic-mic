@@ -238,9 +238,13 @@ Open gates (each blocks the wave's go/no-go):
   explicit "carry to Wave 2" decision. Closing this needs a decisive Δtokens A/B.
 - [ ] **Capability-selection enforcement flip**. Catalog, availability filter, retriever,
   budget assembler, trace, and gated enforcement are built, but `DEFAULT_CAPABILITY_SELECTION`
-  is off: the recall@budget and task-success gates do not yet pass on the small (8-case)
-  regimes ([`capability-selection.md`](capability-selection.md)). Closing this needs the gates
-  to pass on a larger roster, then the flip on.
+  is off. The task-success gate on the golden set is a PASS (0 regressions, exposure 31→17); the
+  recall@budget gate is what holds the flip. On the widened 50-tool script corpus (36 cases,
+  2026-08-05), budget-8 recall is 100% in-vocabulary but 53% out-of-vocabulary, the misses being
+  6 name-only (unconfigured) scripts plus 3 true synonym gaps
+  ([`capability-selection.md`](capability-selection.md)). Closing this is a decision on whether
+  that out-of-vocabulary cost is acceptable (it mostly hits unconfigured scripts), or work to
+  lift the synonym-gap class (stemming, the discovery fallback, or embeddings) first.
 - [ ] **`prefer_local_intents` flip [HA]**. The local-first driver records both the HASSIL
   intervention and the final action, and a first live run is logged. Closing this needs the
   Δhassil-intervention read and the go decision to turn the toggle on.

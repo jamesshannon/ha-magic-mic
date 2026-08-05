@@ -268,9 +268,67 @@ cases:
     expected:
       tools:
         - name: workout
+  - id: iv-goodnight
+    utterance: night night
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: in_vocabulary
+    expected:
+      tools:
+        - name: good_night
+  - id: iv-goodmorning
+    utterance: morning routine
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: in_vocabulary
+    expected:
+      tools:
+        - name: good_morning
+  - id: iv-reading
+    utterance: book time
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: in_vocabulary
+    expected:
+      tools:
+        - name: reading_mode
+  - id: iv-water
+    utterance: watering time
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: in_vocabulary
+    expected:
+      tools:
+        - name: water_plants
+  - id: iv-leaving
+    utterance: leaving the house
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: in_vocabulary
+    expected:
+      tools:
+        - name: leaving_home
+  - id: iv-arriving
+    utterance: I'm home
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: in_vocabulary
+    expected:
+      tools:
+        - name: arriving_home
 
   # Out-of-vocabulary: a different speaker's natural phrasing, written without regard to the
   # configured triggers. Some land because good aliases generalize; the misses are real.
+  # Both alias-configured and name-only scripts are represented, so the number is not the
+  # optimistic one an all-configured set produces: an oblique request for a script whose owner
+  # only named it (no alias, no description) is largely unretrievable, and that residual is
+  # exactly the cost enforcement pays and the gate must see.
   - id: oob-bedtime
     utterance: I'm going to sleep
     category: action
@@ -343,6 +401,108 @@ cases:
     expected:
       tools:
         - name: party_mode
+  # Alias-configured scripts, oblique phrasing: a description or alias token may still bridge.
+  - id: oob-water
+    utterance: the plants are looking dry
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: out_of_vocabulary
+    expected:
+      tools:
+        - name: water_plants
+  - id: oob-coffee
+    utterance: I could really use some caffeine
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: out_of_vocabulary
+    expected:
+      tools:
+        - name: coffee_time
+  - id: oob-security
+    utterance: keep the house secure overnight
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: out_of_vocabulary
+    expected:
+      tools:
+        - name: night_security
+  - id: oob-romantic
+    utterance: cozy dinner for just the two of us
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: out_of_vocabulary
+    expected:
+      tools:
+        - name: romantic_dinner
+  - id: oob-workout
+    utterance: I'm about to hit the treadmill
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: out_of_vocabulary
+    expected:
+      tools:
+        - name: workout
+  # Name-only scripts, oblique phrasing: no alias or description to bridge, so most are honest
+  # misses that quantify the cost of enforcing a budget on an unconfigured routine.
+  - id: oob-relax
+    utterance: help me unwind for a while
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: out_of_vocabulary
+    expected:
+      tools:
+        - name: relax
+  - id: oob-news
+    utterance: catch me up on the headlines
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: out_of_vocabulary
+    expected:
+      tools:
+        - name: morning_news
+  - id: oob-fish
+    utterance: the aquarium needs looking after
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: out_of_vocabulary
+    expected:
+      tools:
+        - name: feed_fish
+  - id: oob-vacuum
+    utterance: the floors down here need cleaning
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: out_of_vocabulary
+    expected:
+      tools:
+        - name: vacuum_downstairs
+  - id: oob-sunset
+    utterance: it's getting dark, set the evening scene
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: out_of_vocabulary
+    expected:
+      tools:
+        - name: sunset_lights
+  - id: oob-bath
+    utterance: I'd like to take a long soak
+    category: action
+    routing_truth: llm
+    resolves_at_wave0: true
+    phrasing: out_of_vocabulary
+    expected:
+      tools:
+        - name: bath_time
 
   # Plain device control and a read must still survive a roster crowded with scripts.
   - id: base-turn-on-light
