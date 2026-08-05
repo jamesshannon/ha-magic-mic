@@ -236,6 +236,29 @@ Two policy notes:
   change global matching behavior. Keeps the core change conservative/reviewable.
 - **Happy path untouched** — fuzzy only runs *after* an exact NAME miss.
 
+**As built** (`capabilities/match_fallback.py` `resolve_name_miss`, wired at the testbed
+proxy's tool executor in `testbed/api.py`). This is the component-side evidence for the
+core change: rather than touch core `async_match_targets`, the proxy catches the
+`MatchFailedError(NAME)` an intent raises and resolves before it reaches the model. It
+re-runs the structured filters without the name to recover the exposed candidate set, scores
+the failed name through the shared `resolve_candidates`, and either retries the same intent
+with the winner's canonical `entity_id` (the `_filter_by_name` entity_id seam, so it rides
+the one `tool_use` with no extra generation) or hands back a localized candidate list with no
+action taken. A non-NAME failure, a missing name, or no configured assistant re-raises the
+original error unchanged. The opt-in is the request-language `strings` the entity threads
+through `TestbedAPI.wrap` (absent = the fallback is off and execution is exactly HA's), which
+also keeps the model-facing ambiguous/not-found text localized (en + es).
+
+Two deltas from the design above, both deliberate and tracked. The **`fuzzy=True`
+constraint** on `async_match_targets` is not the plumbing used: the proxy interposes at tool
+execution instead, so the strict hassil path is untouched without a new core flag, and the
+`fuzzy=True` seam remains the shape to propose when the change moves to core. The
+**action-caution thresholds** are not yet tightened: a decisive fuzzy hit auto-acts on the
+shared `ACCEPT`/`MARGIN` and the user corrects (the Alexa/Google parity the design cites),
+with action-specific tightening left to the open threshold question. Scope: the fallback
+fires on a NAME *miss* only; a `DUPLICATE_NAME` (two entities sharing one exact name) is a
+different reason and is left to HA's own handling.
+
 ### Consumer 2 — `find_entities` tool (decoupled resolution)
 
 Justified where resolution is **separated from an intent that's firing now**, so

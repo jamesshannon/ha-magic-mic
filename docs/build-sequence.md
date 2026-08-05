@@ -180,11 +180,16 @@ before more capabilities depend on the earlier placeholder interfaces.
   tool actually used by the full-roster baseline. Enforce selection only after
   recall@budget and end-to-end task-success gates pass
   ([`capability-selection.md`](capability-selection.md)).
-- **[C] / possible core seam** **`find_entities`** fuzzy in-match fallback — component tool
-  first; use its measurements to motivate a match-layer discussion with core maintainers
-  ([`find-entities.md`](find-entities.md)).
-  Direct resolution uses the single-turn runner. Add the scripted multi-turn driver before
-  accepting **Δturns** or disambiguation-recovery claims.
+- **[C] / possible core seam** **`find_entities`**: both consumers built
+  ([`find-entities.md`](find-entities.md)). Consumer 2 (the decoupled lookup tool) ships in
+  `capabilities/entities.py`, wired into the testbed roster. Consumer 1 (the fuzzy fallback
+  in the match layer) ships as `capabilities/match_fallback.py`, interposed at the proxy's
+  tool executor: an intent's exact NAME miss is fuzzy-resolved and retried with the canonical
+  `entity_id`, or returns candidates for the model to ask about. This is the component-side
+  evidence for the proposed core match-layer change (behind an opt-in `fuzzy` constraint);
+  use its measurements to motivate that discussion with core maintainers. Direct resolution
+  uses the single-turn runner; the scripted multi-turn driver already gates **Δturns** and
+  disambiguation-recovery claims.
 - **[HA]** Flip **`prefer_local_intents` ON** (§2.9) only after the combined local-first text
   driver records both the HASSIL intervention and the final action. Then measure
   **Δhassil-intervention rate** without hiding fallback failures.
