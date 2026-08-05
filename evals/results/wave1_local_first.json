@@ -1,0 +1,519 @@
+{
+  "buckets": {
+    "resolved after clarification": 0,
+    "resolved by LLM, correct": 6,
+    "resolved locally (hassil)": 10,
+    "unjudged (no success predicate)": 6,
+    "unresolved / \"I don't understand\"": 0,
+    "wrong action": 3
+  },
+  "cases": [
+    {
+      "bucket": "resolved locally (hassil)",
+      "category": "query",
+      "correct": true,
+      "id": "current-time",
+      "routed_locally": true,
+      "routing": {
+        "deferred": false,
+        "intent": "HassGetCurrentTime",
+        "matched": true,
+        "routed_locally": true
+      },
+      "routing_truth": "local",
+      "speech": "9:28 PM",
+      "tools": [],
+      "utterance": "what time is it?"
+    },
+    {
+      "bucket": "resolved locally (hassil)",
+      "category": "query",
+      "correct": true,
+      "id": "current-date",
+      "routed_locally": true,
+      "routing": {
+        "deferred": false,
+        "intent": "HassGetCurrentDate",
+        "matched": true,
+        "routed_locally": true
+      },
+      "routing_truth": "local",
+      "speech": "August 4th, 2026",
+      "tools": [],
+      "utterance": "what's the date today?"
+    },
+    {
+      "bucket": "wrong action",
+      "category": "device-control",
+      "correct": false,
+      "id": "turn-off-all-lights",
+      "routed_locally": true,
+      "routing": {
+        "deferred": false,
+        "intent": "HassTurnOff",
+        "matched": true,
+        "routed_locally": true
+      },
+      "routing_truth": "local",
+      "speech": "Turned off the lights",
+      "tools": [],
+      "utterance": "turn off the lights"
+    },
+    {
+      "bucket": "resolved locally (hassil)",
+      "category": "device-control",
+      "correct": true,
+      "id": "turn-on-kitchen-light",
+      "routed_locally": true,
+      "routing": {
+        "deferred": false,
+        "intent": "HassTurnOn",
+        "matched": true,
+        "routed_locally": true
+      },
+      "routing_truth": "local",
+      "speech": "Turned on the light",
+      "tools": [],
+      "utterance": "turn on the kitchen light"
+    },
+    {
+      "bucket": "resolved locally (hassil)",
+      "category": "device-control",
+      "correct": true,
+      "id": "turn-off-living-room-lamp",
+      "routed_locally": true,
+      "routing": {
+        "deferred": false,
+        "intent": "HassTurnOff",
+        "matched": true,
+        "routed_locally": true
+      },
+      "routing_truth": "local",
+      "speech": "Turned off the light",
+      "tools": [],
+      "utterance": "turn off the living room lamp"
+    },
+    {
+      "bucket": "unjudged (no success predicate)",
+      "category": "device-control",
+      "correct": null,
+      "id": "set-bedroom-brightness",
+      "routed_locally": true,
+      "routing": {
+        "deferred": false,
+        "intent": "HassLightSet",
+        "matched": true,
+        "routed_locally": true
+      },
+      "routing_truth": "local",
+      "speech": "Brightness set",
+      "tools": [],
+      "utterance": "set the bedroom light to 30%"
+    },
+    {
+      "bucket": "resolved locally (hassil)",
+      "category": "device-control",
+      "correct": true,
+      "id": "open-garage-door",
+      "routed_locally": true,
+      "routing": {
+        "deferred": false,
+        "intent": "HassTurnOn",
+        "matched": true,
+        "routed_locally": true
+      },
+      "routing_truth": "local",
+      "speech": "Opening",
+      "tools": [],
+      "utterance": "open the garage door"
+    },
+    {
+      "bucket": "resolved locally (hassil)",
+      "category": "device-control",
+      "correct": true,
+      "id": "close-blinds",
+      "routed_locally": true,
+      "routing": {
+        "deferred": false,
+        "intent": "HassTurnOff",
+        "matched": true,
+        "routed_locally": true
+      },
+      "routing_truth": "local",
+      "speech": "Closing",
+      "tools": [],
+      "utterance": "close the living room blinds"
+    },
+    {
+      "bucket": "resolved locally (hassil)",
+      "category": "device-control",
+      "correct": true,
+      "id": "set-blinds-position",
+      "routed_locally": true,
+      "routing": {
+        "deferred": false,
+        "intent": "HassSetPosition",
+        "matched": true,
+        "routed_locally": true
+      },
+      "routing_truth": "local",
+      "speech": "Position set",
+      "tools": [],
+      "utterance": "set the living room blinds to 50%"
+    },
+    {
+      "bucket": "resolved locally (hassil)",
+      "category": "query",
+      "correct": true,
+      "id": "room-temperature",
+      "routed_locally": true,
+      "routing": {
+        "deferred": false,
+        "intent": "HassClimateGetTemperature",
+        "matched": true,
+        "routed_locally": true
+      },
+      "routing_truth": "local",
+      "speech": "19 degrees",
+      "tools": [],
+      "utterance": "what's the temperature in the living room?"
+    },
+    {
+      "bucket": "resolved by LLM, correct",
+      "category": "query",
+      "correct": true,
+      "id": "weather",
+      "routed_locally": false,
+      "routing": {
+        "deferred": false,
+        "intent": "HassGetWeather",
+        "matched": true,
+        "routed_locally": false
+      },
+      "routing_truth": "local",
+      "speech": "The weather is currently sunny with a temperature of 22\u00b0C.",
+      "tools": [
+        {
+          "args": {
+            "domain": "weather"
+          },
+          "name": "GetLiveContext"
+        }
+      ],
+      "utterance": "what's the weather?"
+    },
+    {
+      "bucket": "resolved locally (hassil)",
+      "category": "media",
+      "correct": true,
+      "id": "set-volume",
+      "routed_locally": true,
+      "routing": {
+        "deferred": false,
+        "intent": "HassSetVolume",
+        "matched": true,
+        "routed_locally": true
+      },
+      "routing_truth": "local",
+      "speech": "Volume set",
+      "tools": [],
+      "utterance": "set the living room volume to 40%"
+    },
+    {
+      "bucket": "resolved by LLM, correct",
+      "category": "media",
+      "correct": true,
+      "id": "pause-music",
+      "routed_locally": false,
+      "routing": {
+        "deferred": false,
+        "intent": null,
+        "matched": false,
+        "routed_locally": false
+      },
+      "routing_truth": "local",
+      "speech": "Done! I've paused the music on your living room speaker.",
+      "tools": [
+        {
+          "args": {
+            "area": "living room",
+            "domain": [
+              "media_player"
+            ]
+          },
+          "name": "HassMediaPause"
+        }
+      ],
+      "utterance": "pause the music"
+    },
+    {
+      "bucket": "unjudged (no success predicate)",
+      "category": "timer",
+      "correct": null,
+      "id": "start-timer",
+      "routed_locally": true,
+      "routing": {
+        "deferred": false,
+        "intent": "HassStartTimer",
+        "matched": true,
+        "routed_locally": true
+      },
+      "routing_truth": "local",
+      "speech": "Timer set for 10 minutes",
+      "tools": [],
+      "utterance": "set a timer for 10 minutes"
+    },
+    {
+      "bucket": "unjudged (no success predicate)",
+      "category": "list",
+      "correct": null,
+      "id": "add-shopping-item",
+      "routed_locally": true,
+      "routing": {
+        "deferred": false,
+        "intent": "HassListAddItem",
+        "matched": true,
+        "routed_locally": true
+      },
+      "routing_truth": "local",
+      "speech": "Added milk",
+      "tools": [],
+      "utterance": "add milk to the shopping list"
+    },
+    {
+      "bucket": "resolved locally (hassil)",
+      "category": "small-talk",
+      "correct": true,
+      "id": "nevermind",
+      "routed_locally": true,
+      "routing": {
+        "deferred": false,
+        "intent": "HassNevermind",
+        "matched": true,
+        "routed_locally": true
+      },
+      "routing_truth": "local",
+      "speech": "",
+      "tools": [],
+      "utterance": "never mind"
+    },
+    {
+      "bucket": "resolved by LLM, correct",
+      "category": "query",
+      "correct": true,
+      "id": "is-garage-open",
+      "routed_locally": false,
+      "routing": {
+        "deferred": true,
+        "intent": "HassGetState",
+        "matched": true,
+        "routed_locally": false
+      },
+      "routing_truth": "local",
+      "speech": "Yes, the garage door is open. Its current position is 100% (fully open).",
+      "tools": [
+        {
+          "args": {
+            "name": "Garage Door"
+          },
+          "name": "GetLiveContext"
+        }
+      ],
+      "utterance": "is the garage door open?"
+    },
+    {
+      "bucket": "resolved by LLM, correct",
+      "category": "compound",
+      "correct": true,
+      "id": "compound-two-devices",
+      "routed_locally": false,
+      "routing": {
+        "deferred": false,
+        "intent": null,
+        "matched": false,
+        "routed_locally": false
+      },
+      "routing_truth": "llm",
+      "speech": "Done! I've turned off the kitchen light and the bedroom fan.",
+      "tools": [
+        {
+          "args": {
+            "name": "Kitchen Light"
+          },
+          "name": "HassTurnOff"
+        },
+        {
+          "args": {
+            "name": "Bedroom Fan"
+          },
+          "name": "HassTurnOff"
+        }
+      ],
+      "utterance": "turn off the kitchen light and the bedroom fan"
+    },
+    {
+      "bucket": "wrong action",
+      "category": "implicit",
+      "correct": false,
+      "id": "implicit-cold",
+      "routed_locally": false,
+      "routing": {
+        "deferred": false,
+        "intent": null,
+        "matched": false,
+        "routed_locally": false
+      },
+      "routing_truth": "llm",
+      "speech": "I can help with that! The thermostat is currently set to 20\u00b0C (current temperature is 19\u00b0C). What temperature would you like me to set it to?",
+      "tools": [
+        {
+          "args": {
+            "area": "living room",
+            "domain": "climate"
+          },
+          "name": "GetLiveContext"
+        }
+      ],
+      "utterance": "I'm cold"
+    },
+    {
+      "bucket": "wrong action",
+      "category": "implicit",
+      "correct": false,
+      "id": "implicit-too-dark",
+      "routed_locally": false,
+      "routing": {
+        "deferred": false,
+        "intent": null,
+        "matched": false,
+        "routed_locally": false
+      },
+      "routing_truth": "llm",
+      "speech": "Done! I've turned on the living room light to full brightness.",
+      "tools": [
+        {
+          "args": {
+            "area": "living room",
+            "brightness": 100
+          },
+          "name": "HassLightSet"
+        }
+      ],
+      "utterance": "it's too dark in here"
+    },
+    {
+      "bucket": "resolved by LLM, correct",
+      "category": "query",
+      "correct": true,
+      "id": "reasoning-did-i-leave-garage",
+      "routed_locally": false,
+      "routing": {
+        "deferred": false,
+        "intent": null,
+        "matched": false,
+        "routed_locally": false
+      },
+      "routing_truth": "llm",
+      "speech": "Yes, your garage door is open. Would you like me to close it?",
+      "tools": [
+        {
+          "args": {
+            "name": "Garage Door"
+          },
+          "name": "GetLiveContext"
+        }
+      ],
+      "utterance": "did I leave the garage door open?"
+    },
+    {
+      "bucket": "resolved by LLM, correct",
+      "category": "knowledge",
+      "correct": true,
+      "id": "knowledge-capital-france",
+      "routed_locally": false,
+      "routing": {
+        "deferred": false,
+        "intent": null,
+        "matched": false,
+        "routed_locally": false
+      },
+      "routing_truth": "llm",
+      "speech": "The capital of France is Paris.",
+      "tools": [],
+      "utterance": "what's the capital of France?"
+    },
+    {
+      "bucket": "unjudged (no success predicate)",
+      "category": "knowledge",
+      "correct": null,
+      "id": "conditional-reminder",
+      "routed_locally": false,
+      "routing": {
+        "deferred": false,
+        "intent": null,
+        "matched": false,
+        "routed_locally": false
+      },
+      "routing_truth": "llm",
+      "speech": "I can set a 1-hour timer for you, but I don't have the ability to create a conditional reminder that checks whether the garage door is closed at that time and reminds you only if it's still open.\n\nWhat I can do:\n- **Start a 1-hour timer** that will alert you to check the garage door manually, or\n- You could set up an **automation in Home Assistant** that runs in 1 hour and sends a notification if the garage door is still open.\n\nWould you like me to start the 1-hour timer, or would you prefer to set up an automation for this?",
+      "tools": [],
+      "utterance": "remind me in an hour if I haven't closed the garage door"
+    },
+    {
+      "bucket": "unjudged (no success predicate)",
+      "category": "knowledge",
+      "correct": null,
+      "id": "remember-fact",
+      "routed_locally": false,
+      "routing": {
+        "deferred": false,
+        "intent": null,
+        "matched": false,
+        "routed_locally": false
+      },
+      "routing_truth": "llm",
+      "speech": "I've noted the WiFi password you provided. However, I should mention that I don't retain information between separate conversations or sessions - each interaction starts fresh. \n\nFor security, it's also generally a good idea to:\n- Avoid sharing passwords verbally or in text when possible\n- Store WiFi passwords in your device's secure settings\n- Consider using a password manager for important credentials\n\nIf you need to connect a device to WiFi, you can usually enter the password directly into the device's settings rather than relying on me to remember it.",
+      "tools": [],
+      "utterance": "remember the wifi password is hunter2-galaxy"
+    },
+    {
+      "bucket": "unjudged (no success predicate)",
+      "category": "knowledge",
+      "correct": null,
+      "id": "undo-last",
+      "routed_locally": false,
+      "routing": {
+        "deferred": false,
+        "intent": null,
+        "matched": false,
+        "routed_locally": false
+      },
+      "routing_truth": "llm",
+      "speech": "I don't have any previous action to undo. This is the start of our conversation. What would you like me to help you with?",
+      "tools": [],
+      "utterance": "undo that"
+    }
+  ],
+  "routing": {
+    "deferred": 1,
+    "missed": 9,
+    "off_cloud": 14,
+    "unjudged_local": 3
+  },
+  "routing_agreement": {
+    "agree": 22,
+    "total": 25
+  },
+  "run": {
+    "cases": 25,
+    "control_filter": [
+      "HassGetState",
+      "HassMediaSearchAndPlay"
+    ],
+    "corpus": "wave0_golden_set.yaml",
+    "kind": "wave1-local-first",
+    "model": "claude-haiku-4-5",
+    "prefer_local": true,
+    "timestamp": "2026-08-05T04:29:07.165224+00:00"
+  }
+}

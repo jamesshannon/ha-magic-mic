@@ -44,6 +44,7 @@ from pytest_homeassistant_custom_component.common import async_test_home_assista
 import custom_components
 from homeassistant.components import conversation, media_player
 from homeassistant.core import Context, HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import chat_session, intent
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -155,11 +156,17 @@ async def probe_local(
     if not matched or deferred:
         return LocalRouting(matched, name, deferred, False), None
 
-    with (
-        chat_session.async_get_chat_session(hass) as session,
-        conversation.async_get_chat_log(hass, session, user_input) as chat_log,
-    ):
-        response = await agent.async_handle_intents(user_input, chat_log)
+    try:
+        with (
+            chat_session.async_get_chat_session(hass) as session,
+            conversation.async_get_chat_log(hass, session, user_input) as chat_log,
+        ):
+            response = await agent.async_handle_intents(user_input, chat_log)
+    except HomeAssistantError:
+        # A sentence recognized against an intent this home cannot handle (no registered
+        # handler, e.g. no weather integration) or a handler that raised is not a local win.
+        # Let it fall to the LLM, exactly as a home missing that integration would.
+        return LocalRouting(matched, name, deferred, False), None
 
     # A local match that errored on execution is not a local win; let it fall to the LLM.
     resolved = (

@@ -180,6 +180,35 @@ async def test_arg_bearing_local_win_is_unjudged(
     assert mock_create_stream.call_count == 0
 
 
+async def test_recognized_intent_without_a_handler_falls_through(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_create_stream: AsyncMock,
+) -> None:
+    """A sentence matching an intent this home cannot handle routes to the LLM, not crash.
+
+    ``what's the weather`` recognizes ``HassGetWeather``, but no weather integration is set
+    up, so execution raises and the turn must fall through to the model.
+    """
+    agent_id = _testbed_agent_id(hass, setup_integration)
+    case = Case(
+        id="weather",
+        utterance="what's the weather?",
+        category="query",
+        routing_truth="local",
+        resolves_at_wave0=True,
+        expected=Expected(answer=ExpectedAnswer(contains=("sunny",))),
+    )
+    mock_create_stream.return_value = [create_content_block(0, ["It's sunny."])]
+
+    lfr = await run_case_prefer_local(hass, agent_id, case)
+
+    assert lfr.routing.matched is True
+    assert lfr.routing.routed_locally is False
+    assert lfr.result.observed.routed_locally is False
+    assert lfr.result.observed.generations >= 1
+
+
 def test_control_filter_defers_state_and_media() -> None:
     """The CONTROL fallback set is exactly the two intents HA holds back for the LLM."""
     assert (
