@@ -324,11 +324,14 @@ turns: TTFT p50 634ms / p95 2673ms, round duration p50 3.06s / p95 5.88s.
 One local win diverged, which is the finding the gate exists to surface. `turn off the
 lights` from a living_room satellite resolves locally to that room (`HassTurnOff`,
 area-preferred), leaving `light.kitchen` on, so the world diff marks it wrong against the
-whole-home expectation (both kitchen and living-room lights off). This is defensible
-behavior, arguably better than whole-home, but it means a bare area-ambiguous command is not
-a clean off-cloud win against a whole-home expectation: local routing changes what "the
-lights" means. The other two wrong-action cases (`implicit-cold`, `implicit-too-dark`) are
-LLM-routed model behavior, not routing. The three arg-bearing local wins
+whole-home expectation (both kitchen and living-room lights off). **Decision (2026-08-04):
+room-scoped is the intended semantics for a bare `turn off the lights` from a room-bound
+satellite; HASSIL is right and the corpus case encodes the wrong (whole-home) expectation.**
+The corpus case `turn-off-all-lights` needs a room-scoped rewrite (deferred: its expectation
+is entangled with the area-less baseline, which has no room to scope to, so the two drivers
+may need different expectations). The distinct `turn off *all* the lights` phrasing is
+genuinely ambiguous and is TBD later. The other two wrong-action cases (`implicit-cold`,
+`implicit-too-dark`) are LLM-routed model behavior, not routing. The three arg-bearing local wins
 (`set-bedroom-brightness`, `start-timer`, `add-shopping-item`) are UNJUDGED: they executed
 locally but the local path exposes no arg schema to verify against. `weather` routed to the
 LLM only because the fixture has no weather integration (recognized `HassGetWeather`, no
