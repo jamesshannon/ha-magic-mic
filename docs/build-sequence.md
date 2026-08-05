@@ -212,6 +212,41 @@ before more capabilities depend on the earlier placeholder interfaces.
   decision that targeted cases cannot represent
   ([`evaluation.md`](evaluation.md#live-comparison-cadence)).
 
+**Exit checklist (as of 2026-08-05).** The capabilities are built; the wave closes on the
+*measurement* gates, not the code. "Built" means the mechanism ships and is tested; "proven"
+means the go/no-go read is recorded. Two flips are held off on purpose until their gate passes.
+
+Built and closed:
+
+- [x] **Foundation entry gate** cleared: the pre-Wave-1 checklist landed and `TODO.md` is
+  retired (identity/scope contract, ChatLog session-state seam, two-stage tool policy frozen).
+- [x] **`find_entities`, both consumers** ([`find-entities.md`](find-entities.md)): Consumer 1
+  (match-layer fallback) and Consumer 2 (lookup tool) share one resolve step with a
+  requesting-room preference; the resolver micro-benchmark pins a `decoy` / `near-miss`
+  caution regime at zero false-resolves.
+- [x] **Timing substrate**: per-round TTFT/duration aggregate to run-level p50/p95, so a TTFT
+  claim is now an A/B, not a guess.
+- [x] **Testing gate (tool interception)**: driven baseline/testbed conversation tests plus
+  fault-injection (cancel-and-join, conservative undo barrier) are in place.
+
+Open gates (each blocks the wave's go/no-go):
+
+- [ ] **prompt-context Δtokens verdict**. Entity summary + request-conditioned name injection
+  ship (`DEFAULT_NAME_INJECTION` on) with the Tier-2 keyword map. The first live eval found
+  the prompt-loaded names go unused (stock intent tools fill their own name slots), so the
+  token/TTFT value is unproven; revisit against a realistic corpus (~2026-09) or record an
+  explicit "carry to Wave 2" decision. Closing this needs a decisive Δtokens A/B.
+- [ ] **Capability-selection enforcement flip**. Catalog, availability filter, retriever,
+  budget assembler, trace, and gated enforcement are built, but `DEFAULT_CAPABILITY_SELECTION`
+  is off: the recall@budget and task-success gates do not yet pass on the small (8-case)
+  regimes ([`capability-selection.md`](capability-selection.md)). Closing this needs the gates
+  to pass on a larger roster, then the flip on.
+- [ ] **`prefer_local_intents` flip [HA]**. The local-first driver records both the HASSIL
+  intervention and the final action, and a first live run is logged. Closing this needs the
+  Δhassil-intervention read and the go decision to turn the toggle on.
+- [ ] **Wave 1 go/no-go recorded**. The locked artifact that states the token / turn / local
+  verdict, the Wave 1 analogue of `wave0_baseline.json`, once the three reads above are in.
+
 *Proves:* the token/turn/local claims — the **go/no-go** on the design's central bet.
 
 ### Wave 2 — Bank cheap magic + first learning + upstream evidence
