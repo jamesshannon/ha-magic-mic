@@ -369,3 +369,103 @@ def test_scorecard_distribution_and_routing_agreement() -> None:
     assert card.totals["input_tokens"] == 350
     assert card.totals["generations"] == 3
     assert "Scorecard (2 cases)" in card.render()
+
+
+# --- latency aggregation ------------------------------------------------------------
+
+
+def _model_turn(ttft_ms: float | None, duration_ms: float) -> ObservedTurn:
+    """A model-driven turn (one generation) carrying the given round timing."""
+    return ObservedTurn(
+        speech="Paris",
+        routed_locally=False,
+        generations=1,
+        ttft_ms=ttft_ms,
+        round_duration_ms=duration_ms,
+    )
+
+
+def _llm_result(observed: ObservedTurn) -> object:
+    """Score an answer case (always correct here) so it lands in the scorecard."""
+    case = _case(
+        id="q",
+        routing_truth="llm",
+        expected=Expected(answer=ExpectedAnswer(contains=("Paris",))),
+    )
+    return score_case(case, observed)
+
+
+def test_latency_percentiles_over_model_turns() -> None:
+    """Latency summarises TTFT and round duration over the turns that hit the model."""
+    card = build_scorecard(
+        [
+            _llm_result(_model_turn(100.0, 500.0)),
+            _llm_result(_model_turn(200.0, 1000.0)),
+            _llm_result(_model_turn(300.0, 1500.0)),
+        ]
+    )
+    latency = card.latency
+
+    assert latency.model_turns == 3
+    assert latency.ttft_clocked == 3
+    # Inclusive linear interpolation: p50 is the median, p95 sits near the max.
+    assert latency.ttft_p50_ms == 200.0
+    assert latency.ttft_p95_ms == 290.0
+    assert latency.duration_p50_ms == 1000.0
+    assert latency.duration_p95_ms == 1450.0
+    assert "TTFT p50=200.0ms" in card.render()
+
+
+def test_latency_excludes_local_turns_and_unclocked_ttft() -> None:
+    """Local turns contribute no timing; an unclocked TTFT drops from that percentile."""
+    local = score_case(
+        _case(id="local", expected=Expected(tools=(ExpectedTool("HassTurnOff"),))),
+        ObservedTurn(
+            speech="Done",
+            tools=(ToolCall("HassTurnOff"),),
+            routed_locally=True,
+            generations=0,
+        ),
+    )
+    card = build_scorecard(
+        [
+            local,
+            _llm_result(_model_turn(None, 800.0)),
+            _llm_result(_model_turn(400.0, 1200.0)),
+        ]
+    )
+    latency = card.latency
+
+    # Two model turns, but only one clocked its TTFT.
+    assert latency.model_turns == 2
+    assert latency.ttft_clocked == 1
+    assert latency.ttft_p50_ms == 400.0
+    assert latency.ttft_p95_ms == 400.0
+    # Round duration covers both model turns.
+    assert latency.duration_p50_ms == 1000.0
+
+
+def test_latency_with_no_model_turns_is_empty() -> None:
+    """A run with only local turns reports no latency percentiles."""
+    card = build_scorecard(
+        [
+            score_case(
+                _case(
+                    id="local",
+                    expected=Expected(tools=(ExpectedTool("HassTurnOff"),)),
+                ),
+                ObservedTurn(
+                    speech="Done",
+                    tools=(ToolCall("HassTurnOff"),),
+                    routed_locally=True,
+                    generations=0,
+                ),
+            )
+        ]
+    )
+    latency = card.latency
+
+    assert latency.model_turns == 0
+    assert latency.ttft_p50_ms is None
+    assert latency.duration_p50_ms is None
+    assert "latency: no model-driven turns" in card.render()

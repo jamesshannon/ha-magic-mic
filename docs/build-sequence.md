@@ -89,7 +89,7 @@ they are not reasons to block unrelated Wave 1 work or invent more shared founda
 |---|---|---|
 | **Tokens** (+ cache_read/creation) | `entity.py` `usage` — already emitted | prompt-context §5.2 (roster dump → entity summary + conditioned names) |
 | **Generations / request** | the chat loop (count tool_use round-trips) | `terminal_intent` field, server-side web_search, fewer disambig loops |
-| **Model TTFT / round duration** | provider-round timing extension: `GenerationRecord.ttft_ms` / `duration_ms`, per round | prompt-context, capability selection, fewer tool loops |
+| **Model TTFT / round duration** | provider-round timing extension: `GenerationRecord.ttft_ms` / `duration_ms` per round, aggregated per run into p50/p95 by `Scorecard.latency` | prompt-context, capability selection, fewer tool loops |
 | **Turns / task** | multi-turn text trajectory driver (planned with first clarification) | `find_entities`, learning (aliases remove clarification) |
 | **Hassil-intervention rate** (% resolved locally) | combined local-first text driver (planned Wave 1) | `prefer_local` ON, contributed intents, aliases, command aliases |
 | **Voice TTFT/TTLT + spoken duration** | controlled pipeline plus labelled real-engine profile (planned with first pipeline-owned feature) | prompt/context latency, streaming, TTS, local-first routing |
@@ -172,7 +172,8 @@ before more capabilities depend on the earlier placeholder interfaces.
 
 - **[C]** **prompt-context §5.2** — entity summary + request-conditioned name injection,
   retire the roster dump ([`prompt-context.md`](prompt-context.md)). → measure **Δtokens**;
-  add provider-round timing before accepting a **TTFT** claim.
+  the provider-round timing substrate (per-round TTFT/duration, aggregated to p50/p95 by
+  `Scorecard.latency`) is in place, so a **TTFT** claim now needs an A/B across configs.
 - **[C]** **Capability-selection shadow mode** — build the provider-neutral catalog,
   deterministic availability filter, relevance retriever, dependency/budget assembler, and
   selection trace, but do not remove tools yet. Compare the proposed per-turn API with the

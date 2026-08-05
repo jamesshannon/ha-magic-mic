@@ -76,6 +76,27 @@ class ObservedTurn:
 
 
 @dataclass(frozen=True)
+class LatencySummary:
+    """Latency percentiles over the model-driven turns of a run (all values in ms).
+
+    Locally-routed turns never reach the model, so they carry no timing and are excluded;
+    ``model_turns`` counts the turns that did. ``ttft_clocked`` can be lower than
+    ``model_turns`` when a producer streamed without clocking (a historical artifact
+    predating the timing extension), so the TTFT percentiles cover only the clocked turns.
+    Every percentile is ``None`` when nothing contributed. TTFT is what the caller waits to
+    hear (first content delta); round duration sums the model's per-round compute and
+    excludes tool-execution time between rounds, so it is not wall-clock turn latency.
+    """
+
+    model_turns: int
+    ttft_clocked: int
+    ttft_p50_ms: float | None
+    ttft_p95_ms: float | None
+    duration_p50_ms: float | None
+    duration_p95_ms: float | None
+
+
+@dataclass(frozen=True)
 class CaseResult:
     """The scored outcome for one case."""
 
@@ -267,6 +288,31 @@ def score_case(
     )
 
 
+def _percentile(values: Sequence[float], pct: float) -> float | None:
+    """Linear-interpolated percentile of ``values``, or ``None`` when empty.
+
+    Uses the inclusive method (`statistics.quantiles(..., method="inclusive")` and NumPy's
+    default): rank ``pct/100 * (n - 1)``, interpolated between its neighbours. Over a small
+    corpus p95 sits close to the maximum; that is a sample-size artifact, not a tail
+    estimate to lean on. Rounded to 0.1 ms, since the underlying timing is network-inclusive
+    and sub-millisecond precision is noise.
+    """
+    ordered = sorted(values)
+    if not ordered:
+        return None
+    if len(ordered) == 1:
+        return round(ordered[0], 1)
+    rank = (pct / 100) * (len(ordered) - 1)
+    low = int(rank)
+    high = min(low + 1, len(ordered) - 1)
+    return round(ordered[low] + (ordered[high] - ordered[low]) * (rank - low), 1)
+
+
+def _fmt_ms(value: float | None) -> str:
+    """Render a millisecond percentile for the plain-text scorecard."""
+    return "n/a" if value is None else f"{value:.1f}ms"
+
+
 @dataclass(frozen=True)
 class Scorecard:
     """Aggregate outcome across the corpus: the value dashboard for one run."""
@@ -312,6 +358,26 @@ class Scorecard:
             ),
         }
 
+    @property
+    def latency(self) -> LatencySummary:
+        """Percentile latency over the turns that reached the model (Part D timing).
+
+        A turn reached the model when it ran at least one generation; a locally-routed turn
+        did not and contributes no timing. TTFT is summarised only over turns that were
+        actually clocked (``ttft_ms is not None``); round duration over every model turn.
+        """
+        model_turns = [r.observed for r in self.results if r.observed.generations > 0]
+        ttfts = [o.ttft_ms for o in model_turns if o.ttft_ms is not None]
+        durations = [o.round_duration_ms for o in model_turns]
+        return LatencySummary(
+            model_turns=len(model_turns),
+            ttft_clocked=len(ttfts),
+            ttft_p50_ms=_percentile(ttfts, 50),
+            ttft_p95_ms=_percentile(ttfts, 95),
+            duration_p50_ms=_percentile(durations, 50),
+            duration_p95_ms=_percentile(durations, 95),
+        )
+
     def render(self) -> str:
         """Render the scorecard as a plain-text table."""
         lines = [f"Scorecard ({self.total} cases)", ""]
@@ -323,8 +389,23 @@ class Scorecard:
             f"routing agreement (labelled vs measured): {agree}/{total}",
             "cost totals: "
             + ", ".join(f"{key}={value}" for key, value in self.totals.items()),
+            self._render_latency(),
         ]
         return "\n".join(lines)
+
+    def _render_latency(self) -> str:
+        """Render the latency percentiles as one plain-text line."""
+        latency = self.latency
+        if latency.model_turns == 0:
+            return "latency: no model-driven turns"
+        return (
+            f"latency ({latency.model_turns} model turns, "
+            f"{latency.ttft_clocked} clocked): "
+            f"TTFT p50={_fmt_ms(latency.ttft_p50_ms)} "
+            f"p95={_fmt_ms(latency.ttft_p95_ms)} | "
+            f"round p50={_fmt_ms(latency.duration_p50_ms)} "
+            f"p95={_fmt_ms(latency.duration_p95_ms)}"
+        )
 
 
 def build_scorecard(results: list[CaseResult]) -> Scorecard:

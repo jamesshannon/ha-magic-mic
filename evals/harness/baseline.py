@@ -255,6 +255,7 @@ def _result_to_dict(result: CaseResult) -> dict:
 def build_artifact(scorecard: Scorecard, model: str, *, subset: bool) -> dict:
     """Assemble the artifact: metadata, aggregates, and per-case detail."""
     agree, total = scorecard.routing_agreement
+    latency = scorecard.latency
     return {
         "run": {
             "kind": "wave0-subset" if subset else "wave0-live-baseline",
@@ -270,6 +271,14 @@ def build_artifact(scorecard: Scorecard, model: str, *, subset: bool) -> dict:
         "buckets": {bucket.value: count for bucket, count in scorecard.buckets.items()},
         "routing_agreement": {"agree": agree, "total": total},
         "cost_totals": scorecard.totals,
+        "latency_ms": {
+            "model_turns": latency.model_turns,
+            "ttft_clocked": latency.ttft_clocked,
+            "ttft_p50": latency.ttft_p50_ms,
+            "ttft_p95": latency.ttft_p95_ms,
+            "round_duration_p50": latency.duration_p50_ms,
+            "round_duration_p95": latency.duration_p95_ms,
+        },
         "cases": [_result_to_dict(result) for result in scorecard.results],
     }
 

@@ -25,6 +25,7 @@ from .runner import observe_turn, run_case
 from .scoring import (
     Bucket,
     CaseResult,
+    LatencySummary,
     ObservedTurn,
     Scorecard,
     ToolCall,
@@ -46,6 +47,7 @@ __all__ = [
     "ExpectedAnswer",
     "ExpectedEffect",
     "ExpectedTool",
+    "LatencySummary",
     "ObservedEffect",
     "ObservedTurn",
     "ProviderOptions",
