@@ -17,29 +17,32 @@
         {
           "continue_conversation": true,
           "resolved": true,
-          "speech": "I can help you turn on the lamp, but I need more information. There are 2 lights in the bedroom. Could you specify:\n\n1. Which lamp you want to turn on (e.g., bedside lamp, desk lamp)?\n2. Or which area/room the lamp is in?",
-          "tools": [],
-          "utterance": "turn on the lamp"
-        },
-        {
-          "continue_conversation": false,
-          "resolved": true,
-          "speech": "Done! The bedside lamp is now on.",
+          "speech": "I couldn't find a device named \"lamp\". You have 2 lights in the bedroom. Could you provide the specific name of the lamp you'd like to turn on, or let me know which area it's in?",
           "tools": [
-            {
-              "args": {
-                "area": "bedroom",
-                "domain": "light",
-                "name": "bedside"
-              },
-              "name": "find_entities"
-            },
             {
               "args": {
                 "domain": [
                   "light"
                 ],
-                "name": "Bedside Lamp"
+                "name": "lamp"
+              },
+              "name": "HassTurnOn"
+            }
+          ],
+          "utterance": "turn on the lamp"
+        },
+        {
+          "continue_conversation": false,
+          "resolved": true,
+          "speech": "Done! I've turned on the bedside lamp in the bedroom.",
+          "tools": [
+            {
+              "args": {
+                "area": "bedroom",
+                "domain": [
+                  "light"
+                ],
+                "name": "bedside lamp"
               },
               "name": "HassTurnOn"
             }
@@ -67,10 +70,11 @@
         {
           "continue_conversation": true,
           "resolved": true,
-          "speech": "I found three lamps in the living room: Left Lamp, Right Lamp, and Corner Lamp. Which one would you like me to turn on, or would you like me to turn on all of them?",
+          "speech": "I found three lamps in the living room. Which one would you like to turn on?\n- Left Lamp\n- Right Lamp\n- Corner Lamp\n\nOr would you like me to turn on all of them?",
           "tools": [
             {
               "args": {
+                "area": "living room",
                 "domain": [
                   "light"
                 ],
@@ -91,7 +95,7 @@
         {
           "continue_conversation": false,
           "resolved": true,
-          "speech": "Done! I've turned on the Corner Lamp.",
+          "speech": "Done! The Corner Lamp is now on.",
           "tools": [
             {
               "args": {
@@ -104,6 +108,149 @@
             }
           ],
           "utterance": "the corner one"
+        }
+      ],
+      "turns_to_complete": 2
+    },
+    {
+      "expected_shape": "recovered",
+      "final_state": {
+        "fan.ceiling_fan": "off",
+        "fan.tower_fan": "on"
+      },
+      "id": "ambiguous-two-bedroom-fans",
+      "outcome": "recovered",
+      "passed": true,
+      "tags": [
+        "disambiguation",
+        "two-way",
+        "fan"
+      ],
+      "turns": [
+        {
+          "continue_conversation": true,
+          "resolved": true,
+          "speech": "I found 2 fans in the bedroom. Could you clarify which one you'd like to turn on, or would you like me to turn on all the fans in the bedroom?",
+          "tools": [],
+          "utterance": "turn on the fan"
+        },
+        {
+          "continue_conversation": false,
+          "resolved": true,
+          "speech": "Done! I've turned on the tower fan in the bedroom.",
+          "tools": [
+            {
+              "args": {
+                "area": "bedroom",
+                "domain": [
+                  "fan"
+                ],
+                "name": "tower"
+              },
+              "name": "HassTurnOn"
+            },
+            {
+              "args": {
+                "area": "bedroom",
+                "domain": "fan"
+              },
+              "name": "find_entities"
+            },
+            {
+              "args": {
+                "domain": [
+                  "fan"
+                ],
+                "name": "Tower Fan"
+              },
+              "name": "HassTurnOn"
+            }
+          ],
+          "utterance": "the tower one"
+        }
+      ],
+      "turns_to_complete": 2
+    },
+    {
+      "expected_shape": "recovered",
+      "final_state": {
+        "cover.left_blind": "open",
+        "cover.right_blind": "closed"
+      },
+      "id": "ambiguous-two-living-room-blinds",
+      "outcome": "recovered",
+      "passed": true,
+      "tags": [
+        "disambiguation",
+        "two-way",
+        "cover"
+      ],
+      "turns": [
+        {
+          "continue_conversation": true,
+          "resolved": true,
+          "speech": "I can help you open the blind. You have two blinds in the living room - the Left Blind and the Right Blind. Which one would you like me to open, or would you like me to open both?",
+          "tools": [],
+          "utterance": "open the blind"
+        },
+        {
+          "continue_conversation": false,
+          "resolved": true,
+          "speech": "Done! I've opened the left blind.",
+          "tools": [
+            {
+              "args": {
+                "area": "living room",
+                "name": "Left Blind",
+                "position": 100
+              },
+              "name": "HassSetPosition"
+            }
+          ],
+          "utterance": "the left one"
+        }
+      ],
+      "turns_to_complete": 2
+    },
+    {
+      "expected_shape": "recovered",
+      "final_state": {
+        "light.bedroom_reading": "off",
+        "light.office_reading": "on"
+      },
+      "id": "ambiguous-reading-lamp-two-rooms",
+      "outcome": "recovered",
+      "passed": true,
+      "tags": [
+        "disambiguation",
+        "two-way",
+        "area"
+      ],
+      "turns": [
+        {
+          "continue_conversation": true,
+          "resolved": true,
+          "speech": "I found two reading lamps - one in the bedroom and one in the office. Which one would you like me to turn on?",
+          "tools": [],
+          "utterance": "turn on the reading lamp"
+        },
+        {
+          "continue_conversation": false,
+          "resolved": true,
+          "speech": "Done! I've turned on the reading lamp in the office.",
+          "tools": [
+            {
+              "args": {
+                "area": "office",
+                "domain": [
+                  "light"
+                ],
+                "name": "reading lamp"
+              },
+              "name": "HassTurnOn"
+            }
+          ],
+          "utterance": "the office one"
         }
       ],
       "turns_to_complete": 2
@@ -139,21 +286,54 @@
         }
       ],
       "turns_to_complete": 1
+    },
+    {
+      "expected_shape": "direct",
+      "final_state": {
+        "switch.coffee_maker": "on"
+      },
+      "id": "direct-coffee-maker",
+      "outcome": "direct",
+      "passed": true,
+      "tags": [
+        "direct",
+        "switch"
+      ],
+      "turns": [
+        {
+          "continue_conversation": false,
+          "resolved": true,
+          "speech": "Done! The coffee maker is now on.",
+          "tools": [
+            {
+              "args": {
+                "domain": [
+                  "switch"
+                ],
+                "name": "Coffee Maker"
+              },
+              "name": "HassTurnOn"
+            }
+          ],
+          "utterance": "turn on the coffee maker"
+        }
+      ],
+      "turns_to_complete": 1
     }
   ],
   "run": {
-    "cases": 3,
+    "cases": 7,
     "corpus": "wave1_disambiguation.yaml",
     "kind": "wave1-disambiguation-live",
     "model": "claude-haiku-4-5",
-    "timestamp": "2026-08-05T01:19:52.350646+00:00"
+    "timestamp": "2026-08-05T01:52:13.274082+00:00"
   },
   "scorecard": {
-    "mean_turns_to_complete": 1.6666666666666667,
+    "mean_turns_to_complete": 1.7142857142857142,
     "misfired": 0,
     "no_action": 0,
-    "passed": 3,
-    "recovered": 2,
-    "total": 3
+    "passed": 7,
+    "recovered": 5,
+    "total": 7
   }
 }

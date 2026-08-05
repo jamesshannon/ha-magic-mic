@@ -78,6 +78,73 @@ cases:
           - {tool: HassTurnOn, args: {name: Corner Lamp}}
           - {say: "Turned on the Corner Lamp."}
 
+  - id: ambiguous-two-bedroom-fans
+    tags: [disambiguation, two-way, fan]
+    action_tool: HassTurnOn
+    world:
+      areas: [bedroom]
+      entities:
+        - {entity_id: fan.ceiling_fan, name: Ceiling Fan, area: bedroom, state: "off"}
+        - {entity_id: fan.tower_fan, name: Tower Fan, area: bedroom, state: "off"}
+    expect:
+      recovered: true
+      final_state: {fan.tower_fan: "on", fan.ceiling_fan: "off"}
+    turns:
+      - utterance: turn on the fan
+        generations:
+          - {tool: find_entities, args: {name: fan}}
+          - {say: "The Ceiling Fan or the Tower Fan?"}
+      - utterance: the tower one
+        generations:
+          - {tool: HassTurnOn, args: {name: Tower Fan}}
+          - {say: "Turned on the Tower Fan."}
+
+  - id: ambiguous-two-living-room-blinds
+    # Covers open/close through HassTurnOn/HassTurnOff, not HassOpenCover: HA marks the
+    # dedicated cover intents deprecated and drops them from the LLM roster (they are in
+    # AssistAPI.IGNORE_INTENTS), routing "open the blind" through the on/off handler, which
+    # special-cases the cover domain. action_tool is HassTurnOn for that reason.
+    tags: [disambiguation, two-way, cover]
+    action_tool: HassTurnOn
+    world:
+      areas: [living_room]
+      entities:
+        - {entity_id: cover.left_blind, name: Left Blind, area: living_room, device_class: blind, state: "closed"}
+        - {entity_id: cover.right_blind, name: Right Blind, area: living_room, device_class: blind, state: "closed"}
+    expect:
+      recovered: true
+      final_state: {cover.left_blind: "open", cover.right_blind: "closed"}
+    turns:
+      - utterance: open the blind
+        generations:
+          - {tool: find_entities, args: {name: blind}}
+          - {say: "The Left Blind or the Right Blind?"}
+      - utterance: the left one
+        generations:
+          - {tool: HassTurnOn, args: {name: Left Blind}}
+          - {say: "Opened the Left Blind."}
+
+  - id: ambiguous-reading-lamp-two-rooms
+    tags: [disambiguation, two-way, area]
+    action_tool: HassTurnOn
+    world:
+      areas: [bedroom, office]
+      entities:
+        - {entity_id: light.bedroom_reading, name: Reading Lamp, area: bedroom, state: "off"}
+        - {entity_id: light.office_reading, name: Reading Lamp, area: office, state: "off"}
+    expect:
+      recovered: true
+      final_state: {light.office_reading: "on", light.bedroom_reading: "off"}
+    turns:
+      - utterance: turn on the reading lamp
+        generations:
+          - {tool: find_entities, args: {name: reading lamp}}
+          - {say: "There is one in the bedroom and one in the office. Which room?"}
+      - utterance: the office one
+        generations:
+          - {tool: HassTurnOn, args: {name: Reading Lamp, area: office}}
+          - {say: "Turned on the office Reading Lamp."}
+
   - id: direct-kitchen-light
     tags: [direct]
     action_tool: HassTurnOn
@@ -93,3 +160,19 @@ cases:
         generations:
           - {tool: HassTurnOn, args: {name: Kitchen Light}}
           - {say: "Turned on the Kitchen Light."}
+
+  - id: direct-coffee-maker
+    tags: [direct, switch]
+    action_tool: HassTurnOn
+    world:
+      areas: [kitchen]
+      entities:
+        - {entity_id: switch.coffee_maker, name: Coffee Maker, area: kitchen, state: "off"}
+    expect:
+      recovered: false
+      final_state: {switch.coffee_maker: "on"}
+    turns:
+      - utterance: turn on the coffee maker
+        generations:
+          - {tool: HassTurnOn, args: {name: Coffee Maker}}
+          - {say: "Turned on the Coffee Maker."}

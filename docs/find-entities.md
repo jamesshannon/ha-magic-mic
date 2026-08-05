@@ -190,13 +190,20 @@ follow-up that resolves it. Keying completion off the world state instead lets t
 play out. The first pass exposed a second problem in the corpus itself, invisible to the
 scripted harness: a case named one light exactly "Bedroom Light", so "turn on the bedroom
 light" was an exact match rather than an ambiguity, and an oblique "I want to read" case had
-no follow-up turn and too strict an end state. With those fixed, the run
-(2026-08, `claude-haiku-4-5`, artifact `evals/results/wave1_disambiguation_live.json`)
-recovered both genuinely-ambiguous cases: "turn on the lamp" against two or three lamps ends
-turn 1 as a question with the world untouched, and the follow-up ("the bedside one", "the
-corner one") turns on exactly the named lamp on turn 2. The direct command completes on turn
-1. So haiku does ask before acting on a real ambiguity, and disambiguation costs one extra
-turn (mean 1.67 turns to complete across the three cases: 2, 2, 1).
+no follow-up turn and too strict an end state. With those fixed and the corpus broadened to
+seven cases across lights, fans, and covers and both a name-token and a same-name-in-two-rooms
+ambiguity, the run (2026-08, `claude-haiku-4-5`, artifact
+`evals/results/wave1_disambiguation_live.json`) recovered all five ambiguous cases and
+completed both direct commands: an ambiguous request ends turn 1 as a question with the world
+untouched, and the follow-up ("the bedside one", "the tower one", "the office one") actuates
+exactly the right entity on turn 2, while a direct command completes on turn 1. So haiku asks
+before acting on a real ambiguity, and disambiguation costs one extra turn (mean 1.71 across
+the seven cases: five at 2, two at 1). World-based scoring earned its keep here: the blinds
+case opened via `HassSetPosition` rather than the `HassTurnOn` the corpus scripted, and it
+scored as a clean recovery anyway because completion is judged on the world reaching its goal,
+not on which tool fired. The run also confirmed HA drops the deprecated `HassOpenCover` /
+`HassCloseCover` from the LLM roster (they are in `AssistAPI.IGNORE_INTENTS`), so covers open
+and close through the on/off handler.
 
 ---
 

@@ -139,19 +139,30 @@ class _Switch(_BackedEntity, SwitchEntity):
 
 
 class _Fan(_BackedEntity, FanEntity):
-    """A minimal on/off fan."""
+    """A minimal on/off fan.
+
+    `FanEntity.is_on` (and so the state) is derived from ``percentage``, not ``is_on``, so
+    the on/off state is driven through ``_attr_percentage``, not ``_attr_is_on``.
+    """
 
     _attr_supported_features = FanEntityFeature.TURN_ON | FanEntityFeature.TURN_OFF
 
     def reset(self) -> None:
-        self._attr_is_on = self._corpus.state == "on"
+        self._attr_percentage = 100 if self._corpus.state == "on" else 0
 
-    async def async_turn_on(self, **kwargs: object) -> None:
-        self._attr_is_on = True
+    async def async_turn_on(
+        self,
+        percentage: int | None = None,
+        preset_mode: str | None = None,
+        **kwargs: object,
+    ) -> None:
+        # FanEntity.async_handle_turn_on_service calls this positionally with
+        # (percentage, preset_mode); a **kwargs-only signature raises TypeError.
+        self._attr_percentage = percentage or 100
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: object) -> None:
-        self._attr_is_on = False
+        self._attr_percentage = 0
         self.async_write_ha_state()
 
 
