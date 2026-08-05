@@ -245,9 +245,12 @@ Open gates (each blocks the wave's go/no-go):
   ([`capability-selection.md`](capability-selection.md)). Closing this is a decision on whether
   that out-of-vocabulary cost is acceptable (it mostly hits unconfigured scripts), or work to
   lift the synonym-gap class (stemming, the discovery fallback, or embeddings) first.
-- [ ] **`prefer_local_intents` flip [HA]**. The local-first driver records both the HASSIL
-  intervention and the final action, and a first live run is logged. Closing this needs the
-  Δhassil-intervention read and the go decision to turn the toggle on.
+- [ ] **`prefer_local_intents` flip [HA]**. The Δhassil-intervention read is done: the
+  local-first run routes 14/25 turns off-cloud with 22/25 routing agreement, and its one local
+  "wrong action" (`turn-off-all-lights`) is the room-scoped behavior a 2026-08-04 ruling deemed
+  correct against a stale whole-home expectation, so the flip introduces no genuine regression.
+  What remains is the go decision to turn the toggle on, plus the deferred room-scoped rewrite
+  of that corpus case (blocked on the area-less baseline needing a different expectation).
 - [ ] **Wave 1 go/no-go recorded**. The locked artifact that states the token / turn / local
   verdict, the Wave 1 analogue of `wave0_baseline.json`, once the three reads above are in.
 
