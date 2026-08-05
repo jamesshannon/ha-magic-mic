@@ -188,6 +188,7 @@ split-on-trailing-comma = false
 "evals/harness/console.py" = ["T201"]
 "evals/harness/fuzzy_fallback.py" = ["T201"]
 "evals/harness/local_first.py" = ["T201"]
+"evals/harness/localized_catalog.py" = ["T201"]
 "evals/harness/resolution.py" = ["T201"]
 "evals/harness/selection_gate.py" = ["T201"]
 "evals/harness/selection_shadow.py" = ["T201"]
