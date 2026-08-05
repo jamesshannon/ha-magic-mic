@@ -479,8 +479,10 @@ Deferred until evidence demands them:
 The first slice landed in `custom_components/magic_mic/capabilities/capability_selection.py`
 plus the offline harness `evals/harness/selection_shadow.py`. It implements the
 deterministic spine (steps 1 through 6 of Recommended v1) and the shadow comparison (step
-7), and stops short of enforcement (step 9), discovery (step 8), and conversation
-continuity (Stage 3), which land with their first live consumers.
+7). The enforcement *mechanism* (step 9) now exists too, wired at the `TestbedAPI` seam but
+gated off by default (see "As-built: enforcement" below); the enforcement *decision*, the
+config default flipping on, still waits on the recall and task-success gates. Discovery
+(step 8) and conversation continuity (Stage 3) land with their first live consumers.
 
 What exists:
 
@@ -505,6 +507,34 @@ What exists:
 - `selection_shadow`: reads a scored baseline artifact (which already records each case's
   utterance and the tools the model called), recomputes the plan across a budget sweep, and
   reports exact case- and tool-level recall@budget plus the tool saving.
+
+### As-built: enforcement (gated off)
+
+Shadow mode measures the plan; enforcement *applies* it. The mechanism is now in place but
+switched off, so it changes no live request until the gates pass.
+
+- `enforce_on_roster(utterance, exposed_tools, ...)` runs the same filter/rank/assemble as
+  `select_capabilities`, then partitions the live roster into three disjoint sets:
+  **kept** (what the model sees), **dropped** (catalogued tools the plan omitted, the
+  saving), and **passthrough** (exposed tools no descriptor declares). Selection cannot
+  rank a tool it does not know, so an uncatalogued tool is retained rather than hidden.
+  Enforcement can only ever tighten the catalogued portion of the roster; it can never make
+  an installed tool permanently invisible, which is the fail-safe a demo catalog that does
+  not yet cover every home's scripts/providers needs.
+- The `TestbedAPI` seam takes an optional selector closure. It applies selection *after* the
+  tool-policy exposure filter, so selection only ranks tools the request is already
+  authorized to use, and the two-stage security boundary (exposure + execution recheck) is
+  untouched. Tool exposure stays a prompt/UX bound; the execution recheck stays
+  authoritative.
+- Every enforced turn records a compact `SelectionTrace` on the turn metadata (budget,
+  roster size before/after, admitted ids, dropped, passthrough), with the full `SelectionPlan`
+  reachable for scores and omission reasons.
+- `CONF_CAPABILITY_SELECTION` gates the whole thing and defaults **off**. It is off for two
+  independent reasons, either of which alone blocks it: the recall number is a direction and
+  not a gate pass, and the demo catalog's retrieval documents are English, which
+  "Localization" forbids from gating a live request. The eval harness turns the flag on to
+  run the full-roster-versus-enforced task-success comparison the gate needs; the default
+  flips only after that comparison holds.
 
 ### Shadow finding (2026-08, `wave0_baseline`)
 

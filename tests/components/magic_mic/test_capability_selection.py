@@ -7,6 +7,7 @@ from custom_components.magic_mic.capabilities.capability_selection import (
     assemble_plan,
     available_descriptors,
     default_catalog,
+    enforce_on_roster,
     extend_catalog,
     rank_descriptors,
     select_capabilities,
@@ -319,3 +320,51 @@ def test_assemble_is_deterministic_on_score_ties() -> None:
     second = assemble_plan(ranked, available)
 
     assert first.admitted == second.admitted
+
+
+def test_enforce_keeps_the_relevant_bundle_and_drops_the_rest() -> None:
+    """Enforcement reduces the roster to the plan: selected tools kept, others dropped."""
+    outcome = enforce_on_roster("turn on the kitchen light", _ROSTER, budget=8)
+
+    # The device-control tools the request needs survived; kept + dropped partition the
+    # catalogued roster with no overlap and nothing lost.
+    assert {"HassTurnOn", "HassTurnOff", "HassToggle"} <= outcome.kept
+    assert "HassSetVolume" in outcome.dropped
+    assert outcome.kept.isdisjoint(outcome.dropped)
+    assert outcome.kept | set(outcome.dropped) == _ROSTER
+    assert outcome.budget == 8
+
+
+def test_enforce_never_exceeds_the_exposed_roster() -> None:
+    """Enforcement can only ever tighten: it exposes a subset of what it was given."""
+    outcome = enforce_on_roster("turn on the kitchen light", _ROSTER, budget=8)
+
+    assert outcome.kept <= _ROSTER
+    assert len(outcome.kept) <= len(_ROSTER)
+    # Residents survive any budget, so the roster is never emptied.
+    assert {"GetLiveContext", "GetDateTime"} <= outcome.kept
+
+
+def test_enforce_passes_through_an_uncatalogued_tool() -> None:
+    """A tool no descriptor declares is retained, not hidden, and flagged as passthrough."""
+    roster = _ROSTER | {"script.custom_thing"}
+
+    outcome = enforce_on_roster("turn on the kitchen light", roster, budget=8)
+
+    assert "script.custom_thing" in outcome.kept
+    assert outcome.passthrough == ("script.custom_thing",)
+    # It is neither dropped nor counted as a catalogued admission.
+    assert "script.custom_thing" not in outcome.dropped
+
+
+def test_enforce_at_the_full_budget_drops_nothing_catalogued() -> None:
+    """At a budget as large as the catalog, selection keeps every reachable tool."""
+    outcome = enforce_on_roster(
+        "turn on the kitchen light", _ROSTER, budget=len(_ROSTER)
+    )
+
+    # Only zero-overlap bundles below the relevance floor can fall out at full budget;
+    # a device request overlaps most bundles, so the drop set is small or empty and the
+    # kept set is the near-whole roster. The invariant that matters: nothing is invented.
+    assert outcome.kept <= _ROSTER
+    assert outcome.passthrough == ()

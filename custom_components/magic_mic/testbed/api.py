@@ -12,6 +12,7 @@ authoritative execution-time recheck.
 """
 
 import asyncio
+from collections.abc import Callable
 from datetime import timedelta
 from typing import Any
 
@@ -22,6 +23,7 @@ from homeassistant.components.conversation import (
 from homeassistant.helpers import llm
 from homeassistant.util.json import JsonObjectType
 
+from ..capabilities.capability_selection import EnforcedSelection
 from ..const import DOMAIN, LOGGER
 from ..execution_result import get_undo_disposition, public_tool_result
 from ..pending_operation import (
@@ -29,7 +31,7 @@ from ..pending_operation import (
     PendingOperationAlreadyStaged,
     async_stage_pending,
 )
-from ..session_state import ToolPolicyTrace
+from ..session_state import SelectionTrace, ToolPolicyTrace
 from ..tool_policy import (
     DEFAULT_TOOL_POLICY_REGISTRY,
     EffectClass,
@@ -50,6 +52,11 @@ from ..undo import (
 
 PENDING_OPERATION_LIFETIME = timedelta(seconds=30)
 
+# A capability selector reduces a set of policy-exposed tool names to an EnforcedSelection
+# for one turn (docs/capability-selection.md). It is a closure so the seam stays free of
+# catalog and utterance knowledge: the entity binds those and passes only this callable.
+CapabilitySelector = Callable[[frozenset[str]], EnforcedSelection]
+
 
 class TestbedAPI(llm.APIInstance):
     """Policy-enforcing decorator over the original `APIInstance`.
@@ -62,8 +69,15 @@ class TestbedAPI(llm.APIInstance):
         inner: llm.APIInstance,
         policy_context: ToolPolicyContext,
         policy_registry: ToolPolicyRegistry,
+        selector: CapabilitySelector | None = None,
     ) -> None:
-        """Initialize a filtered view while retaining the original executor."""
+        """Initialize a filtered view while retaining the original executor.
+
+        Tools pass two independent gates before the model sees them: tool-policy exposure
+        (the security-relevant filter, always on) and, when ``selector`` is supplied,
+        capability selection (a prompt/UX prune, gated on by the caller). Selection runs
+        *after* exposure so it only ever ranks tools the request is already allowed to use.
+        """
         self._inner = inner
         self._policy_context = policy_context
         self._policy_registry = policy_registry
@@ -72,6 +86,8 @@ class TestbedAPI(llm.APIInstance):
             tool for tool in inner.tools if self._is_exposed(tool, record_trace=True)
         ]
         tools = inner.tools if len(exposed_tools) == len(inner.tools) else exposed_tools
+        if selector is not None:
+            tools = self._apply_selection(tools, selector)
         super().__init__(
             api=inner.api,
             api_prompt=inner.api_prompt,
@@ -86,9 +102,41 @@ class TestbedAPI(llm.APIInstance):
         inner: llm.APIInstance,
         policy_context: ToolPolicyContext,
         policy_registry: ToolPolicyRegistry = DEFAULT_TOOL_POLICY_REGISTRY,
+        *,
+        selector: CapabilitySelector | None = None,
     ) -> "TestbedAPI":
         """Build the policy decorator around an existing API instance."""
-        return cls(inner, policy_context, policy_registry)
+        return cls(inner, policy_context, policy_registry, selector)
+
+    def _apply_selection(
+        self, tools: list[llm.Tool], selector: CapabilitySelector
+    ) -> list[llm.Tool]:
+        """Prune the policy-exposed roster to the selector's plan, and trace the decision.
+
+        Selection can only tighten the catalogued portion of the roster: an uncatalogued
+        tool is retained (docs "passthrough"), so the model never loses a tool selection
+        cannot reason about. The compact `SelectionTrace` explains the resulting size, and
+        the full plan (scores, omissions) is available on it for a richer trace.
+        """
+        outcome = selector(frozenset(tool.name for tool in tools))
+        selected = [tool for tool in tools if tool.name in outcome.kept]
+        self._policy_context.turn_metadata.selection = SelectionTrace(
+            enforced=True,
+            budget=outcome.budget,
+            exposed_before=len(tools),
+            exposed_after=len(selected),
+            admitted=outcome.plan.admitted,
+            dropped=outcome.dropped,
+            passthrough=outcome.passthrough,
+        )
+        LOGGER.debug(
+            "[testbed] capability_selection exposed=%d/%d dropped=%d passthrough=%d",
+            len(selected),
+            len(tools),
+            len(outcome.dropped),
+            len(outcome.passthrough),
+        )
+        return selected
 
     async def async_call_tool(self, tool_input: llm.ToolInput) -> JsonObjectType:
         """Track the HA-owned task, then execute through policy."""

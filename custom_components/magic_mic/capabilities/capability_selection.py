@@ -561,10 +561,10 @@ def select_capabilities(
 ) -> SelectionPlan:
     """Run the full per-turn selection: filter, rank, and assemble (docs "Recommended v1").
 
-    The one entry point a consumer (today the shadow harness) calls. ``exposed_tools`` is
-    the roster the running system would offer; ``catalog`` defaults to the demo catalog.
-    Returns the `SelectionPlan` without applying it: Wave 1 measures it against the
-    full-roster baseline before enforcement.
+    The one entry point a consumer (the shadow harness, and the enforcing seam via
+    `enforce_on_roster`) calls. ``exposed_tools`` is the roster the running system would
+    offer; ``catalog`` defaults to the demo catalog. Returns the `SelectionPlan` without
+    applying it: applying it to a live roster is `enforce_on_roster`'s job.
     """
     resolved_catalog = catalog if catalog is not None else default_catalog()
     available = available_descriptors(resolved_catalog, exposed_tools)
@@ -572,10 +572,81 @@ def select_capabilities(
     return assemble_plan(ranked, available, budget=budget, floor=floor)
 
 
+@dataclass(slots=True, frozen=True)
+class EnforcedSelection:
+    """Result of applying a `SelectionPlan` to a live, policy-exposed tool roster.
+
+    Enforcement is a *prune*, not a rebuild: it starts from the roster the system already
+    decided to expose (after tool-policy exposure filtering) and removes only the tools
+    the plan chose to omit. Three disjoint groups make that decision auditable:
+
+    - ``kept`` is the roster an enforcing seam actually offers the model;
+    - ``dropped`` are catalogued tools the plan omitted (the saving);
+    - ``passthrough`` are exposed tools *no descriptor declares*. Selection cannot rank a
+      tool it does not know, so an uncatalogued tool is retained rather than hidden. That
+      fails safe: a demo catalog that does not yet cover every installed tool (a home's
+      generated scripts, a merged provider) can never make one permanently invisible. The
+      count is surfaced so an unexpectedly large passthrough reads as a catalog gap, not a
+      saving.
+
+    ``plan`` is the underlying `SelectionPlan` and ``budget`` the tool-count ceiling it was
+    assembled under, both carried for the trace.
+    """
+
+    plan: SelectionPlan
+    budget: int
+    kept: frozenset[str]
+    dropped: tuple[str, ...]
+    passthrough: tuple[str, ...]
+
+
+def enforce_on_roster(
+    utterance: str,
+    exposed_tools: frozenset[str] | set[str],
+    *,
+    catalog: Catalog | None = None,
+    budget: int = SELECTION_TOOL_BUDGET,
+    floor: float = SELECTION_RELEVANCE_FLOOR,
+) -> EnforcedSelection:
+    """Compute the plan for ``utterance`` and reduce ``exposed_tools`` to what it keeps.
+
+    This is the enforcing counterpart to `select_capabilities`: it runs the same
+    filter/rank/assemble, then partitions the live roster into kept, dropped, and
+    uncatalogued-passthrough (see `EnforcedSelection`). It never removes a tool the catalog
+    does not describe, so enforcement can only ever tighten the catalogued portion of the
+    roster. Whether an enforcing seam applies the result is gated separately (a config flag
+    that defaults off until the recall and task-success gates pass, docs "Gates").
+    """
+    resolved_catalog = catalog if catalog is not None else default_catalog()
+    plan = select_capabilities(
+        utterance, exposed_tools, catalog=resolved_catalog, budget=budget, floor=floor
+    )
+    known = resolved_catalog.tool_names()
+    kept: set[str] = set()
+    dropped: list[str] = []
+    passthrough: list[str] = []
+    for name in exposed_tools:
+        if name not in known:
+            kept.add(name)
+            passthrough.append(name)
+        elif plan.exposes(name):
+            kept.add(name)
+        else:
+            dropped.append(name)
+    return EnforcedSelection(
+        plan=plan,
+        budget=budget,
+        kept=frozenset(kept),
+        dropped=tuple(sorted(dropped)),
+        passthrough=tuple(sorted(passthrough)),
+    )
+
+
 __all__ = [
     "AvailableCatalog",
     "CapabilityDescriptor",
     "Catalog",
+    "EnforcedSelection",
     "FilteredCapability",
     "ScoredDescriptor",
     "SelectionPlan",
@@ -583,6 +654,7 @@ __all__ = [
     "assemble_plan",
     "available_descriptors",
     "default_catalog",
+    "enforce_on_roster",
     "extend_catalog",
     "rank_descriptors",
     "select_capabilities",

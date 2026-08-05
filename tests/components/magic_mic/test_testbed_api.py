@@ -8,6 +8,11 @@ from typing import Any
 import pytest
 import voluptuous as vol
 
+from custom_components.magic_mic.capabilities.capability_selection import (
+    CapabilityDescriptor,
+    Catalog,
+    enforce_on_roster,
+)
 from custom_components.magic_mic.execution_result import (
     ToolExecutionResult,
     set_intent_undo_disposition,
@@ -807,6 +812,126 @@ async def test_always_confirm_stages_on_an_ordinary_turn() -> None:
     assert [event["data"] for event in tool_events] == [
         {"tool_args": {"value": 1}, "tool_name": "always"}
     ]
+
+
+def _two_bundle_catalog() -> Catalog:
+    """A tiny catalog: one device bundle, one volume bundle, for seam-level selection."""
+    return Catalog(
+        (
+            CapabilityDescriptor(
+                id="device_control",
+                selection_text="turn devices on or off",
+                tools=("HassTurnOn",),
+                examples=("turn on the light",),
+            ),
+            CapabilityDescriptor(
+                id="volume",
+                selection_text="set the volume of a speaker",
+                tools=("HassSetVolume",),
+                examples=("set the volume",),
+            ),
+        )
+    )
+
+
+def _selector(utterance: str, catalog: Catalog, budget: int):
+    """Build the closure the entity passes to the seam, over a controlled catalog."""
+
+    def select(exposed: frozenset[str]):
+        return enforce_on_roster(utterance, exposed, catalog=catalog, budget=budget)
+
+    return select
+
+
+def test_selector_prunes_the_roster_to_the_plan() -> None:
+    """With a selector, the model sees only the selected tools; the inner roster is intact."""
+    inner = RecordingAPIInstance(
+        [FixtureTool("HassTurnOn"), FixtureTool("HassSetVolume")]
+    )
+    context = _context()
+
+    wrapped = testbed_api.TestbedAPI.wrap(
+        inner,
+        context,
+        selector=_selector("turn on the light", _two_bundle_catalog(), budget=1),
+    )
+
+    assert [tool.name for tool in wrapped.tools] == ["HassTurnOn"]
+    assert [tool.name for tool in inner.tools] == ["HassTurnOn", "HassSetVolume"]
+    trace = context.turn_metadata.selection
+    assert trace is not None
+    assert trace.enforced is True
+    assert trace.budget == 1
+    assert trace.exposed_before == 2
+    assert trace.exposed_after == 1
+    assert trace.dropped == ("HassSetVolume",)
+    assert trace.passthrough == ()
+
+
+def test_selector_passes_through_an_uncatalogued_tool() -> None:
+    """Selection retains a tool no descriptor declares rather than hiding it."""
+    inner = RecordingAPIInstance(
+        [
+            FixtureTool("HassTurnOn"),
+            FixtureTool("HassSetVolume"),
+            FixtureTool("script.x"),
+        ]
+    )
+    context = _context()
+
+    wrapped = testbed_api.TestbedAPI.wrap(
+        inner,
+        context,
+        selector=_selector("turn on the light", _two_bundle_catalog(), budget=1),
+    )
+
+    assert {tool.name for tool in wrapped.tools} == {"HassTurnOn", "script.x"}
+    trace = context.turn_metadata.selection
+    assert trace is not None
+    assert trace.passthrough == ("script.x",)
+    assert trace.dropped == ("HassSetVolume",)
+
+
+def test_selection_runs_after_policy_exposure() -> None:
+    """A personal tool filtered by policy is gone before selection ever ranks it."""
+    inner = RecordingAPIInstance(
+        [
+            FixtureTool("HassTurnOn"),
+            FixtureTool("HassSetVolume"),
+            FixtureTool("personal"),
+        ]
+    )
+    registry = ToolPolicyRegistry()
+    registry.register_exact(
+        FixtureTool,
+        "personal",
+        StaticToolPolicy(required_scope=DataScope.PERSONAL),
+    )
+    context = _context()
+
+    wrapped = testbed_api.TestbedAPI.wrap(
+        inner,
+        context,
+        registry,
+        selector=_selector("turn on the light", _two_bundle_catalog(), budget=1),
+    )
+
+    # The personal tool never reaches selection (policy dropped it), and it is not a
+    # passthrough: selection only ever saw the two exposed device tools.
+    assert [tool.name for tool in wrapped.tools] == ["HassTurnOn"]
+    assert context.turn_metadata.selection.passthrough == ()
+
+
+def test_no_selector_leaves_the_roster_and_trace_untouched() -> None:
+    """Without a selector the seam is a pure policy filter and records no selection."""
+    tools: list[llm.Tool] = [FixtureTool("HassTurnOn"), FixtureTool("HassSetVolume")]
+    inner = RecordingAPIInstance(tools)
+    context = _context()
+
+    wrapped = testbed_api.TestbedAPI.wrap(inner, context)
+
+    assert wrapped.tools is tools
+    assert context.turn_metadata.selection is None
 
 
 async def test_multiple_confirmation_calls_keep_first_without_aborting(

@@ -26,6 +26,26 @@ class ToolPolicyTrace:
 
 
 @dataclass(slots=True)
+class SelectionTrace:
+    """Compact record of one turn's capability-selection decision.
+
+    The observability half of docs "Selection trace and observability": it answers why the
+    roster was the size it was, without holding a `SelectionPlan` (which would pull the
+    capabilities layer into this low-level state container). ``enforced`` distinguishes a
+    live prune from a shadow observation; ``dropped`` names the catalogued tools selection
+    removed (the saving) and ``passthrough`` the uncatalogued tools it had to retain.
+    """
+
+    enforced: bool
+    budget: int
+    exposed_before: int
+    exposed_after: int
+    admitted: tuple[str, ...]
+    dropped: tuple[str, ...]
+    passthrough: tuple[str, ...]
+
+
+@dataclass(slots=True)
 class TurnMetadata:
     """Deterministic policy and effect metadata for the current turn."""
 
@@ -36,6 +56,7 @@ class TurnMetadata:
     principal: ResolvedPrincipal = UNIDENTIFIED_PRINCIPAL
     provenance: set[str] = field(default_factory=set)
     satellite_id: str | None = None
+    selection: "SelectionTrace | None" = None
     tool_policy: list[ToolPolicyTrace] = field(default_factory=list)
 
 
@@ -135,6 +156,7 @@ __all__ = [
     "DATA_SESSION_STATES",
     "UNDO_JOURNAL_LIMIT",
     "MagicMicSessionState",
+    "SelectionTrace",
     "ToolPolicyTrace",
     "TurnMetadata",
     "async_get_session_state",

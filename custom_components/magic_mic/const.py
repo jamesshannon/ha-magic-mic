@@ -75,6 +75,15 @@ FIND_ENTITIES_MAX_LIMIT = 25
 # and records recall/savings against the full-roster baseline, but never removes a tool
 # from a live request until the recall@budget and task-success gates pass.
 #
+# CONF_CAPABILITY_SELECTION is the enforcement switch. Off by default precisely because
+# those gates have not passed (recall is "a direction, not a gate pass" and the demo
+# catalog's retrieval documents are English, which docs "Localization" forbids from gating
+# a live request). The testbed seam reads the flag; the eval harness turns it on to run
+# the full-roster-vs-enforced task-success comparison that must pass before the default
+# can flip. When off, the roster is unchanged from the tool-policy exposure filter.
+CONF_CAPABILITY_SELECTION = "capability_selection"
+DEFAULT_CAPABILITY_SELECTION = False
+#
 # SELECTION_TOOL_BUDGET is the tool-count ceiling the assembler fits under. The provider
 # hard limit is 128 (docs "Goals"); this soft budget is the shadow target we measure
 # recall against, deliberately far below the ceiling so savings are visible on real homes

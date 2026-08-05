@@ -167,9 +167,12 @@ async def test_custom_executor_call_is_observed_and_scored_once(
     original_wrap = testbed_entity.TestbedAPI.wrap
 
     def wrap_custom_executor(
-        inner: llm.APIInstance, context: ToolPolicyContext
+        inner: llm.APIInstance,
+        context: ToolPolicyContext,
+        *,
+        selector: testbed_entity.CapabilitySelector | None = None,
     ) -> testbed_entity.TestbedAPI:
-        return original_wrap(UntracedAPIInstance(inner), context)
+        return original_wrap(UntracedAPIInstance(inner), context, selector=selector)
 
     with patch.object(
         testbed_entity.TestbedAPI,

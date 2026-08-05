@@ -14,6 +14,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.llm import LLMContext
 
+from ..capabilities.capability_selection import EnforcedSelection, enforce_on_roster
 from ..capabilities.localization import async_get_conversation_strings
 from ..capabilities.prompt_context import (
     async_domain_keyword_map,
@@ -22,8 +23,10 @@ from ..capabilities.prompt_context import (
 )
 from ..chat_log import MagicMicChatLog, upgrade_chat_log
 from ..const import (
+    CONF_CAPABILITY_SELECTION,
     CONF_ENTITY_SUMMARY,
     CONF_NAME_INJECTION,
+    DEFAULT_CAPABILITY_SELECTION,
     DEFAULT_ENTITY_SUMMARY,
     DEFAULT_NAME_INJECTION,
     DOMAIN,
@@ -39,7 +42,7 @@ from ..identity import (
 )
 from ..internal.claude.agent import ClaudeConversationEntity
 from ..tool_policy import ToolPolicyContext
-from .api import TestbedAPI
+from .api import CapabilitySelector, TestbedAPI
 from .prompt import async_prepare_llm_api
 
 
@@ -140,11 +143,30 @@ class TestbedConversationEntity(ClaudeConversationEntity):
                     session_state=session_state,
                     turn_metadata=turn_metadata,
                 ),
+                selector=self._capability_selector(user_input.text),
             )
 
         await self._async_handle_chat_log(magic_chat_log)
 
         return conversation.async_get_result_from_chat_log(user_input, magic_chat_log)
+
+    def _capability_selector(self, utterance: str) -> CapabilitySelector | None:
+        """Return a per-turn capability selector, or None when enforcement is off.
+
+        Off by default (docs "Gates": enforcement waits on the recall and task-success
+        gates, and the demo catalog's retrieval documents are English). When enabled, the
+        closure binds this turn's utterance so `TestbedAPI` can prune the policy-exposed
+        roster to the plan; it uses the default demo catalog and the const budget/floor.
+        """
+        if not self._options.get(
+            CONF_CAPABILITY_SELECTION, DEFAULT_CAPABILITY_SELECTION
+        ):
+            return None
+
+        def select(exposed_tools: frozenset[str]) -> EnforcedSelection:
+            return enforce_on_roster(utterance, exposed_tools)
+
+        return select
 
     async def _async_inject_request_names(
         self,
