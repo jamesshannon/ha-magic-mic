@@ -281,22 +281,28 @@ removed: it cannot tell an echo from a user who genuinely names their own room, 
 there mis-scopes a real request.
 
 **As built (live).** `evals/harness/fuzzy_fallback.py` drives the fuzzy corpus
-(`evals/corpus/wave1_fuzzy_fallback.yaml`, five device names deliberately more formal than the
+(`evals/corpus/wave1_fuzzy_fallback.yaml`, device names deliberately more formal than the
 spoken phrasing) through the live testbed agent with the entity summary on and name injection
-off, so the model never sees the exact roster and must resolve a spoken name. The satellite
-sits in a device-less hallway and no utterance names a room, so every target is in a
-*different* room than the request, the case the house-wide semantics above exist for. On
-claude-haiku-4-5: 6/6 correct with no wrong-target actuation. "turn on the floor lamp" and
-"the bedside lamp" resolved the den and bedroom devices from the hallway through the fallback;
-the near-threshold "under cabinet lights" -> "Under Cabinet Lighting" resolved too; "the
-reading light" went through `find_entities` this pass (Consumer 2); "close the office shade"
-resolved by area + device-class slots (no name, so the fuzzy layer never ran); the bare "turn
-on the lamp", ambiguous across two rooms with none in the hallway, asked rather than guessing
-(`evals/results/wave1_fuzzy_fallback.json`). The fallback recovers a target both decisively (a
-single `HassTurnOn` on the spoken name) and by handing back candidates the model then chose by
-`entity_id`; the run reports both as the Consumer 1 path, since which fires is
-model-nondeterministic across passes. The room-preference and different-spoken-room branches
-are pinned by keyless unit tests (`tests/components/magic_mic/test_match_fallback.py`).
+off, so the model never sees the exact roster and must resolve a spoken name. Each case sets
+the room the request comes from, so the corpus pairs same-room and different-room variants of a
+request and puts two similarly named devices ("Sofa Reading Light", "Bedside Reading Light") in
+different rooms. On claude-haiku-4-5: 7/7 correct, no wrong-target actuation, and **zero turns
+echoed the requesting room** as an area, so the prompt guidance held. What each path did:
+
+- "turn on the floor lamp" resolved the den lamp house-wide from a device-less hallway (the
+  original cross-room bug) and, unchanged, from the den itself.
+- "turn on the reading light" from the living room resolved the living-room one by the room
+  tiebreak; the same words from the hallway, with no room to break the tie, asked.
+- "the reading light in the bedroom" honored the spoken room and turned on the bedroom one.
+- the near-threshold "under cabinet lights" went through `find_entities` (Consumer 2); "close
+  the office shade" resolved by area + device-class slots, so the fuzzy layer never ran.
+
+The run reports the resolution path per case and flags any turn that passed its own room as an
+area; here that count was zero, and the two turns that did pass an area (a spoken "bedroom",
+the "office" shade) were correctly not counted as echoes
+(`evals/results/wave1_fuzzy_fallback.json`). The room-preference, spoken-scope, and echo-flag
+branches are pinned by keyless unit tests
+(`tests/components/magic_mic/test_match_fallback.py`, `test_fuzzy_fallback.py`).
 
 ### Consumer 2 — `find_entities` tool (decoupled resolution)
 

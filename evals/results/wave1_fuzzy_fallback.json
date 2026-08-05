@@ -1,7 +1,7 @@
 {
   "buckets": {
     "resolved after clarification": 0,
-    "resolved by LLM, correct": 6,
+    "resolved by LLM, correct": 7,
     "resolved locally (hassil)": 0,
     "unjudged (no success predicate)": 0,
     "unresolved / \"I don't understand\"": 0,
@@ -19,9 +19,53 @@
         "light.den_floor"
       ],
       "correct": true,
-      "id": "fuzzy-floor-lamp",
+      "echoed_own_room": false,
+      "id": "crossroom-floor-lamp",
+      "passed_areas": [],
       "path": "consumer1_fallback",
+      "satellite_room": "hallway",
       "speech": "Done! I've turned on the floor lamp in the den.",
+      "tools": [
+        {
+          "args": {
+            "domain": [
+              "light"
+            ],
+            "name": "floor lamp"
+          },
+          "name": "HassTurnOn"
+        },
+        {
+          "args": {
+            "domain": [
+              "light"
+            ],
+            "name": "light.den_floor"
+          },
+          "name": "HassTurnOn"
+        }
+      ],
+      "unexpected_changes": {},
+      "used_find_entities": false,
+      "utterance": "turn on the floor lamp"
+    },
+    {
+      "actuated_names": [
+        "floor lamp",
+        "light.den_floor"
+      ],
+      "bucket": "resolved by LLM, correct",
+      "category": "device-control",
+      "changed": [
+        "light.den_floor"
+      ],
+      "correct": true,
+      "echoed_own_room": false,
+      "id": "samroom-floor-lamp",
+      "passed_areas": [],
+      "path": "consumer1_fallback",
+      "satellite_room": "den",
+      "speech": "Done! I've turned on the corner floor lamp in the den.",
       "tools": [
         {
           "args": {
@@ -42,22 +86,141 @@
     },
     {
       "actuated_names": [
-        "Sofa Reading Light"
+        "reading light",
+        "light.living_reading"
       ],
       "bucket": "resolved by LLM, correct",
       "category": "device-control",
       "changed": [
-        "light.living_couch"
+        "light.living_reading"
       ],
       "correct": true,
-      "id": "fuzzy-reading-light",
+      "echoed_own_room": false,
+      "id": "samroom-reading-light",
+      "passed_areas": [],
+      "path": "consumer1_fallback",
+      "satellite_room": "living room",
+      "speech": "Done! I've turned on the sofa reading light.",
+      "tools": [
+        {
+          "args": {
+            "domain": [
+              "light"
+            ],
+            "name": "reading light"
+          },
+          "name": "HassTurnOn"
+        },
+        {
+          "args": {
+            "domain": [
+              "light"
+            ],
+            "name": "light.living_reading"
+          },
+          "name": "HassTurnOn"
+        }
+      ],
+      "unexpected_changes": {},
+      "used_find_entities": false,
+      "utterance": "turn on the reading light"
+    },
+    {
+      "actuated_names": [
+        "reading light"
+      ],
+      "bucket": "resolved by LLM, correct",
+      "category": "device-control",
+      "changed": [],
+      "correct": true,
+      "echoed_own_room": false,
+      "id": "crossroom-reading-light",
+      "passed_areas": [],
+      "path": "asked_no_action",
+      "satellite_room": "hallway",
+      "speech": "I found two reading lights in your home:\n\n1. **Sofa Reading Light** in the living room\n2. **Bedside Reading Light** in the bedroom\n\nWhich one would you like me to turn on?",
+      "tools": [
+        {
+          "args": {
+            "domain": [
+              "light"
+            ],
+            "name": "reading light"
+          },
+          "name": "HassTurnOn"
+        }
+      ],
+      "unexpected_changes": {},
+      "used_find_entities": false,
+      "utterance": "turn on the reading light"
+    },
+    {
+      "actuated_names": [
+        "reading light",
+        "light.bedroom_reading"
+      ],
+      "bucket": "resolved by LLM, correct",
+      "category": "device-control",
+      "changed": [
+        "light.bedroom_reading"
+      ],
+      "correct": true,
+      "echoed_own_room": false,
+      "id": "spoken-room-reading-light",
+      "passed_areas": [
+        "bedroom",
+        "bedroom"
+      ],
+      "path": "consumer1_fallback",
+      "satellite_room": "hallway",
+      "speech": "Done! I've turned on the Bedside Reading Light in the bedroom.",
+      "tools": [
+        {
+          "args": {
+            "area": "bedroom",
+            "domain": [
+              "light"
+            ],
+            "name": "reading light"
+          },
+          "name": "HassTurnOn"
+        },
+        {
+          "args": {
+            "area": "bedroom",
+            "domain": [
+              "light"
+            ],
+            "name": "light.bedroom_reading"
+          },
+          "name": "HassTurnOn"
+        }
+      ],
+      "unexpected_changes": {},
+      "used_find_entities": false,
+      "utterance": "turn on the reading light in the bedroom"
+    },
+    {
+      "actuated_names": [
+        "Under Cabinet Lighting"
+      ],
+      "bucket": "resolved by LLM, correct",
+      "category": "device-control",
+      "changed": [
+        "light.kitchen_strip"
+      ],
+      "correct": true,
+      "echoed_own_room": false,
+      "id": "crossroom-under-cabinet",
+      "passed_areas": [],
       "path": "consumer2_find_entities",
-      "speech": "Done! I've turned on the sofa reading light in the living room.",
+      "satellite_room": "hallway",
+      "speech": "Done! The under cabinet lights in the kitchen are now on.",
       "tools": [
         {
           "args": {
             "domain": "light",
-            "name": "reading light"
+            "name": "under cabinet"
           },
           "name": "find_entities"
         },
@@ -66,54 +229,14 @@
             "domain": [
               "light"
             ],
-            "name": "Sofa Reading Light"
+            "name": "Under Cabinet Lighting"
           },
           "name": "HassTurnOn"
         }
       ],
       "unexpected_changes": {},
       "used_find_entities": true,
-      "utterance": "turn on the reading light"
-    },
-    {
-      "actuated_names": [
-        "bedside lamp",
-        "light.bedroom_bedside"
-      ],
-      "bucket": "resolved by LLM, correct",
-      "category": "device-control",
-      "changed": [
-        "light.bedroom_bedside"
-      ],
-      "correct": true,
-      "id": "fuzzy-bedside-lamp",
-      "path": "consumer1_fallback",
-      "speech": "Done! I've turned on the bedside lamp in the bedroom.",
-      "tools": [
-        {
-          "args": {
-            "area": "bedroom",
-            "domain": [
-              "light"
-            ],
-            "name": "bedside lamp"
-          },
-          "name": "HassTurnOn"
-        },
-        {
-          "args": {
-            "area": "bedroom",
-            "domain": [
-              "light"
-            ],
-            "name": "light.bedroom_bedside"
-          },
-          "name": "HassTurnOn"
-        }
-      ],
-      "unexpected_changes": {},
-      "used_find_entities": false,
-      "utterance": "turn on the bedside lamp"
+      "utterance": "turn on the under cabinet lights"
     },
     {
       "actuated_names": [],
@@ -123,94 +246,45 @@
         "cover.office_shade"
       ],
       "correct": true,
-      "id": "fuzzy-office-shade",
+      "echoed_own_room": false,
+      "id": "crossroom-office-shade",
+      "passed_areas": [
+        "office"
+      ],
       "path": "structured_slots",
-      "speech": "Done! I've closed the office shade.",
+      "satellite_room": "hallway",
+      "speech": "Done! The office shade is now closed.",
       "tools": [
         {
           "args": {
             "area": "office",
-            "device_class": [
-              "shade"
-            ],
-            "position": 0
+            "domain": [
+              "cover"
+            ]
           },
-          "name": "HassSetPosition"
+          "name": "HassTurnOff"
         }
       ],
       "unexpected_changes": {},
       "used_find_entities": false,
       "utterance": "close the office shade"
-    },
-    {
-      "actuated_names": [
-        "under cabinet lights",
-        "light.kitchen_strip"
-      ],
-      "bucket": "resolved by LLM, correct",
-      "category": "device-control",
-      "changed": [
-        "light.kitchen_strip"
-      ],
-      "correct": true,
-      "id": "fuzzy-under-cabinet",
-      "path": "consumer1_fallback",
-      "speech": "Done! I've turned on the under cabinet lights in the kitchen.",
-      "tools": [
-        {
-          "args": {
-            "area": "kitchen",
-            "domain": [
-              "light"
-            ],
-            "name": "under cabinet lights"
-          },
-          "name": "HassTurnOn"
-        },
-        {
-          "args": {
-            "area": "kitchen",
-            "domain": [
-              "light"
-            ],
-            "name": "light.kitchen_strip"
-          },
-          "name": "HassTurnOn"
-        }
-      ],
-      "unexpected_changes": {},
-      "used_find_entities": false,
-      "utterance": "turn on the under cabinet lights"
-    },
-    {
-      "actuated_names": [],
-      "bucket": "resolved by LLM, correct",
-      "category": "device-control",
-      "changed": [],
-      "correct": true,
-      "id": "ambiguous-lamp",
-      "path": "asked_no_action",
-      "speech": "I'm currently in the hallway area, but there are no lights registered there. Could you specify which lamp you'd like me to turn on? You have lights in:\n\n- Bedroom\n- Den\n- Kitchen\n- Living room\n\nWhich one would you like me to turn on?",
-      "tools": [],
-      "unexpected_changes": {},
-      "used_find_entities": false,
-      "utterance": "turn on the lamp"
     }
   ],
   "paths": {
     "asked_no_action": 1,
-    "consumer1_fallback": 3,
+    "consumer1_fallback": 4,
     "consumer2_find_entities": 1,
     "structured_slots": 1
   },
   "run": {
-    "cases": 6,
-    "consumer1_correct": 3,
+    "cases": 7,
+    "consumer1_correct": 4,
     "corpus": "wave1_fuzzy_fallback.yaml",
+    "echoed_own_room": 0,
     "entity_summary": true,
     "kind": "wave1-fuzzy-fallback",
     "model": "claude-haiku-4-5",
     "name_injection": false,
-    "timestamp": "2026-08-05T06:31:45.452103+00:00"
+    "timestamp": "2026-08-05T07:53:54.528801+00:00"
   }
 }

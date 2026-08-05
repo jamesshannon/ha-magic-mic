@@ -47,6 +47,7 @@ Each case is a single-turn `(utterance [, context] -> expected action(s) / answe
 | `routing_truth` | Ground-truth label for the **local-vs-LLM split**: `local` = a built-in HASSIL template covers it (given the referenced entities are exposed); `llm` = no HASSIL template, only the model resolves it. This is the label; the runner measures where the utterance *actually* routes and the scorecard compares the two. |
 | `resolves_at_wave0` | Whether Wave 0 (pass-through proxy, no capabilities yet) can produce a judgeable successful outcome. A `false` case is a VISION feature not built yet and cannot declare a success predicate. An error lands in `unresolved`; any successful-looking response lands in `unjudged`, never in a success bucket. |
 | `requires` | Fixture entities/features the case depends on (documents the context assumption; the runner must expose these). |
+| `satellite_area` | Optional world area key (e.g. `den`) placing the requesting satellite for this case. The room is context: it decides where a bare name resolves and whether an echoed area scopes away the target, so one corpus can pair a same-room and a different-room variant. Read by `harness/fuzzy_fallback.py`; omitted cases use the run's default placement. |
 | `provider_options` | Optional provider setup for this case. `web_search` and `web_fetch` are independent booleans and both default off when omitted. The live runner applies changes through the Magic Mic config entry before the turn and records the effective values in the artifact. |
 | `expected.tools` | Ordered list of required `{name, args}` calls. Named argument values match exactly after Unicode, case, and whitespace normalization; unspecified observed arguments are allowed. Every undeclared extra call fails. |
 | `expected.supporting_tools` | Optional call patterns that may appear around the required calls without being required themselves. Use for a deliberate read-before-answer step such as `GetLiveContext`, not as a broad tool allowlist. |
@@ -343,28 +344,31 @@ is a lower bound here.
 
 ### Fuzzy fallback / find_entities Consumer 1 (2026-08-04, `claude-haiku-4-5`, hallway satellite)
 
-First live run of `harness/fuzzy_fallback.py` over `corpus/wave1_fuzzy_fallback.yaml`: five
-device names deliberately more formal than the spoken phrasing ("Corner Floor Lamp" vs "the
-floor lamp"), driven with the entity summary on and name injection off so the model never sees
-the exact roster and must resolve a spoken name. The satellite sits in a device-less hallway
-and no utterance names a room, so every target is in a *different* room than the request.
-**6/6 correct, zero wrong-target actuation.** "turn on the floor lamp" and "the bedside lamp"
-resolved the den and bedroom devices from the hallway through the match-layer fallback; the
-near-threshold "under cabinet lights" -> "Under Cabinet Lighting" resolved too; "the reading
-light" went through `find_entities` this pass; "close the office shade" resolved by area +
-device-class slots (no name); the bare "turn on the lamp", ambiguous across two rooms, asked
-rather than guessing. Latency over the 6 model turns: TTFT p50 792ms / p95 4.37s, round
-duration p50 4.50s / p95 8.84s (`results/wave1_fuzzy_fallback.json`).
+Live run of `harness/fuzzy_fallback.py` over `corpus/wave1_fuzzy_fallback.yaml`: device names
+deliberately more formal than the spoken phrasing ("Corner Floor Lamp" vs "the floor lamp"),
+driven with the entity summary on and name injection off so the model never sees the exact
+roster and must resolve a spoken name. Each case sets the room the request comes from
+(`satellite_area`), so the corpus pairs same-room and different-room variants and puts two
+"reading light"s in different rooms. **7/7 correct, zero wrong-target, zero echoed rooms.**
+"turn on the floor lamp" resolved the den lamp from a device-less hallway and from the den;
+"turn on the reading light" resolved the living-room one from the living room (the room
+tiebreak) and asked from the hallway (no room to break the tie); "the reading light in the
+bedroom" honored the spoken room; "under cabinet lights" went through `find_entities`; "close
+the office shade" resolved by area + device-class slots. Latency over the 7 model turns: TTFT
+p50 1.28s / p95 2.61s, round duration p50 7.03s / p95 7.68s
+(`results/wave1_fuzzy_fallback.json`).
 
-An earlier pass exposed a real bug, now fixed. The model echoes its satellite's room onto a
-name-bearing call ("the user is in the living room, I'll add the area"), and the fallback
-originally honored that as a hard filter, so a cross-room named device came back not-found.
-That is wrong: HA core matches a name house-wide and treats the room only as a tiebreak
-(verified against the installed core: a unique name resolves from another room; only a
-genuinely spoken area scopes). The fallback now matches house-wide, sources the room from
-context (the satellite `device_id`) rather than the model's `area` arg, and applies it only to
-break a genuine ambiguity, decisively or not at all (`capabilities/match_fallback.py`; branch
-tests in `tests/components/magic_mic/test_match_fallback.py`).
+An earlier pass exposed a real bug, now fixed. With the entity summary on, the model tended to
+echo its satellite's room onto a name-bearing call ("the user is in the living room, I'll add
+the area"), and the fallback originally honored that as a hard filter, so a cross-room named
+device came back not-found. That is wrong: HA core matches a name house-wide and treats the
+room only as a soft `preferred_area_id` (verified against the installed core: a unique name
+resolves from another room; only a genuinely spoken area scopes). The fix has two halves: the
+fallback matches house-wide and uses the requesting room (from `device_id`) only to break a
+genuine ambiguity, honoring a spoken area as a hard scope; and the system prompt tells the
+model to pass an area only when the user names a location. The run now flags any turn that
+echoes its own room, so a regression in either half shows up as an echo count and, on a
+cross-room case, a wrong-target failure. This pass echoed on none.
 
 Run it (every case reaches the model; there is no local shortcut):
 

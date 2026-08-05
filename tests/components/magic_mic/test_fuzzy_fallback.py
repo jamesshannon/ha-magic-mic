@@ -40,11 +40,12 @@ def test_named_call_that_moved_a_device_is_consumer1() -> None:
         tools=(ToolCall("HassTurnOn", {"name": "floor lamp"}),),
     )
     classified = classify_path(
-        _result(observed), _EXACT_NAMES, frozenset({"light.den_floor"})
+        _result(observed), _EXACT_NAMES, frozenset({"light.den_floor"}), "Hallway"
     )
     assert classified.path == ResolutionPath.CONSUMER1_FALLBACK
     assert classified.actuated_names == ("floor lamp",)
     assert classified.changed == ("light.den_floor",)
+    assert classified.echoed_own_room is False
 
 
 def test_named_call_that_moved_nothing_is_asked() -> None:
@@ -53,7 +54,7 @@ def test_named_call_that_moved_nothing_is_asked() -> None:
         speech="I don't see a lamp there. Which room?",
         tools=(ToolCall("HassTurnOn", {"name": "lamp"}),),
     )
-    classified = classify_path(_result(observed), _EXACT_NAMES, frozenset())
+    classified = classify_path(_result(observed), _EXACT_NAMES, frozenset(), "Hallway")
     assert classified.path == ResolutionPath.ASKED
 
 
@@ -66,7 +67,7 @@ def test_device_moved_with_no_name_is_structured_slots() -> None:
         ),
     )
     classified = classify_path(
-        _result(observed), _EXACT_NAMES, frozenset({"cover.office_shade"})
+        _result(observed), _EXACT_NAMES, frozenset({"cover.office_shade"}), "Hallway"
     )
     assert classified.path == ResolutionPath.STRUCTURED_SLOTS
     assert classified.actuated_names == ()
@@ -82,31 +83,62 @@ def test_find_entities_is_consumer2() -> None:
         ),
     )
     classified = classify_path(
-        _result(observed), _EXACT_NAMES, frozenset({"light.kitchen_strip"})
+        _result(observed), _EXACT_NAMES, frozenset({"light.kitchen_strip"}), "Hallway"
     )
     assert classified.path == ResolutionPath.CONSUMER2_FIND
     assert classified.used_find_entities is True
 
 
-def test_report_counts_paths_and_consumer1_wins() -> None:
-    """The report tallies paths and counts only correct Consumer 1 resolutions."""
+def test_passing_the_requesting_room_as_area_is_flagged_as_echo() -> None:
+    """A named call that passed its own room as area is flagged (a prompt-adherence miss)."""
+    observed = ObservedTurn(
+        speech="Done!",
+        tools=(ToolCall("HassTurnOn", {"name": "floor lamp", "area": "living room"}),),
+    )
+    classified = classify_path(
+        _result(observed), _EXACT_NAMES, frozenset({"light.living_x"}), "Living Room"
+    )
+    assert classified.echoed_own_room is True
+    assert classified.passed_areas == ("living room",)
+
+
+def test_passing_a_different_room_as_area_is_not_echo() -> None:
+    """A named call scoped to a room other than the request's is a genuine spoken area."""
+    observed = ObservedTurn(
+        speech="Done!",
+        tools=(ToolCall("HassTurnOn", {"name": "floor lamp", "area": "den"}),),
+    )
+    classified = classify_path(
+        _result(observed), _EXACT_NAMES, frozenset({"light.den_floor"}), "Living Room"
+    )
+    assert classified.echoed_own_room is False
+    assert classified.passed_areas == ("den",)
+
+
+def test_report_counts_paths_consumer1_wins_and_echoes() -> None:
+    """The report tallies paths, correct Consumer 1 resolutions, and echoed-room turns."""
     win = classify_path(
         _result(
             ObservedTurn(speech="", tools=(ToolCall("HassTurnOn", {"name": "x"}),))
         ),
         _EXACT_NAMES,
         frozenset({"light.a"}),
+        "Hallway",
     )
     wrong = classify_path(
         _result(
-            ObservedTurn(speech="", tools=(ToolCall("HassTurnOn", {"name": "y"}),)),
+            ObservedTurn(
+                speech="",
+                tools=(ToolCall("HassTurnOn", {"name": "y", "area": "hallway"}),),
+            ),
             correct=False,
         ),
         _EXACT_NAMES,
         frozenset({"light.b"}),
+        "Hallway",
     )
     asked = classify_path(
-        _result(ObservedTurn(speech="which one?")), _EXACT_NAMES, frozenset()
+        _result(ObservedTurn(speech="which one?")), _EXACT_NAMES, frozenset(), "Hallway"
     )
     report = FuzzyReport((win, wrong, asked))
     assert report.path_counts == {
@@ -114,3 +146,4 @@ def test_report_counts_paths_and_consumer1_wins() -> None:
         ResolutionPath.ASKED: 1,
     }
     assert report.consumer1_correct == 1
+    assert report.echoed_own_room == 1

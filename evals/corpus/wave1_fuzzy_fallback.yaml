@@ -9,16 +9,23 @@
 # ("Corner Floor Lamp" vs "the floor lamp"), so the exact NAME match fails by construction.
 # The run drives the testbed agent with the entity summary ON and name injection OFF
 # (evals/harness/fuzzy_fallback.py), so the model never sees the exact roster: to act it must
-# either call find_entities (Consumer 2) or emit an approximate name that Consumer 1
-# resolves.
+# either call find_entities (Consumer 2) or emit an approximate name that Consumer 1 resolves.
 #
-# The satellite sits in a neutral room (hallway, no devices), and the utterances name no
-# room, so each device is in a *different* room than the request. This is the case that
-# matters: a uniquely named device resolves house-wide from any room, the way HA core's name
-# match does (a floor lamp in the den answers "turn on the floor lamp" from the hallway). The
-# requesting room is only a tiebreak for a genuinely ambiguous name, never a filter. Cases are
-# state-scored, so a wrong-target resolution actuates the wrong device and fails; the runner
-# also reports which resolution path each case took.
+# Each case sets `satellite_area`, the room the request comes from, because the room is the
+# variable under test. A uniquely named device resolves house-wide from any room (core's
+# _filter_by_name semantics); the requesting room is only a tiebreak for an ambiguous name,
+# and a spoken room is a hard scope. So the corpus pairs same-room and different-room variants
+# of a request and includes two similarly named devices in different rooms:
+#   - crossroom vs samroom floor-lamp: the same unique name from a device-less room vs from the
+#     target's own room.
+#   - crossroom vs samroom reading-light: an ambiguous name (two "reading light"s) that must
+#     ask from a neutral room but resolves in the requesting room.
+#   - spoken-room reading-light: a named room disambiguates across rooms.
+# Cases are state-scored, so a wrong-target resolution actuates the wrong device and the state
+# diff fails it (an undeclared exposed entity that changes is flagged, statediff.py). The
+# runner also reports which resolution path each case took and flags any turn that echoed its
+# own room as an `area` (the prompt-adherence miss the fix depends on the model not making): a
+# crossroom case that echoes its room scopes the target out and fails, which is the signal.
 
 world:
   areas:
@@ -29,24 +36,23 @@ world:
     - living_room
     - office
   entities:
-    # Two lamps in different rooms: each unique name resolves decisively across rooms, while a
-    # bare "the lamp" from the device-less hallway is ambiguous across the two.
     - entity_id: light.den_floor
       name: Corner Floor Lamp
       area: den
       state: "off"
-    - entity_id: light.bedroom_bedside
-      name: Bedside Table Lamp
-      area: bedroom
-      state: "off"
-    # "the reading light" has no "lamp" token, so it never collides with the two lamps.
-    - entity_id: light.living_couch
+    # Two "reading light"s in different rooms: "the reading light" is ambiguous house-wide and
+    # only the requesting room (or a spoken room) settles it.
+    - entity_id: light.living_reading
       name: Sofa Reading Light
       area: living_room
       state: "off"
+    - entity_id: light.bedroom_reading
+      name: Bedside Reading Light
+      area: bedroom
+      state: "off"
     # "under cabinet lights" vs "Under Cabinet Lighting": one fuzzy token ("lights" vs
-    # "lighting") drops this into the diluted regime, near the accept threshold. Whether it
-    # resolves directly, falls to find_entities, or comes back not-found is the signal.
+    # "lighting") sits near the accept threshold, so whether it resolves directly, via
+    # find_entities, or not at all is the signal.
     - entity_id: light.kitchen_strip
       name: Under Cabinet Lighting
       area: kitchen
@@ -58,74 +64,97 @@ world:
       state: "open"
 
 cases:
-  - id: fuzzy-floor-lamp
+  - id: crossroom-floor-lamp
     utterance: turn on the floor lamp
     category: device-control
     routing_truth: llm
     resolves_at_wave0: true
+    satellite_area: hallway
     requires: [light.den_floor]
-    # "floor lamp" is a subset of "Corner Floor Lamp" and of no other device, so it resolves
-    # the den lamp from the hallway; the bedroom lamp staying off proves it did not grab the
-    # wrong one.
+    # Unique name, requested from a device-less room: must resolve the den lamp house-wide. If
+    # the model echoes area="hallway", the den lamp is scoped out and this fails (the signal).
     expect_changes:
       light.den_floor: {state: "on"}
-      light.bedroom_bedside: {state: "off"}
     permitted_tools:
       - name: GetLiveContext
       - name: HassTurnOn
       - name: find_entities
 
-  - id: fuzzy-reading-light
+  - id: samroom-floor-lamp
+    utterance: turn on the floor lamp
+    category: device-control
+    routing_truth: llm
+    resolves_at_wave0: true
+    satellite_area: den
+    requires: [light.den_floor]
+    # Same request from the target's own room: resolves whether or not the model passes the
+    # room, so this is the echo-tolerant half of the pair.
+    expect_changes:
+      light.den_floor: {state: "on"}
+    permitted_tools:
+      - name: GetLiveContext
+      - name: HassTurnOn
+      - name: find_entities
+
+  - id: samroom-reading-light
     utterance: turn on the reading light
     category: device-control
     routing_truth: llm
     resolves_at_wave0: true
-    requires: [light.living_couch]
+    satellite_area: living_room
+    requires: [light.living_reading, light.bedroom_reading]
+    # Ambiguous across two rooms, but the requesting room breaks the tie to the living-room
+    # one; turning on the bedroom one instead is a wrong-target failure (statediff flags it).
     expect_changes:
-      light.living_couch: {state: "on"}
+      light.living_reading: {state: "on"}
     permitted_tools:
       - name: GetLiveContext
       - name: HassTurnOn
       - name: find_entities
 
-  - id: fuzzy-bedside-lamp
-    utterance: turn on the bedside lamp
+  - id: crossroom-reading-light
+    utterance: turn on the reading light
     category: device-control
     routing_truth: llm
     resolves_at_wave0: true
-    requires: [light.bedroom_bedside]
-    # "bedside lamp" shares "lamp" with the floor lamp but leads decisively on "bedside".
+    satellite_area: hallway
+    requires: [light.living_reading, light.bedroom_reading]
+    # Same ambiguous name from a device-less room: nothing breaks the tie, so the correct
+    # outcome is to ask. Scored by both reading lights staying off; any actuation is a guess.
     expect_changes:
-      light.bedroom_bedside: {state: "on"}
-      light.den_floor: {state: "off"}
+      light.living_reading: {state: "off"}
+      light.bedroom_reading: {state: "off"}
     permitted_tools:
       - name: GetLiveContext
       - name: HassTurnOn
       - name: find_entities
 
-  - id: fuzzy-office-shade
-    utterance: close the office shade
+  - id: spoken-room-reading-light
+    utterance: turn on the reading light in the bedroom
     category: device-control
     routing_truth: llm
     resolves_at_wave0: true
-    requires: [cover.office_shade]
+    satellite_area: hallway
+    requires: [light.living_reading, light.bedroom_reading]
+    # A spoken room disambiguates the two reading lights across rooms: the bedroom one, not the
+    # living-room one, and not a request to clarify.
     expect_changes:
-      cover.office_shade: {state: "closed"}
+      light.bedroom_reading: {state: "on"}
     permitted_tools:
       - name: GetLiveContext
-      - name: HassSetPosition
-      - name: HassTurnOff
+      - name: HassTurnOn
       - name: find_entities
 
-  - id: fuzzy-under-cabinet
+  - id: crossroom-under-cabinet
     utterance: turn on the under cabinet lights
     category: device-control
     routing_truth: llm
     resolves_at_wave0: true
+    satellite_area: hallway
     requires: [light.kitchen_strip]
-    # Near-threshold: the single fuzzy token may or may not clear the accept score. A
-    # correct resolution (directly or via find_entities) passes; a not-found reply that
-    # leaves the light off fails, surfacing where the threshold sits on a real utterance.
+    # Near-threshold unique name from another room: a correct resolution (directly or via
+    # find_entities) passes; a not-found reply that leaves the light off fails, showing where
+    # the threshold sits on a real utterance.
     expect_changes:
       light.kitchen_strip: {state: "on"}
     permitted_tools:
@@ -133,19 +162,17 @@ cases:
       - name: HassTurnOn
       - name: find_entities
 
-  - id: ambiguous-lamp
-    utterance: turn on the lamp
+  - id: crossroom-office-shade
+    utterance: close the office shade
     category: device-control
     routing_truth: llm
     resolves_at_wave0: true
-    requires: [light.den_floor, light.bedroom_bedside]
-    # From the device-less hallway, a bare "the lamp" matches two lamps in two rooms and the
-    # requesting room has none to break the tie, so the correct outcome is to ask. Scored by
-    # both lamps staying off: any actuation is a wrong-target guess and fails.
+    satellite_area: hallway
+    requires: [cover.office_shade]
     expect_changes:
-      light.den_floor: {state: "off"}
-      light.bedroom_bedside: {state: "off"}
+      cover.office_shade: {state: "closed"}
     permitted_tools:
       - name: GetLiveContext
-      - name: HassTurnOn
+      - name: HassSetPosition
+      - name: HassTurnOff
       - name: find_entities

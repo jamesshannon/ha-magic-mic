@@ -160,6 +160,11 @@ class Case:
     routing_truth: str
     resolves_at_wave0: bool
     phrasing: str | None = None
+    # The area the requesting satellite sits in for this case, as an area key from the world
+    # (e.g. "den"). Lets one corpus pair a same-room and a different-room variant of a request:
+    # the room is context, so it changes where a bare name resolves and whether an echoed area
+    # scopes away the target. ``None`` leaves the satellite at the run's default placement.
+    satellite_area: str | None = None
     requires: tuple[str, ...] = ()
     provider_options: ProviderOptions = field(default_factory=ProviderOptions)
     expected: Expected | tuple[Expected, ...] = ()
@@ -346,6 +351,7 @@ def _parse_case(raw: dict[str, Any]) -> Case:
         routing_truth=raw["routing_truth"],
         resolves_at_wave0=resolves_at_wave0,
         phrasing=raw.get("phrasing"),
+        satellite_area=raw.get("satellite_area"),
         requires=tuple(raw.get("requires") or ()),
         provider_options=_parse_provider_options(raw.get("provider_options")),
         expected=_parse_expectation(raw.get("expected")),
@@ -435,6 +441,13 @@ def validate_corpus(corpus: Corpus) -> None:
         for case in corpus.cases
         for required in case.requires
         if required not in world_ids
+    )
+
+    world_areas = set(corpus.world.areas)
+    problems.extend(
+        f"{case.id}: satellite_area {case.satellite_area!r} absent from the fixture world"
+        for case in corpus.cases
+        if case.satellite_area is not None and case.satellite_area not in world_areas
     )
 
     # Every entity a case stages, expects, or ignores must exist in the fixture world;

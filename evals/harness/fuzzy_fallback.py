@@ -37,6 +37,7 @@ from pytest_homeassistant_custom_component.common import async_test_home_assista
 
 import custom_components
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import area_registry as ar
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RESULTS_DIR = REPO_ROOT / "evals" / "results"
@@ -58,12 +59,11 @@ from custom_components.magic_mic.internal.claude.const import (  # noqa: E402
 from .baseline import BaselineError, load_api_key, pin_pre_magic_roster  # noqa: E402
 from .corpus import Case, Corpus, load_corpus  # noqa: E402
 from .runner import run_case  # noqa: E402
-from .scoring import CaseResult, Scorecard, build_scorecard  # noqa: E402
+from .scoring import CaseResult, Scorecard, ToolCall, build_scorecard  # noqa: E402
 from .variant import stand_up_testbed  # noqa: E402
 
-# The satellite sits in a neutral room with no devices of its own, so the model's own-room
-# scoping never pre-empts resolution of a device named in another room. The corpus's decisive
-# cases name their room; the ambiguous case relies on there being no local light to grab.
+# Default satellite placement for a case that does not set `satellite_area`: a neutral room
+# with no devices of its own, so a bare name resolves house-wide rather than to a local device.
 DEFAULT_AREA = "hallway"
 
 # The module global the proxy reads for the Tier-2 name-injection gate. Patched off for the
@@ -108,10 +108,30 @@ class FuzzyResult:
     used_find_entities: bool
     actuated_names: tuple[str, ...]
     changed: tuple[str, ...]
+    satellite_room: str | None
+    passed_areas: tuple[str, ...]
+    echoed_own_room: bool
+
+
+def _passed_areas(tools: tuple[ToolCall, ...]) -> tuple[str, ...]:
+    """The area values the model passed on device or lookup calls, flattened to strings."""
+    areas: list[str] = []
+    for tool in tools:
+        if tool.name not in _ACTUATOR_TOOLS and tool.name != _FIND_ENTITIES:
+            continue
+        area = tool.args.get("area")
+        if isinstance(area, str):
+            areas.append(area)
+        elif isinstance(area, list):
+            areas.extend(str(item) for item in area)
+    return tuple(areas)
 
 
 def classify_path(
-    result: CaseResult, exact_names: frozenset[str], changed: frozenset[str]
+    result: CaseResult,
+    exact_names: frozenset[str],
+    changed: frozenset[str],
+    satellite_room: str | None,
 ) -> FuzzyResult:
     """Reduce an observed turn to the resolution path it took.
 
@@ -123,6 +143,11 @@ def classify_path(
     fuzzy layer never runs; a device that moved after a spoken name went through the
     match-layer fallback (Consumer 1), since an exact name is what would have matched without
     it.
+
+    ``satellite_room`` is where the request came from; ``echoed_own_room`` flags a turn that
+    passed that room as an ``area`` on a named call, the prompt-adherence miss the fix relies
+    on the model not making (find-entities.md "Room is a preference"). It is recorded whether
+    or not the case still passed, so a harmless echo in a same-room case is visible too.
     """
     observed = result.observed
     used_find = any(tool.name == _FIND_ENTITIES for tool in observed.tools)
@@ -141,12 +166,20 @@ def classify_path(
         path = ResolutionPath.CONSUMER1_FALLBACK
     else:
         path = ResolutionPath.STRUCTURED_SLOTS
+
+    passed_areas = _passed_areas(observed.tools)
+    echoed_own_room = satellite_room is not None and any(
+        _normalize(area) == _normalize(satellite_room) for area in passed_areas
+    )
     return FuzzyResult(
         result=result,
         path=path,
         used_find_entities=used_find,
         actuated_names=actuated_names,
         changed=tuple(sorted(changed)),
+        satellite_room=satellite_room,
+        passed_areas=passed_areas,
+        echoed_own_room=echoed_own_room,
     )
 
 
@@ -178,6 +211,11 @@ class FuzzyReport:
             if fr.path == ResolutionPath.CONSUMER1_FALLBACK and fr.result.correct
         )
 
+    @property
+    def echoed_own_room(self) -> int:
+        """Turns that passed the requesting room as an area (a prompt-adherence miss)."""
+        return sum(1 for fr in self.results if fr.echoed_own_room)
+
     def render(self) -> str:
         """Render the path breakdown above the standard scorecard."""
         total = len(self.results)
@@ -187,6 +225,7 @@ class FuzzyReport:
         lines += [
             "",
             f"  match-layer fallback (Consumer 1), correct: {self.consumer1_correct}",
+            f"  echoed own room as area (prompt miss): {self.echoed_own_room}",
             "",
             self.scorecard.render(),
         ]
@@ -203,8 +242,11 @@ def _result_to_dict(fr: FuzzyResult) -> dict[str, object]:
         "category": case.category,
         "changed": list(fr.changed),
         "correct": fr.result.correct,
+        "echoed_own_room": fr.echoed_own_room,
         "id": case.id,
+        "passed_areas": list(fr.passed_areas),
         "path": fr.path,
+        "satellite_room": fr.satellite_room,
         "speech": observed.speech,
         "tools": [{"args": t.args, "name": t.name} for t in observed.tools],
         "unexpected_changes": observed.unexpected_changes,
@@ -225,6 +267,7 @@ def build_artifact(report: FuzzyReport, model: str) -> dict:
             "consumer1_correct": report.consumer1_correct,
             "corpus": FUZZY_CORPUS.name,
             "cases": len(report.results),
+            "echoed_own_room": report.echoed_own_room,
             "entity_summary": True,
             "model": model,
             "name_injection": False,
@@ -265,7 +308,14 @@ async def run_fuzzy_fallback(
     with patch(_NAME_INJECTION_FLAG, False):
         for index, case in enumerate(cases, start=1):
             await world.reset(hass)
-            print(f"  [{index:>2}/{len(cases)}] {case.id} ...", flush=True)
+            # Place the satellite for this case: same-room vs different-room is what decides
+            # where a bare name resolves and whether an echoed area scopes away the target.
+            satellite.move_to(hass, _case_area_id(hass, case.satellite_area or area))
+            satellite_room = satellite.area_name(hass)
+            print(
+                f"  [{index:>2}/{len(cases)}] {case.id} (from {satellite_room}) ...",
+                flush=True,
+            )
             before = _entity_states(hass, entity_ids)
             result = await run_case(
                 hass, agent_id, case, llm=True, device_id=satellite.device_id
@@ -276,8 +326,13 @@ async def run_fuzzy_fallback(
                 for entity_id, state in after.items()
                 if before.get(entity_id) != state
             )
-            results.append(classify_path(result, exact_names, changed))
+            results.append(classify_path(result, exact_names, changed, satellite_room))
     return FuzzyReport(tuple(results))
+
+
+def _case_area_id(hass: HomeAssistant, area_key: str) -> str:
+    """Resolve a corpus area key (e.g. "den") to its area id, creating it if needed."""
+    return ar.async_get(hass).async_get_or_create(area_key.replace("_", " ")).id
 
 
 def _entity_states(
