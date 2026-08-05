@@ -12,17 +12,13 @@
 # either call find_entities (Consumer 2) or emit an approximate name that Consumer 1
 # resolves.
 #
-# Two placement facts the first live run taught (see docs/find-entities.md "Consumer 1
-# live"):
-#   - The model scopes a name-bearing call to its satellite's room ("the user is in the
-#     living room"), and the fallback honors that scope. So the satellite sits in a neutral
-#     room (hallway, no devices) and the decisive cases name their room, matching how the
-#     resolution is scoped in practice.
-#   - A bare name that matches two devices in different rooms is genuinely ambiguous; the
-#     correct outcome is to ask, not to guess (the ambiguous-lamp case).
-#
-# Cases are state-scored, so a wrong-target resolution actuates the wrong device and fails;
-# the runner also reports which resolution path each case took.
+# The satellite sits in a neutral room (hallway, no devices), and the utterances name no
+# room, so each device is in a *different* room than the request. This is the case that
+# matters: a uniquely named device resolves house-wide from any room, the way HA core's name
+# match does (a floor lamp in the den answers "turn on the floor lamp" from the hallway). The
+# requesting room is only a tiebreak for a genuinely ambiguous name, never a filter. Cases are
+# state-scored, so a wrong-target resolution actuates the wrong device and fails; the runner
+# also reports which resolution path each case took.
 
 world:
   areas:
@@ -33,8 +29,8 @@ world:
     - living_room
     - office
   entities:
-    # Two lamps in different rooms: named with their room each resolves decisively; a bare
-    # "the lamp" from a neutral room is ambiguous across the two.
+    # Two lamps in different rooms: each unique name resolves decisively across rooms, while a
+    # bare "the lamp" from the device-less hallway is ambiguous across the two.
     - entity_id: light.den_floor
       name: Corner Floor Lamp
       area: den
@@ -43,6 +39,7 @@ world:
       name: Bedside Table Lamp
       area: bedroom
       state: "off"
+    # "the reading light" has no "lamp" token, so it never collides with the two lamps.
     - entity_id: light.living_couch
       name: Sofa Reading Light
       area: living_room
@@ -62,22 +59,24 @@ world:
 
 cases:
   - id: fuzzy-floor-lamp
-    utterance: turn on the floor lamp in the den
+    utterance: turn on the floor lamp
     category: device-control
     routing_truth: llm
     resolves_at_wave0: true
     requires: [light.den_floor]
-    # "floor lamp" is a subset of "Corner Floor Lamp" and the den's only light, so the
-    # resolver must land it.
+    # "floor lamp" is a subset of "Corner Floor Lamp" and of no other device, so it resolves
+    # the den lamp from the hallway; the bedroom lamp staying off proves it did not grab the
+    # wrong one.
     expect_changes:
       light.den_floor: {state: "on"}
+      light.bedroom_bedside: {state: "off"}
     permitted_tools:
       - name: GetLiveContext
       - name: HassTurnOn
       - name: find_entities
 
   - id: fuzzy-reading-light
-    utterance: turn on the reading light in the living room
+    utterance: turn on the reading light
     category: device-control
     routing_truth: llm
     resolves_at_wave0: true
@@ -90,20 +89,22 @@ cases:
       - name: find_entities
 
   - id: fuzzy-bedside-lamp
-    utterance: turn on the bedside lamp in the bedroom
+    utterance: turn on the bedside lamp
     category: device-control
     routing_truth: llm
     resolves_at_wave0: true
     requires: [light.bedroom_bedside]
+    # "bedside lamp" shares "lamp" with the floor lamp but leads decisively on "bedside".
     expect_changes:
       light.bedroom_bedside: {state: "on"}
+      light.den_floor: {state: "off"}
     permitted_tools:
       - name: GetLiveContext
       - name: HassTurnOn
       - name: find_entities
 
   - id: fuzzy-office-shade
-    utterance: close the roller shade in the office
+    utterance: close the office shade
     category: device-control
     routing_truth: llm
     resolves_at_wave0: true
@@ -117,7 +118,7 @@ cases:
       - name: find_entities
 
   - id: fuzzy-under-cabinet
-    utterance: turn on the under cabinet lights in the kitchen
+    utterance: turn on the under cabinet lights
     category: device-control
     routing_truth: llm
     resolves_at_wave0: true
@@ -138,8 +139,8 @@ cases:
     routing_truth: llm
     resolves_at_wave0: true
     requires: [light.den_floor, light.bedroom_bedside]
-    # From the hallway (no light of its own), a bare "the lamp" matches two lamps in two
-    # rooms and neither is decisive. The correct outcome is to ask, not to guess. Scored by
+    # From the device-less hallway, a bare "the lamp" matches two lamps in two rooms and the
+    # requesting room has none to break the tie, so the correct outcome is to ask. Scored by
     # both lamps staying off: any actuation is a wrong-target guess and fails.
     expect_changes:
       light.den_floor: {state: "off"}

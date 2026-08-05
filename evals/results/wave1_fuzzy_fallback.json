@@ -25,20 +25,12 @@
       "tools": [
         {
           "args": {
-            "area": "den",
-            "domain": [
-              "light"
-            ],
             "name": "floor lamp"
           },
           "name": "HassTurnOn"
         },
         {
           "args": {
-            "area": "den",
-            "domain": [
-              "light"
-            ],
             "name": "light.den_floor"
           },
           "name": "HassTurnOn"
@@ -46,12 +38,11 @@
       ],
       "unexpected_changes": {},
       "used_find_entities": false,
-      "utterance": "turn on the floor lamp in the den"
+      "utterance": "turn on the floor lamp"
     },
     {
       "actuated_names": [
-        "reading light",
-        "light.living_couch"
+        "Sofa Reading Light"
       ],
       "bucket": "resolved by LLM, correct",
       "category": "device-control",
@@ -60,33 +51,29 @@
       ],
       "correct": true,
       "id": "fuzzy-reading-light",
-      "path": "consumer1_fallback",
-      "speech": "Done! I've turned on the Sofa Reading Light in the living room.",
+      "path": "consumer2_find_entities",
+      "speech": "Done! I've turned on the sofa reading light in the living room.",
       "tools": [
         {
           "args": {
-            "area": "living room",
-            "domain": [
-              "light"
-            ],
+            "domain": "light",
             "name": "reading light"
           },
-          "name": "HassTurnOn"
+          "name": "find_entities"
         },
         {
           "args": {
-            "area": "living room",
             "domain": [
               "light"
             ],
-            "name": "light.living_couch"
+            "name": "Sofa Reading Light"
           },
           "name": "HassTurnOn"
         }
       ],
       "unexpected_changes": {},
-      "used_find_entities": false,
-      "utterance": "turn on the reading light in the living room"
+      "used_find_entities": true,
+      "utterance": "turn on the reading light"
     },
     {
       "actuated_names": [
@@ -126,7 +113,7 @@
       ],
       "unexpected_changes": {},
       "used_find_entities": false,
-      "utterance": "turn on the bedside lamp in the bedroom"
+      "utterance": "turn on the bedside lamp"
     },
     {
       "actuated_names": [],
@@ -138,7 +125,7 @@
       "correct": true,
       "id": "fuzzy-office-shade",
       "path": "structured_slots",
-      "speech": "Done! I've closed the roller shade in the office.",
+      "speech": "Done! I've closed the office shade.",
       "tools": [
         {
           "args": {
@@ -146,16 +133,14 @@
             "device_class": [
               "shade"
             ],
-            "domain": [
-              "cover"
-            ]
+            "position": 0
           },
-          "name": "HassTurnOff"
+          "name": "HassSetPosition"
         }
       ],
       "unexpected_changes": {},
       "used_find_entities": false,
-      "utterance": "close the roller shade in the office"
+      "utterance": "close the office shade"
     },
     {
       "actuated_names": [
@@ -195,31 +180,18 @@
       ],
       "unexpected_changes": {},
       "used_find_entities": false,
-      "utterance": "turn on the under cabinet lights in the kitchen"
+      "utterance": "turn on the under cabinet lights"
     },
     {
-      "actuated_names": [
-        "lamp"
-      ],
+      "actuated_names": [],
       "bucket": "resolved by LLM, correct",
       "category": "device-control",
       "changed": [],
       "correct": true,
       "id": "ambiguous-lamp",
       "path": "asked_no_action",
-      "speech": "I don't see a lamp in the hallway. You have lights in the bedroom, den, kitchen, living room, and office. Which lamp would you like me to turn on?",
-      "tools": [
-        {
-          "args": {
-            "area": "hallway",
-            "domain": [
-              "light"
-            ],
-            "name": "lamp"
-          },
-          "name": "HassTurnOn"
-        }
-      ],
+      "speech": "I'm currently in the hallway area, but there are no lights registered there. Could you specify which lamp you'd like me to turn on? You have lights in:\n\n- Bedroom\n- Den\n- Kitchen\n- Living room\n\nWhich one would you like me to turn on?",
+      "tools": [],
       "unexpected_changes": {},
       "used_find_entities": false,
       "utterance": "turn on the lamp"
@@ -227,17 +199,18 @@
   ],
   "paths": {
     "asked_no_action": 1,
-    "consumer1_fallback": 4,
+    "consumer1_fallback": 3,
+    "consumer2_find_entities": 1,
     "structured_slots": 1
   },
   "run": {
     "cases": 6,
-    "consumer1_correct": 4,
+    "consumer1_correct": 3,
     "corpus": "wave1_fuzzy_fallback.yaml",
     "entity_summary": true,
     "kind": "wave1-fuzzy-fallback",
     "model": "claude-haiku-4-5",
     "name_injection": false,
-    "timestamp": "2026-08-05T05:47:14.365308+00:00"
+    "timestamp": "2026-08-05T06:31:45.452103+00:00"
   }
 }

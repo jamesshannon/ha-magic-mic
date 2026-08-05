@@ -22,8 +22,8 @@ from homeassistant.helpers import intent, llm
 from homeassistant.util.json import JsonObjectType
 
 from ..const import FIND_ENTITIES_DEFAULT_LIMIT
-from ..entity_candidates import Registries, build_candidate, entity_result
-from ..fuzzy import resolve_candidates
+from ..entity_candidates import Registries, build_candidate, entity_result, resolve_area
+from ..fuzzy import Resolution, resolve, resolve_candidates
 from .localization import ConversationStrings
 
 
@@ -56,6 +56,15 @@ def resolve_name_miss(
     the failure was not a NAME miss, no name was given, or no assistant is configured to
     scope exposure. Otherwise returns a decisive `entity_id`, or a tool_result for the
     ambiguous and not-found cases.
+
+    A named entity resolves house-wide, the way HA core's `_filter_by_name` matches before any
+    area logic (`intent.py`): a uniquely named device resolves from any room, and the
+    requesting room is only a preference that breaks a tie. The room comes from context (the
+    satellite `device_id`), not from whatever `area` the model chose to pass; a model-supplied
+    area that just echoes the device's own room must not become a hard filter, or "turn on the
+    floor lamp" from the living room never finds the den's floor lamp. A genuinely *different*
+    spoken room (or any spoken floor) is still honored as a hard scope, exactly as HA core
+    would, so "the reading light in the kitchen" does not cross rooms.
     """
     if error.result.no_match_reason is not intent.MatchFailedReason.NAME:
         return None
@@ -65,13 +74,23 @@ def resolve_name_miss(
     if not name or assistant is None:
         return None
 
-    # Recover the candidate set with the structured filters (domain/area/floor/device_class/
-    # state/exposure) but without the name, exactly the set the exact name match ran against.
+    registries = Registries(hass)
+    device_area_id = _device_area_id(registries, llm_context.device_id)
+    spoken_area_id = _area_id(registries, constraints.area_name)
+    honor_scope = bool(constraints.floor_name) or (
+        spoken_area_id is not None and spoken_area_id != device_area_id
+    )
+    prefer_area_id = None if honor_scope else device_area_id
+
+    # Recover the candidate set with the structured filters (domain/device_class/state/
+    # exposure) but without the name. The area/floor are dropped unless the caller genuinely
+    # scoped to a different room, so the fuzzy match runs house-wide and the room is applied as
+    # a preference below.
     match = intent.async_match_targets(
         hass,
         intent.MatchTargetsConstraints(
-            area_name=constraints.area_name,
-            floor_name=constraints.floor_name,
+            area_name=constraints.area_name if honor_scope else None,
+            floor_name=constraints.floor_name if honor_scope else None,
             domains=constraints.domains,
             device_classes=constraints.device_classes,
             features=constraints.features,
@@ -80,7 +99,6 @@ def resolve_name_miss(
             allow_duplicate_names=True,
         ),
     )
-    registries = Registries(hass)
     if not match.is_match:
         return NameFallback(tool_result=_not_found(name, strings))
 
@@ -89,6 +107,8 @@ def resolve_name_miss(
         for state in match.states
     }
     resolution = resolve_candidates(name, candidates, limit)
+    if resolution.match is None and prefer_area_id is not None:
+        resolution = _prefer_area(resolution, prefer_area_id, registries, limit)
     if resolution.match is not None:
         return NameFallback(entity_id=resolution.match.key)
 
@@ -106,6 +126,49 @@ def resolve_name_miss(
             "success": False,
         }
     )
+
+
+def _device_area_id(registries: Registries, device_id: str | None) -> str | None:
+    """Return the requesting satellite's area, the room to prefer (HA-core semantics)."""
+    if device_id is None:
+        return None
+    device = registries.devices.async_get(device_id)
+    return device.area_id if device else None
+
+
+def _area_id(registries: Registries, area_name: str | None) -> str | None:
+    """Resolve a spoken area name to its id, or None when absent or unknown."""
+    if not area_name:
+        return None
+    match = next(iter(intent.find_areas(area_name, registries.areas)), None)
+    return match.id if match else None
+
+
+def _prefer_area(
+    resolution: Resolution,
+    prefer_area_id: str,
+    registries: Registries,
+    limit: int,
+) -> Resolution:
+    """Break an ambiguous resolution toward the requesting room, decisively or not at all.
+
+    The room is a preference, not a filter: it only runs when the house-wide match was
+    ambiguous, keeps just the in-room candidates, and re-applies the same accept/margin guard.
+    A single strong in-room winner resolves; anything still ambiguous is left for the model to
+    ask about, so context can settle a tie but never force a fuzzy physical action.
+    """
+    if not resolution.ambiguous:
+        return resolution
+    in_area = [
+        scored
+        for scored in resolution.candidates
+        if (area := resolve_area(registries, scored.key)) is not None
+        and area.id == prefer_area_id
+    ]
+    if not in_area:
+        return resolution
+    narrowed = resolve(in_area, limit)
+    return narrowed if narrowed.match is not None else resolution
 
 
 def _not_found(name: str, strings: ConversationStrings) -> JsonObjectType:

@@ -345,23 +345,26 @@ is a lower bound here.
 
 First live run of `harness/fuzzy_fallback.py` over `corpus/wave1_fuzzy_fallback.yaml`: five
 device names deliberately more formal than the spoken phrasing ("Corner Floor Lamp" vs "the
-floor lamp"), driven with the entity summary on and name injection off so the model never
-sees the exact roster and must resolve a spoken name. **6/6 correct, zero wrong-target
-actuation.** Paths: four names recovered by the match-layer fallback (Consumer 1), including
-the near-threshold "under cabinet lights" -> "Under Cabinet Lighting"; one resolved by area +
-device-class slots (no name, so the fuzzy layer never ran); one bare "turn on the lamp",
-ambiguous across two rooms, correctly asked rather than guessing. No case reached for
-`find_entities`. Latency over the 6 model turns: TTFT p50 731ms / p95 941ms, round duration
-p50 3.78s / p95 4.59s (`results/wave1_fuzzy_fallback.json`).
+floor lamp"), driven with the entity summary on and name injection off so the model never sees
+the exact roster and must resolve a spoken name. The satellite sits in a device-less hallway
+and no utterance names a room, so every target is in a *different* room than the request.
+**6/6 correct, zero wrong-target actuation.** "turn on the floor lamp" and "the bedside lamp"
+resolved the den and bedroom devices from the hallway through the match-layer fallback; the
+near-threshold "under cabinet lights" -> "Under Cabinet Lighting" resolved too; "the reading
+light" went through `find_entities` this pass; "close the office shade" resolved by area +
+device-class slots (no name); the bare "turn on the lamp", ambiguous across two rooms, asked
+rather than guessing. Latency over the 6 model turns: TTFT p50 792ms / p95 4.37s, round
+duration p50 4.50s / p95 8.84s (`results/wave1_fuzzy_fallback.json`).
 
-Two placement facts the run taught, both now baked into the corpus and driver. The model
-scopes a name-bearing call to its satellite's room ("the user is in the living room"), and
-the fallback honors that scope, so a bare cross-room name asked from the living room came
-back not-found; the satellite therefore sits in a neutral room (hallway, no devices) and the
-decisive cases name their room, matching how resolution is scoped in practice. This is the
-same room-scoping ruled intended for `turn-off-all-lights`. The fallback recovered targets
-both decisively and by handing back candidates the model then chose by `entity_id`; both
-report as the Consumer 1 path, since which fires is model-nondeterministic across passes.
+An earlier pass exposed a real bug, now fixed. The model echoes its satellite's room onto a
+name-bearing call ("the user is in the living room, I'll add the area"), and the fallback
+originally honored that as a hard filter, so a cross-room named device came back not-found.
+That is wrong: HA core matches a name house-wide and treats the room only as a tiebreak
+(verified against the installed core: a unique name resolves from another room; only a
+genuinely spoken area scopes). The fallback now matches house-wide, sources the room from
+context (the satellite `device_id`) rather than the model's `area` arg, and applies it only to
+break a genuine ambiguity, decisively or not at all (`capabilities/match_fallback.py`; branch
+tests in `tests/components/magic_mic/test_match_fallback.py`).
 
 Run it (every case reaches the model; there is no local shortcut):
 
