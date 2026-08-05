@@ -176,23 +176,27 @@ before any Δturns or disambiguation-recovery claim ([`build-sequence.md`](build
 Δturns number (a *live* model choosing when to ask over these same worlds) is a separate,
 model-dependent run.
 
-**The live run exists, and the first pass did not recover.** `evals/harness/trajectory_live.py`
+**The live run exists, and disambiguation recovers at +1 turn.** `evals/harness/trajectory_live.py`
 drives the same corpus worlds and utterances through the real testbed proxy with a key,
-letting the model generate its own tool calls (no scripting). It stops the moment the
-action tool fires, so the turn count is emergent, and stands each case up on its own HA
-instance so a prior world's entities cannot leak into the next case's `find_entities`
-search. The first live pass (2026-08, `claude-haiku-4-5`, artifact
-`evals/results/wave1_disambiguation_live.json`) recovered zero of the two ambiguous cases:
-the model acted on the first turn instead of asking. Two of those four cases turned out to
-be mis-authored for a live model, which the scripted harness could not have surfaced: the
-two-way case names one light exactly "Bedroom Light", so "turn on the bedroom light" is an
-exact match, not an ambiguity; and the search-with-alternatives case gives no follow-up
-turn, so a model that asks "which light?" first (as haiku did) cannot complete. The
-three-way case is a genuine finding: given three lamps and "turn on the lamp", haiku both
-fired `HassTurnOn(name="lamp")` and spoke a clarifying question in the same turn, ending the
-conversation, so it left the wrong state (scored MISFIRED). A live disambiguation Δturns
-number needs a corpus authored for genuine live ambiguity (no exact-name shortcut, and a
-follow-up turn on every case) before it can mean anything; the runner is ready for it.
+letting the model generate its own tool calls (no scripting). It stands each case up on its
+own HA instance so a prior world's entities cannot leak into the next case's `find_entities`
+search, and it stops the moment the world reaches the case's goal state, so the turn it
+completes on is the emergent turn-to-complete. Scoring is world-based, and getting that
+right mattered: the first attempt keyed completion off the action tool appearing in the
+trace and scored the two ambiguous cases as MISFIRED, because haiku opens with a failed
+`HassTurnOn(name="lamp")` (two lamps, nothing resolves) and then asks. That failed call
+changes nothing, so counting it as "acted" both mis-scored the turn and cut off the
+follow-up that resolves it. Keying completion off the world state instead lets the recovery
+play out. The first pass exposed a second problem in the corpus itself, invisible to the
+scripted harness: a case named one light exactly "Bedroom Light", so "turn on the bedroom
+light" was an exact match rather than an ambiguity, and an oblique "I want to read" case had
+no follow-up turn and too strict an end state. With those fixed, the run
+(2026-08, `claude-haiku-4-5`, artifact `evals/results/wave1_disambiguation_live.json`)
+recovered both genuinely-ambiguous cases: "turn on the lamp" against two or three lamps ends
+turn 1 as a question with the world untouched, and the follow-up ("the bedside one", "the
+corner one") turns on exactly the named lamp on turn 2. The direct command completes on turn
+1. So haiku does ask before acting on a real ambiguity, and disambiguation costs one extra
+turn (mean 1.67 turns to complete across the three cases: 2, 2, 1).
 
 ---
 

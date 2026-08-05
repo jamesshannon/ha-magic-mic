@@ -9,11 +9,13 @@ ambiguous request, does the model actually ask before acting, and how many turns
 task take?
 
 Turn counts here are emergent. Each case is driven turn by turn and stops the moment the
-action tool fires (`drive_trajectory(stop_on_action=...)`), so a model that guesses on the
-first turn scores DIRECT (and fails a case that expected a clarifying round-trip) while one
-that asks first and resolves on the follow-up scores RECOVERED. The `passed` count is
-therefore "how often the live model matched the expected disambiguation shape", and the
-mean-turns figure is the real Δturns input, not a replay of the script.
+world reaches the case's goal state (`drive_until_goal`), so a model that guesses right on
+the first turn scores DIRECT (and fails a case that expected a clarifying round-trip) while
+one that asks first and resolves on the follow-up scores RECOVERED. Completion is world-
+based, not tool-based, so a model's failed `HassTurnOn(name="lamp")` followed by a question
+reads as the start of a recovery, not an action. The `passed` count is therefore "how often
+the live model matched the expected disambiguation shape", and the mean-turns figure is the
+real Δturns input, not a replay of the script.
 
 Each trajectory case gets a fresh headless Home Assistant: the cases have distinct worlds,
 and `find_entities` searches every exposed entity, so a prior case's entities left in a
@@ -62,7 +64,7 @@ from .trajectory import (
     TrajectoryEval,
     TurnObservation,
     build_scorecard,
-    drive_trajectory,
+    drive_until_goal,
     load_trajectory_corpus,
     render_scorecard,
     score_trajectory,
@@ -92,8 +94,8 @@ async def run_case_live(
 
     Sets up the local core, the live integration, and the case's executable world, then
     drives the utterances straight at the testbed agent (bypassing HASSIL preemption, so
-    the ambiguous request reaches the model). The drive stops when the action tool fires,
-    and the end state is read from the world after the last turn.
+    the ambiguous request reaches the model). The drive stops when the world reaches the
+    case's goal state, so the turn it completes on is the emergent turn-to-complete.
     """
     # Force HA to re-scan for custom integrations so it discovers the grafted path.
     hass.data.pop(loader.DATA_CUSTOM_COMPONENTS, None)
@@ -109,18 +111,23 @@ async def run_case_live(
     satellite = register_satellite(hass)
     agent_id = _testbed_agent_id(hass, entry)
 
-    observations = await drive_trajectory(
+    watched = {
+        entity_id: world.resolved.get(entity_id, entity_id)
+        for entity_id in case.final_state
+    }
+    initial = {
+        entity_id: hass.states.get(resolved).state
+        for entity_id, resolved in watched.items()
+    }
+    observations, states = await drive_until_goal(
         hass,
         agent_id,
         case.utterances,
+        watched=watched,
+        goal=case.final_state,
         device_id=satellite.device_id,
-        stop_on_action=case.action_tool,
     )
-    final_state = {
-        entity_id: hass.states.get(world.resolved.get(entity_id, entity_id)).state
-        for entity_id in case.final_state
-    }
-    return score_trajectory(case, observations, final_state), observations
+    return score_trajectory(case, states, initial), observations
 
 
 def select_cases(

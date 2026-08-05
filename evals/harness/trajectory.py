@@ -99,17 +99,13 @@ async def drive_trajectory(
     utterances: list[str],
     *,
     device_id: str | None = None,
-    stop_on_action: str | None = None,
 ) -> list[TurnObservation]:
     """Drive ``utterances`` in order as one conversation, threading the conversation id.
 
-    With a scripted provider the caller scripts the generations for the whole trajectory
-    up front; each turn's `async_converse` consumes as many as its scripted responses
-    declare. Against a live model the same utterances are driven, but the model generates
-    freely, so ``stop_on_action`` matters: pass the action tool's name and the drive stops
-    the moment a turn fires it, leaving the remaining follow-up utterances unspoken. That
-    makes the turn count emergent (how many turns the model actually needed), not a
-    consequence of always speaking every authored line even after the task was done.
+    The caller scripts the provider's generations for the entire trajectory before
+    calling this; each turn's `async_converse` consumes as many generations as its
+    scripted responses declare. This drives every utterance; use `drive_until_goal` when
+    the run should stop as soon as the task is done (the live turn-count case).
     """
     observations: list[TurnObservation] = []
     conversation_id: str | None = None
@@ -123,9 +119,53 @@ async def drive_trajectory(
         )
         observations.append(observation)
         conversation_id = observation.conversation_id
-        if stop_on_action is not None and observation.called(stop_on_action):
-            break
     return observations
+
+
+async def drive_until_goal(
+    hass: HomeAssistant,
+    agent_id: str,
+    utterances: list[str],
+    *,
+    watched: dict[str, str],
+    goal: dict[str, str],
+    device_id: str | None = None,
+) -> tuple[list[TurnObservation], list[dict[str, str]]]:
+    """Drive turns as one conversation, snapshotting ``watched`` until the world holds ``goal``.
+
+    Returns the per-turn observations and, aligned to them, the state of the watched
+    entities after each turn. ``watched`` maps each corpus entity id to the id it
+    registered under; snapshots are keyed by the corpus id, as ``goal`` is.
+
+    Stopping on the goal state, not on a tool firing, is what makes the live turn count
+    both emergent and robust. A live model commonly emits a failed action first (e.g.
+    ``HassTurnOn(name="lamp")`` against two lamps, which resolves nothing) and then asks;
+    that failed call leaves the world unchanged, so the drive continues to the follow-up
+    that actually resolves, and the turn where the world first reaches ``goal`` is the real
+    turn-to-complete. A tool-in-trace stop would instead cut the recovery off at the failed
+    call and misread it as acting.
+    """
+    observations: list[TurnObservation] = []
+    states: list[dict[str, str]] = []
+    conversation_id: str | None = None
+    for utterance in utterances:
+        observation = await drive_turn(
+            hass,
+            agent_id,
+            utterance,
+            conversation_id=conversation_id,
+            device_id=device_id,
+        )
+        observations.append(observation)
+        conversation_id = observation.conversation_id
+        snapshot = {
+            entity_id: hass.states.get(resolved).state
+            for entity_id, resolved in watched.items()
+        }
+        states.append(snapshot)
+        if all(snapshot.get(entity_id) == want for entity_id, want in goal.items()):
+            break
+    return observations, states
 
 
 def disambiguation_recovered(
@@ -157,9 +197,10 @@ def _first_action_turn(
 # turn, plus the expected end state. The recovery of the machinery (an ambiguous result
 # ends a turn as a question, and a follow-up resolves and actuates the right entity) is a
 # genuine pass/fail even though the generations are authored: if history replay, session
-# state, or tool policy regressed, the scripted follow-up would fail to actuate. Turn
-# counts are descriptive (they are what the trajectory scripts), not an emergent metric;
-# the emergent Δturns number is a later live-model run over the same worlds.
+# state, or tool policy regressed, the scripted follow-up would fail to actuate. Scoring is
+# world-based (`score_trajectory` over the per-turn snapshots from `drive_until_goal`), so
+# the same corpus scores identically whether the generations are scripted or a live model's;
+# only the turn counts differ, and against a live model they are the emergent Δturns number.
 
 
 class TrajectoryCorpusError(ValueError):
@@ -255,29 +296,43 @@ class TrajectoryEval:
 
 def score_trajectory(
     case: TrajectoryCase,
-    observations: list[TurnObservation],
-    final_state: dict[str, str],
+    states: list[dict[str, str]],
+    initial: dict[str, str],
 ) -> TrajectoryEval:
-    """Score one driven trajectory against its expected action, state, and shape.
+    """Score one driven trajectory from the world states it passed through.
 
-    ``final_state`` is the observed end state of the entities in ``case.final_state``,
-    read from the world after the last turn (the driver does not carry world state).
+    ``states`` is the watched entities' state after each driven turn, in order (from
+    `drive_until_goal`); ``initial`` is their state before the first turn. Both are keyed
+    like ``case.final_state``.
+
+    Completion is world-based, not tool-based. The task is done on the turn the world first
+    holds ``case.final_state``: reaching it on turn 1 is a DIRECT hit, on a later turn a
+    RECOVERED disambiguation. If it is never reached, the world settling into a wrong,
+    non-initial state is a MISFIRE (it actuated the wrong thing), and no change at all is a
+    lost task (NO_ACTION). This is why a live model's failed ``HassTurnOn(name="lamp")``
+    followed by a clarifying question does not score as a misfire: the failed call changed
+    nothing, so the recovery on the follow-up is what counts.
     """
-    fired_at = _first_action_turn(observations, action_tool=case.action_tool)
-    correct = all(
-        final_state.get(entity_id) == expected
-        for entity_id, expected in case.final_state.items()
+    goal = case.final_state
+    goal_turn = next(
+        (
+            index
+            for index, state in enumerate(states)
+            if all(state.get(entity_id) == want for entity_id, want in goal.items())
+        ),
+        None,
     )
-    if fired_at is None:
-        outcome = TrajectoryOutcome.NO_ACTION
-    elif not correct:
-        outcome = TrajectoryOutcome.MISFIRED
-    elif fired_at > 0:
-        outcome = TrajectoryOutcome.RECOVERED
-    else:
-        outcome = TrajectoryOutcome.DIRECT
-    turns = fired_at + 1 if fired_at is not None else None
-    return TrajectoryEval(case=case, outcome=outcome, turns_to_complete=turns)
+    if goal_turn is not None:
+        outcome = (
+            TrajectoryOutcome.DIRECT if goal_turn == 0 else TrajectoryOutcome.RECOVERED
+        )
+        return TrajectoryEval(
+            case=case, outcome=outcome, turns_to_complete=goal_turn + 1
+        )
+    last = states[-1] if states else initial
+    changed = any(last.get(entity_id) != initial.get(entity_id) for entity_id in goal)
+    outcome = TrajectoryOutcome.MISFIRED if changed else TrajectoryOutcome.NO_ACTION
+    return TrajectoryEval(case=case, outcome=outcome, turns_to_complete=None)
 
 
 @dataclass(frozen=True)

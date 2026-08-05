@@ -2,8 +2,10 @@
 
 Each corpus case drives a scripted multi-turn conversation through the real testbed agent
 (offline: the provider generations are scripted, the tools and history replay are real),
-then scores recovery and the end state. The scorecard math is checked separately with
-synthetic evals, so this file covers both the live machinery and the aggregation.
+then scores recovery and the end state from the world states each turn left behind. Scoring
+is world-based, so this file scores exactly as the live runner does; only the generations
+differ. The scorecard math is checked separately with synthetic evals, so this file covers
+both the live machinery and the aggregation.
 """
 
 import json
@@ -13,7 +15,6 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from evals.harness.backing import build_executable_world
 from evals.harness.corpus import World
-from evals.harness.scoring import ToolCall
 from evals.harness.trajectory import (
     ScriptedGeneration,
     ScriptedSpeech,
@@ -24,9 +25,8 @@ from evals.harness.trajectory import (
     TrajectoryEval,
     TrajectoryOutcome,
     TrajectoryTurn,
-    TurnObservation,
     build_scorecard,
-    drive_trajectory,
+    drive_until_goal,
     load_trajectory_corpus,
     render_scorecard,
     score_trajectory,
@@ -77,16 +77,22 @@ async def test_trajectory_case_completes_as_expected(
     case: TrajectoryCase,
 ) -> None:
     """Each corpus trajectory completes its task with the expected shape and end state."""
-    await build_executable_world(hass, case.world)
+    world = await build_executable_world(hass, case.world)
     testbed_id = _testbed_id(hass, setup_integration)
     mock_create_stream.return_value = _script(case)
 
-    observations = await drive_trajectory(hass, testbed_id, case.utterances)
-
-    final_state = {
-        entity_id: hass.states.get(entity_id).state for entity_id in case.final_state
+    watched = {
+        entity_id: world.resolved.get(entity_id, entity_id)
+        for entity_id in case.final_state
     }
-    result = score_trajectory(case, observations, final_state)
+    initial = {
+        entity_id: hass.states.get(resolved).state
+        for entity_id, resolved in watched.items()
+    }
+    _observations, states = await drive_until_goal(
+        hass, testbed_id, case.utterances, watched=watched, goal=case.final_state
+    )
+    result = score_trajectory(case, states, initial)
 
     assert result.outcome is not TrajectoryOutcome.MISFIRED, "actuated the wrong entity"
     assert result.passed, (
@@ -95,21 +101,8 @@ async def test_trajectory_case_completes_as_expected(
     )
 
 
-def _observation(*tools: str, utterance: str = "u") -> TurnObservation:
-    """A synthetic turn observation that called ``tools`` (for scorecard-logic tests)."""
-    return TurnObservation(
-        utterance=utterance,
-        speech="",
-        tools=tuple(ToolCall(name) for name in tools),
-        effects=(),
-        resolved=True,
-        continue_conversation=False,
-        conversation_id="conv",
-    )
-
-
 def _case(*, recovered: bool) -> TrajectoryCase:
-    """A minimal case for scoring tests (world/turns unused by the scorer)."""
+    """A minimal single-entity case for scoring tests (world/turns unused by the scorer)."""
     return TrajectoryCase(
         id="c",
         world=None,
@@ -121,46 +114,56 @@ def _case(*, recovered: bool) -> TrajectoryCase:
     )
 
 
-def test_recovered_when_action_fires_after_a_clarifying_turn() -> None:
-    """An action on turn 2, with the right end state, is a recovery."""
-    observations = [_observation("find_entities"), _observation("HassTurnOn")]
+def test_recovered_when_goal_reached_after_a_clarifying_turn() -> None:
+    """Reaching the goal on turn 2, having missed it on turn 1, is a recovery."""
+    states = [{"light.x": "off"}, {"light.x": "on"}]
 
-    result = score_trajectory(_case(recovered=True), observations, {"light.x": "on"})
+    result = score_trajectory(_case(recovered=True), states, {"light.x": "off"})
 
     assert result.outcome is TrajectoryOutcome.RECOVERED
     assert result.turns_to_complete == 2
     assert result.passed
 
 
-def test_direct_when_action_fires_on_the_first_turn() -> None:
-    """An action on turn 1 is a direct hit, and a case expecting recovery fails it."""
-    observations = [_observation("HassTurnOn")]
+def test_direct_when_goal_reached_on_the_first_turn() -> None:
+    """Reaching the goal on turn 1 is a direct hit, and a recovery-case fails it."""
+    states = [{"light.x": "on"}]
 
-    direct = score_trajectory(_case(recovered=False), observations, {"light.x": "on"})
+    direct = score_trajectory(_case(recovered=False), states, {"light.x": "off"})
     assert direct.outcome is TrajectoryOutcome.DIRECT
     assert direct.turns_to_complete == 1
     assert direct.passed
-    # The same run fails a case that required a clarifying round-trip.
+    # The same states fail a case that required a clarifying round-trip.
     assert not score_trajectory(
-        _case(recovered=True), observations, {"light.x": "on"}
+        _case(recovered=True), states, {"light.x": "off"}
     ).passed
 
 
-def test_misfired_when_end_state_is_wrong() -> None:
-    """Acting but leaving the wrong end state is the unsafe MISFIRED outcome."""
-    observations = [_observation("find_entities"), _observation("HassTurnOn")]
+def test_misfired_when_a_wrong_entity_is_actuated() -> None:
+    """Changing the world but never to the goal is the unsafe MISFIRED outcome."""
+    case = TrajectoryCase(
+        id="c",
+        world=None,
+        turns=(),
+        action_tool="HassTurnOn",
+        final_state={"light.x": "on", "light.y": "off"},
+        recovered=True,
+        tags=(),
+    )
+    # Wanted x on and y off; the model turned on y instead and never reached the goal.
+    states = [{"light.x": "off", "light.y": "on"}]
 
-    result = score_trajectory(_case(recovered=True), observations, {"light.x": "off"})
+    result = score_trajectory(case, states, {"light.x": "off", "light.y": "off"})
 
     assert result.outcome is TrajectoryOutcome.MISFIRED
     assert not result.passed
 
 
-def test_no_action_when_the_tool_never_fires() -> None:
-    """Never calling the action tool is a lost task, not a completion."""
-    observations = [_observation("find_entities"), _observation("GetLiveContext")]
+def test_no_action_when_the_world_never_changes() -> None:
+    """A world that never leaves its initial state is a lost task, not a completion."""
+    states = [{"light.x": "off"}, {"light.x": "off"}]
 
-    result = score_trajectory(_case(recovered=True), observations, {"light.x": "off"})
+    result = score_trajectory(_case(recovered=True), states, {"light.x": "off"})
 
     assert result.outcome is TrajectoryOutcome.NO_ACTION
     assert result.turns_to_complete is None
@@ -172,7 +175,7 @@ def test_scorecard_aggregates_outcomes_and_mean_turns() -> None:
     evals = [
         TrajectoryEval(_case(recovered=True), TrajectoryOutcome.RECOVERED, 2),
         TrajectoryEval(_case(recovered=False), TrajectoryOutcome.DIRECT, 1),
-        TrajectoryEval(_case(recovered=True), TrajectoryOutcome.MISFIRED, 2),
+        TrajectoryEval(_case(recovered=True), TrajectoryOutcome.MISFIRED, None),
         TrajectoryEval(_case(recovered=True), TrajectoryOutcome.NO_ACTION, None),
     ]
 
