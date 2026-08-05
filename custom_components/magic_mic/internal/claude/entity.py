@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 import json
 from mimetypes import guess_file_type
 from pathlib import Path
+import time
 from typing import Any, Literal, cast
 
 import anthropic
@@ -511,11 +512,21 @@ class AnthropicDeltaStream:
         chat_log: MagicMicChatLog,
         stream: AsyncStream[MessageStreamEvent],
         output_tool: str | None = None,
+        round_start: float | None = None,
     ) -> None:
-        """Initialize the delta stream."""
+        """Initialize the delta stream.
+
+        ``round_start`` is the monotonic timestamp taken just before the provider request
+        was issued, so this round's TTFT and duration are measured from the request, not
+        from when the first event happens to be pulled. ``None`` disables timing.
+        """
         self._chat_log: MagicMicChatLog = chat_log
         self._stream: AsyncStream[MessageStreamEvent] = stream
         self._output_tool: str | None = output_tool
+        self._round_start: float | None = round_start
+        # Monotonic timestamp of this round's first content delta (text, thinking, or tool
+        # input json), set once; metadata-only deltas (signature, citations) do not count.
+        self._first_delta: float | None = None
 
         self._buffer: deque[
             conversation.AssistantContentDeltaDict
@@ -773,6 +784,10 @@ class AnthropicDeltaStream:
 
     def on_content_block_delta_event(self, delta: RawContentBlockDelta) -> None:
         """Handle RawContentBlockDeltaEvent."""
+        if self._first_delta is None and isinstance(
+            delta, InputJSONDelta | TextDelta | ThinkingDelta
+        ):
+            self._first_delta = time.monotonic()
         if isinstance(delta, InputJSONDelta):
             self.on_input_json_delta(delta.partial_json)
             return
@@ -848,7 +863,7 @@ class AnthropicDeltaStream:
     def on_message_delta_event(self, delta: Delta, usage: MessageDeltaUsage) -> None:
         """Handle RawMessageDeltaEvent."""
         self._chat_log.async_trace_generation(
-            self._create_generation_record(self._input_usage, usage)
+            self._create_generation_record(self._input_usage, usage, time.monotonic())
         )
         self._content_details.container = delta.container
         if delta.stop_reason == "refusal":
@@ -865,14 +880,18 @@ class AnthropicDeltaStream:
         self._content_details.add_citation_detail()
 
     def _create_generation_record(
-        self, input_usage: Usage | None, response_usage: MessageDeltaUsage
+        self,
+        input_usage: Usage | None,
+        response_usage: MessageDeltaUsage,
+        round_end: float,
     ) -> GenerationRecord:
-        """Map this round's Anthropic usage onto the neutral record.
+        """Map this round's Anthropic usage and stream clock onto the neutral record.
 
-        This is the one provider-bound seam: it reads Claude's usage field names and
-        emits the provider-agnostic record every reader consumes. Cache read and cache
-        creation are kept distinct (the previous stats trace conflated creation as
-        "cached").
+        This is the one provider-bound seam: it reads Claude's usage field names and the
+        monotonic timestamps this round captured, and emits the provider-agnostic record
+        every reader consumes. Cache read and cache creation are kept distinct (the
+        previous stats trace conflated creation as "cached"). Timing is left ``None`` when
+        the round carried no start clock, so a reader can tell unmeasured from zero.
         """
         input_tokens = 0
         cache_read_tokens = 0
@@ -881,11 +900,19 @@ class AnthropicDeltaStream:
             input_tokens = input_usage.input_tokens
             cache_read_tokens = input_usage.cache_read_input_tokens or 0
             cache_creation_tokens = input_usage.cache_creation_input_tokens or 0
+        ttft_ms: float | None = None
+        duration_ms: float | None = None
+        if self._round_start is not None:
+            duration_ms = round((round_end - self._round_start) * 1000, 3)
+            if self._first_delta is not None:
+                ttft_ms = round((self._first_delta - self._round_start) * 1000, 3)
         return GenerationRecord(
             input_tokens=input_tokens,
             output_tokens=response_usage.output_tokens,
             cache_read_tokens=cache_read_tokens,
             cache_creation_tokens=cache_creation_tokens,
+            ttft_ms=ttft_ms,
+            duration_ms=duration_ms,
         )
 
 
@@ -1215,6 +1242,9 @@ class ClaudeBaseLLMEntity(CoordinatorEntity[ClaudeCoordinator]):
         # To prevent infinite loops, we limit the number of iterations
         for _iteration in range(max_iterations):
             try:
+                # Take the round clock immediately before the request so TTFT and duration
+                # measure from request dispatch, not from when the loop first pulls an event.
+                round_start = time.monotonic()
                 stream = await client.messages.create(**model_args)
 
                 new_messages, model_args["container"] = _convert_content(
@@ -1226,6 +1256,7 @@ class ClaudeBaseLLMEntity(CoordinatorEntity[ClaudeCoordinator]):
                                 chat_log,
                                 stream,
                                 output_tool=structure_name or None,
+                                round_start=round_start,
                             ),
                         )
                     ]

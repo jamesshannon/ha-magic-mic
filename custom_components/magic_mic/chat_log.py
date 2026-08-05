@@ -28,25 +28,36 @@ from .session_state import MagicMicSessionState, async_get_session_state
 
 @dataclass(frozen=True)
 class GenerationRecord:
-    """One model round's usage, in provider-neutral terms.
+    """One model round's usage and timing, in provider-neutral terms.
 
-    Populated by the provider from its own usage object (the one Claude-bound seam),
-    so readers never touch provider types. `cache_read_tokens` and
+    Populated by the provider from its own usage object and stream clock (the one
+    Claude-bound seam), so readers never touch provider types. `cache_read_tokens` and
     `cache_creation_tokens` are kept distinct: a cache *hit* is not a cache *write*.
+
+    Timing is the provider-round latency the value dashboard reads (docs/evaluation.md
+    "Model TTFT / round duration"): `ttft_ms` is request start to the first content delta
+    of this round, `duration_ms` is request start to the final delta. Both are wall-clock
+    milliseconds from a monotonic clock, and both are `None` when the round was driven
+    without a clock (a producer that does not time its stream), so a reader can tell
+    "not measured" from "measured as zero".
     """
 
     input_tokens: int = 0
     output_tokens: int = 0
     cache_read_tokens: int = 0
     cache_creation_tokens: int = 0
+    ttft_ms: float | None = None
+    duration_ms: float | None = None
 
-    def as_dict(self) -> dict[str, int]:
+    def as_dict(self) -> dict[str, int | float | None]:
         """Return the record as a plain dict for the conversation trace."""
         return {
             "cache_creation_tokens": self.cache_creation_tokens,
             "cache_read_tokens": self.cache_read_tokens,
+            "duration_ms": self.duration_ms,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
+            "ttft_ms": self.ttft_ms,
         }
 
 

@@ -247,6 +247,8 @@ def _result_to_dict(result: CaseResult) -> dict:
         "output_tokens": observed.output_tokens,
         "cache_read_tokens": observed.cache_read_tokens,
         "cache_creation_tokens": observed.cache_creation_tokens,
+        "ttft_ms": observed.ttft_ms,
+        "round_duration_ms": observed.round_duration_ms,
     }
 
 

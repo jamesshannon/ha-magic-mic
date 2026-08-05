@@ -67,6 +67,12 @@ class ObservedTurn:
     output_tokens: int = 0
     cache_read_tokens: int = 0
     cache_creation_tokens: int = 0
+    # Provider-round timing (docs/evaluation.md "Model TTFT / round duration"). ``ttft_ms``
+    # is the first round's time to first content delta; ``round_duration_ms`` sums model
+    # round durations across the turn. ``None`` TTFT means the run was not clocked (e.g. a
+    # historical artifact predating the timing extension).
+    ttft_ms: float | None = None
+    round_duration_ms: float = 0.0
 
 
 @dataclass(frozen=True)

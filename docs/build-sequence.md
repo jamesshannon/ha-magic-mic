@@ -89,7 +89,7 @@ they are not reasons to block unrelated Wave 1 work or invent more shared founda
 |---|---|---|
 | **Tokens** (+ cache_read/creation) | `entity.py` `usage` — already emitted | prompt-context §5.2 (roster dump → entity summary + conditioned names) |
 | **Generations / request** | the chat loop (count tool_use round-trips) | `terminal_intent` field, server-side web_search, fewer disambig loops |
-| **Model TTFT / round duration** | provider-round timing extension (planned Wave 1) | prompt-context, capability selection, fewer tool loops |
+| **Model TTFT / round duration** | provider-round timing extension: `GenerationRecord.ttft_ms` / `duration_ms`, per round | prompt-context, capability selection, fewer tool loops |
 | **Turns / task** | multi-turn text trajectory driver (planned with first clarification) | `find_entities`, learning (aliases remove clarification) |
 | **Hassil-intervention rate** (% resolved locally) | combined local-first text driver (planned Wave 1) | `prefer_local` ON, contributed intents, aliases, command aliases |
 | **Voice TTFT/TTLT + spoken duration** | controlled pipeline plus labelled real-engine profile (planned with first pipeline-owned feature) | prompt/context latency, streaming, TTS, local-first routing |

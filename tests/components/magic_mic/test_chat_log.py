@@ -70,17 +70,32 @@ def _undo_entry(index: int = 0) -> UndoJournalEntry:
 
 
 def test_generation_record_as_dict() -> None:
-    """The neutral record serializes with cache read and creation kept distinct."""
+    """The neutral record serializes with cache read/creation and round timing."""
     record = GenerationRecord(
-        input_tokens=1, output_tokens=2, cache_read_tokens=3, cache_creation_tokens=4
+        input_tokens=1,
+        output_tokens=2,
+        cache_read_tokens=3,
+        cache_creation_tokens=4,
+        ttft_ms=12.5,
+        duration_ms=98.0,
     )
 
     assert record.as_dict() == {
         "cache_creation_tokens": 4,
         "cache_read_tokens": 3,
+        "duration_ms": 98.0,
         "input_tokens": 1,
         "output_tokens": 2,
+        "ttft_ms": 12.5,
     }
+
+
+def test_generation_record_timing_defaults_to_unmeasured() -> None:
+    """Timing is None by default, so a reader can tell unmeasured from zero."""
+    record = GenerationRecord(input_tokens=1)
+
+    assert record.ttft_ms is None
+    assert record.duration_ms is None
 
 
 async def test_upgrade_is_in_place_and_idempotent(hass: HomeAssistant) -> None:
@@ -320,6 +335,42 @@ async def test_turn_populates_generations(
         await _converse(hass, testbed_id)
 
     assert captured["chat_log"].generation_count == 1
+
+
+async def test_turn_records_round_timing(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_create_stream: AsyncMock,
+) -> None:
+    """A real turn clocks the round: TTFT and duration are measured, not None.
+
+    The provider loop takes the round clock before the request, so a round driven through
+    it (unlike a hand-fed `AnthropicDeltaStream`) fills both timings. TTFT cannot exceed the
+    round duration, since the first content delta precedes the final delta.
+    """
+    entry = setup_integration
+    ent_reg = er.async_get(hass)
+    testbed_id = next(
+        entity.entity_id
+        for entity in ent_reg.entities.values()
+        if entity.platform == "magic_mic"
+        and entity.unique_id == f"{entry.entry_id}_testbed"
+    )
+
+    captured: dict[str, MagicMicChatLog] = {}
+
+    def _spy(chat_log: ChatLog) -> MagicMicChatLog:
+        captured["chat_log"] = upgrade_chat_log(chat_log)
+        return captured["chat_log"]
+
+    mock_create_stream.return_value = [create_content_block(0, ["Hello there."])]
+    with patch.object(claude_entity, "upgrade_chat_log", _spy):
+        await _converse(hass, testbed_id)
+
+    record = captured["chat_log"].generations[0]
+    assert record.ttft_ms is not None
+    assert record.duration_ms is not None
+    assert 0 <= record.ttft_ms <= record.duration_ms
 
 
 async def test_prompt_uses_resolved_identity_but_retains_authorization_context(

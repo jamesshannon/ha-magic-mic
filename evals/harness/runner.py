@@ -30,14 +30,15 @@ from .statediff import snapshot, unexpected_changes
 
 def observe_from_trace(
     trace_events: list[dict],
-) -> tuple[tuple[ToolCall, ...], list[dict[str, int]]]:
+) -> tuple[tuple[ToolCall, ...], list[dict[str, int | float | None]]]:
     """Split a turn's trace events into tool calls and generation records.
 
     Shared with the multi-turn trajectory driver (`trajectory.py`), which reduces each
-    turn of a conversation the same way.
+    turn of a conversation the same way. A generation record carries integer token counts
+    and float-or-None round timing (`ttft_ms`, `duration_ms`).
     """
     tools: list[ToolCall] = []
-    generations: list[dict[str, int]] = []
+    generations: list[dict[str, int | float | None]] = []
     for event in trace_events:
         data = event.get("data") or {}
         if event["event_type"] == ConversationTraceEventType.TOOL_CALL:
@@ -72,6 +73,13 @@ async def observe_turn(
         speech = response.speech.get("plain", {}).get("speech", "")
 
     tools, generations = observe_from_trace(async_get_traces()[-1].as_dict()["events"])
+    # TTFT is the first round's time to first content delta (what the user waits for);
+    # round duration sums the model's per-round compute across the turn. Both are None on a
+    # producer that did not clock its stream, so guard with .get and skip Nones.
+    ttfts = [g["ttft_ms"] for g in generations if g.get("ttft_ms") is not None]
+    durations = [
+        g["duration_ms"] for g in generations if g.get("duration_ms") is not None
+    ]
     return ObservedTurn(
         speech=speech,
         tools=tools,
@@ -83,6 +91,8 @@ async def observe_turn(
         output_tokens=sum(g["output_tokens"] for g in generations),
         cache_read_tokens=sum(g["cache_read_tokens"] for g in generations),
         cache_creation_tokens=sum(g["cache_creation_tokens"] for g in generations),
+        ttft_ms=ttfts[0] if ttfts else None,
+        round_duration_ms=sum(durations),
     )
 
 
