@@ -312,6 +312,29 @@ rest of the corpus, and the artifact records the effective options per case. The
 pins unspecified provider defaults off, preserving this reference if shipped defaults ever
 change.
 
+### Local-first routing (2026-08-04, `claude-haiku-4-5`, living_room satellite)
+
+First live run of `harness/local_first.py` (the faithful prefer-local path: strict recognize
+plus HA's CONTROL fallback filter, model only on a miss or deferred intent). Routing:
+**14/25 off-cloud** (local wins, no model call), 1 deferred by CONTROL (`is-garage-open`,
+`HassGetState`), 9 local miss to the LLM; routing agreement 22/25. Scorecard: 10 resolved
+locally and correct, 6 LLM correct, 3 wrong-action, 6 unjudged. Latency over the 11 model
+turns: TTFT p50 634ms / p95 2673ms, round duration p50 3.06s / p95 5.88s.
+
+One local win diverged, which is the finding the gate exists to surface. `turn off the
+lights` from a living_room satellite resolves locally to that room (`HassTurnOff`,
+area-preferred), leaving `light.kitchen` on, so the world diff marks it wrong against the
+whole-home expectation (both kitchen and living-room lights off). This is defensible
+behavior, arguably better than whole-home, but it means a bare area-ambiguous command is not
+a clean off-cloud win against a whole-home expectation: local routing changes what "the
+lights" means. The other two wrong-action cases (`implicit-cold`, `implicit-too-dark`) are
+LLM-routed model behavior, not routing. The three arg-bearing local wins
+(`set-bedroom-brightness`, `start-timer`, `add-shopping-item`) are UNJUDGED: they executed
+locally but the local path exposes no arg schema to verify against. `weather` routed to the
+LLM only because the fixture has no weather integration (recognized `HassGetWeather`, no
+handler); a real home with the integration resolves it locally, so the true off-cloud rate
+is a lower bound here.
+
 Config knobs like the web tools, `prefer_local`, and `web_search` `user_location` (off by
 default, privacy-first) are eval **axes**, not just shipped defaults to mirror: measure each
 one against the baseline with a labelled on/off comparison, using cases that actually
