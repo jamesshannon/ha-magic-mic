@@ -20,10 +20,12 @@ from homeassistant.components.conversation import (
     ConversationTraceEventType,
     async_conversation_trace_append,
 )
-from homeassistant.helpers import llm
+from homeassistant.helpers import intent, llm
 from homeassistant.util.json import JsonObjectType
 
 from ..capabilities.capability_selection import EnforcedSelection
+from ..capabilities.localization import ConversationStrings
+from ..capabilities.match_fallback import resolve_name_miss
 from ..const import DOMAIN, LOGGER
 from ..execution_result import get_undo_disposition, public_tool_result
 from ..pending_operation import (
@@ -70,6 +72,7 @@ class TestbedAPI(llm.APIInstance):
         policy_context: ToolPolicyContext,
         policy_registry: ToolPolicyRegistry,
         selector: CapabilitySelector | None = None,
+        strings: ConversationStrings | None = None,
     ) -> None:
         """Initialize a filtered view while retaining the original executor.
 
@@ -77,10 +80,15 @@ class TestbedAPI(llm.APIInstance):
         (the security-relevant filter, always on) and, when ``selector`` is supplied,
         capability selection (a prompt/UX prune, gated on by the caller). Selection runs
         *after* exposure so it only ever ranks tools the request is already allowed to use.
+
+        ``strings`` enables the match-layer fuzzy fallback (docs/find-entities.md Consumer 1):
+        when present, an intent's exact name miss is retried through the shared resolver
+        before the error reaches the model. ``None`` leaves execution unchanged.
         """
         self._inner = inner
         self._policy_context = policy_context
         self._policy_registry = policy_registry
+        self._strings = strings
         self._tool_call_tasks: set[asyncio.Task[Any]] = set()
         exposed_tools = [
             tool for tool in inner.tools if self._is_exposed(tool, record_trace=True)
@@ -104,9 +112,10 @@ class TestbedAPI(llm.APIInstance):
         policy_registry: ToolPolicyRegistry = DEFAULT_TOOL_POLICY_REGISTRY,
         *,
         selector: CapabilitySelector | None = None,
+        strings: ConversationStrings | None = None,
     ) -> "TestbedAPI":
         """Build the policy decorator around an existing API instance."""
-        return cls(inner, policy_context, policy_registry, selector)
+        return cls(inner, policy_context, policy_registry, selector, strings)
 
     def _apply_selection(
         self, tools: list[llm.Tool], selector: CapabilitySelector
@@ -263,6 +272,25 @@ class TestbedAPI(llm.APIInstance):
                 disposition=None,
             )
             raise
+        except intent.MatchFailedError as err:
+            # Fuzzy fallback for an exact name miss (docs/find-entities.md Consumer 1):
+            # resolve the name and retry with the canonical id, hand back candidates for
+            # the model to ask about, or, when there is nothing to try, re-raise so ChatLog
+            # surfaces HA's own error unchanged.
+            fallback = self._resolve_name_miss(err)
+            if fallback is None:
+                self._record_effect(tool.name, decision.effect, disposition=None)
+                raise
+            if fallback.entity_id is None:
+                # Ambiguous or not found: no action was taken, so record no effect.
+                return fallback.tool_result
+            try:
+                result = await self._inner.async_call_tool(
+                    self._with_name(normalized_input, fallback.entity_id)
+                )
+            except Exception:
+                self._record_effect(tool.name, decision.effect, disposition=None)
+                raise
         except Exception:
             self._record_effect(
                 tool.name,
@@ -283,6 +311,40 @@ class TestbedAPI(llm.APIInstance):
             type(disposition).__name__ if disposition is not None else "missing",
         )
         return public_tool_result(result)
+
+    def _resolve_name_miss(self, err: intent.MatchFailedError):
+        """Fuzzy-resolve an intent's exact name miss, or None to re-raise the error.
+
+        Active only when the entity supplied request-language ``strings`` (the fallback's
+        candidate/not-found text is localized); ``None`` otherwise leaves execution exactly
+        as HA's, so a caller that does not opt in is unaffected.
+        """
+        if self._strings is None:
+            return None
+        fallback = resolve_name_miss(
+            self.api.hass, self.llm_context, err, self._strings
+        )
+        if fallback is not None and fallback.entity_id is not None:
+            LOGGER.debug(
+                "[testbed] fuzzy-resolved %s name -> %s",
+                err.constraints.name,
+                fallback.entity_id,
+            )
+        return fallback
+
+    @staticmethod
+    def _with_name(tool_input: llm.ToolInput, entity_id: str) -> llm.ToolInput:
+        """Copy ``tool_input`` with its name replaced by a canonical entity_id.
+
+        `_filter_by_name` matches a literal entity_id exactly (`intent.py:432`), so the
+        retry targets the resolved entity by construction.
+        """
+        return llm.ToolInput(
+            external=tool_input.external,
+            id=tool_input.id,
+            tool_args={**tool_input.tool_args, "name": entity_id},
+            tool_name=tool_input.tool_name,
+        )
 
     @staticmethod
     def _trace_tool_call(tool_input: llm.ToolInput) -> None:

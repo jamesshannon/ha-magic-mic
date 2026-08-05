@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.magic_mic.capabilities.localization import ConversationStrings
 from custom_components.magic_mic.testbed import entity as testbed_entity
 from custom_components.magic_mic.tool_policy import ToolPolicyContext
 from evals.harness import Bucket, ObservedEffect, run_case
@@ -171,8 +172,11 @@ async def test_custom_executor_call_is_observed_and_scored_once(
         context: ToolPolicyContext,
         *,
         selector: testbed_entity.CapabilitySelector | None = None,
+        strings: ConversationStrings | None = None,
     ) -> testbed_entity.TestbedAPI:
-        return original_wrap(UntracedAPIInstance(inner), context, selector=selector)
+        return original_wrap(
+            UntracedAPIInstance(inner), context, selector=selector, strings=strings
+        )
 
     with patch.object(
         testbed_entity.TestbedAPI,

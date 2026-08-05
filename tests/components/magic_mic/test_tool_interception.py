@@ -8,6 +8,7 @@ from anthropic.types import RawMessageStreamEvent
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry, MockUser
 
+from custom_components.magic_mic.capabilities.localization import ConversationStrings
 from custom_components.magic_mic.execution_result import ToolExecutionResult
 from custom_components.magic_mic.identity import (
     DATA_RESOLVED_PRINCIPALS,
@@ -176,6 +177,88 @@ async def test_provider_tool_use_crosses_stock_and_proxy_execution_paths(
     assert _PRIVATE_VALUE not in follow_up_messages
 
 
+async def test_provider_name_miss_is_fuzzy_resolved_and_executed(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_create_stream: AsyncMock,
+) -> None:
+    """An intent's exact name miss is fuzzy-resolved to the canonical entity and acted on.
+
+    The model names the lamp approximately ("readng lamp"); exact matching fails, the
+    match-layer fallback resolves it to `light.reading_lamp`, and the retry turns it on, all
+    inside the one tool_use, so the follow-up generation speaks a normal confirmation.
+    """
+    await build_executable_world(
+        hass,
+        World(
+            areas=(),
+            entities=(Entity(entity_id=_ENTITY_ID, name="Reading Lamp", state="off"),),
+        ),
+    )
+    _, testbed_id = _agent_ids(hass, setup_integration)
+    mock_create_stream.return_value = [
+        create_tool_use_block(0, "toolu_on", "HassTurnOn", ['{"name": "readng lamp"}']),
+        create_content_block(0, ["Done."]),
+    ]
+
+    result = await conversation.async_converse(
+        hass, "turn on the reading lamp", None, Context(), agent_id=testbed_id
+    )
+
+    assert hass.states.get(_ENTITY_ID).state == "on"
+    assert result.response.speech["plain"]["speech"] == "Done."
+    assert mock_create_stream.call_count == 2
+
+
+async def test_provider_ambiguous_name_returns_candidates_without_acting(
+    hass: HomeAssistant,
+    setup_integration: MockConfigEntry,
+    mock_create_stream: AsyncMock,
+) -> None:
+    """A name that ties across candidates hands the model a shortlist and actuates nothing.
+
+    "lamp" matches neither name exactly (a NAME miss, not a duplicate) but scores the two
+    lamps evenly, so the fallback returns the ambiguous candidate list rather than guessing;
+    the next generation gets that tool_result and asks, and both lamps stay off.
+    """
+    await build_executable_world(
+        hass,
+        World(
+            areas=("kitchen", "bedroom"),
+            entities=(
+                Entity(
+                    entity_id="light.corner_lamp",
+                    name="Corner Lamp",
+                    area="kitchen",
+                    state="off",
+                ),
+                Entity(
+                    entity_id="light.table_lamp",
+                    name="Table Lamp",
+                    area="bedroom",
+                    state="off",
+                ),
+            ),
+        ),
+    )
+    _, testbed_id = _agent_ids(hass, setup_integration)
+    mock_create_stream.return_value = [
+        create_tool_use_block(0, "toolu_on", "HassTurnOn", ['{"name": "lamp"}']),
+        create_content_block(0, ["Which lamp did you mean?"]),
+    ]
+
+    result = await conversation.async_converse(
+        hass, "turn on the lamp", None, Context(), agent_id=testbed_id
+    )
+
+    assert hass.states.get("light.corner_lamp").state == "off"
+    assert hass.states.get("light.table_lamp").state == "off"
+    assert result.response.speech["plain"]["speech"] == "Which lamp did you mean?"
+    assert mock_create_stream.call_count == 2
+    follow_up = repr(mock_create_stream.call_args_list[1].kwargs["messages"])
+    assert "ambiguous_name" in follow_up
+
+
 async def test_provider_hidden_tool_use_is_denied_before_execution_and_followed_up(
     hass: HomeAssistant,
     setup_integration: MockConfigEntry,
@@ -197,9 +280,12 @@ async def test_provider_hidden_tool_use_is_denied_before_execution_and_followed_
         context: ToolPolicyContext,
         *,
         selector: testbed_api.CapabilitySelector | None = None,
+        strings: ConversationStrings | None = None,
     ) -> testbed_api.TestbedAPI:
         """Use the real decorator with this test's restrictive registry."""
-        return original_wrap(inner, context, registry, selector=selector)
+        return original_wrap(
+            inner, context, registry, selector=selector, strings=strings
+        )
 
     mock_create_stream.return_value = _tool_turn("I couldn't do that.")
     with patch.object(testbed_api.TestbedAPI, "wrap", side_effect=wrap_with_policy):
@@ -298,10 +384,11 @@ async def test_abnormal_stream_end_cancels_tools_before_clearing_identity(
         policy_context: ToolPolicyContext,
         *,
         selector: testbed_api.CapabilitySelector | None = None,
+        strings: ConversationStrings | None = None,
     ) -> testbed_api.TestbedAPI:
         """Retain the turn metadata used by the real wrapper."""
         policy_contexts.append(policy_context)
-        return original_wrap(inner, policy_context, selector=selector)
+        return original_wrap(inner, policy_context, selector=selector, strings=strings)
 
     mock_create_stream.side_effect = lambda **_kwargs: broken_stream()
     try:

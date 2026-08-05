@@ -133,8 +133,13 @@ class TestbedConversationEntity(ClaudeConversationEntity):
 
         # The interposition seam. Reach for the proxy first; drop into
         # internal.claude only when the HA<->LLM contract itself is what needs
-        # changing (docs/testbed-proxy.md).
+        # changing (docs/testbed-proxy.md). ``strings`` enables the match-layer fuzzy
+        # fallback (docs/find-entities.md Consumer 1): an intent's exact name miss is
+        # retried through the shared resolver before the error reaches the model.
         if magic_chat_log.llm_api is not None:
+            strings = await async_get_conversation_strings(
+                self.hass, llm_context.language
+            )
             magic_chat_log.llm_api = TestbedAPI.wrap(
                 magic_chat_log.llm_api,
                 ToolPolicyContext(
@@ -144,6 +149,7 @@ class TestbedConversationEntity(ClaudeConversationEntity):
                     turn_metadata=turn_metadata,
                 ),
                 selector=self._capability_selector(user_input.text),
+                strings=strings,
             )
 
         await self._async_handle_chat_log(magic_chat_log)
