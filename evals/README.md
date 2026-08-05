@@ -20,6 +20,7 @@ evals/
     resolution/seed.yaml         the resolver micro-benchmark (model-free, see below)
   harness/                       corpus loader, scorer, routing measurement, runner
     baseline.py                  the live-baseline entry point (needs a key)
+    local_first.py               the faithful prefer-local routing driver (key for fallback)
     console.py                   interactive CLI to hand-drive turns (needs a key)
     backing.py                   real executable entities for the fixture home
     resolution.py                the resolver micro-benchmark loader + runner + scorecard
@@ -73,8 +74,12 @@ The corpus defines expectations for two scopes (`evaluation.md`'s Scope knob): t
 path (core's HASSIL agent) and the **LLM** path (the agent under test). The current live
 baseline and variant artifacts run only the LLM path with `prefer_local` off. The keyless
 routing measurement probes HASSIL separately; it does not execute the combined user path or
-prove fallback behavior. A planned local-first driver will run the actual HASSIL→LLM path
-before `prefer_local_intents` becomes an acceptance gate.
+prove fallback behavior. `harness/local_first.py` runs the actual HASSIL→LLM path faithfully
+(strict recognize + HA's CONTROL fallback filter, then the model only on a miss or deferred
+intent), which is the driver `prefer_local_intents` needs before it becomes an acceptance
+gate. It reports the off-cloud rate as the real routed-locally count and judges correctness
+only where the local path allows it (world diff, spoken answer, or a no-arg intent name),
+marking the arg-bearing remainder UNJUDGED rather than guessing.
 
 The `local` cases also run through the LLM, not as redundant coverage but to measure where
 the LLM path costs more than local. Concretely: core's Assist API drops six of the intents

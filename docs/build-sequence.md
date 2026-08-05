@@ -91,7 +91,7 @@ they are not reasons to block unrelated Wave 1 work or invent more shared founda
 | **Generations / request** | the chat loop (count tool_use round-trips) | `terminal_intent` field, server-side web_search, fewer disambig loops |
 | **Model TTFT / round duration** | provider-round timing extension: `GenerationRecord.ttft_ms` / `duration_ms` per round, aggregated per run into p50/p95 by `Scorecard.latency` | prompt-context, capability selection, fewer tool loops |
 | **Turns / task** | multi-turn text trajectory driver (planned with first clarification) | `find_entities`, learning (aliases remove clarification) |
-| **Hassil-intervention rate** (% resolved locally) | combined local-first text driver (planned Wave 1) | `prefer_local` ON, contributed intents, aliases, command aliases |
+| **Hassil-intervention rate** (% resolved locally) | `evals/harness/local_first.py`: faithful prefer-local path (recognize + CONTROL filter), off-cloud rate as routed-locally count | `prefer_local` ON, contributed intents, aliases, command aliases |
 | **Voice TTFT/TTLT + spoken duration** | controlled pipeline plus labelled real-engine profile (planned with first pipeline-owned feature) | prompt/context latency, streaming, TTS, local-first routing |
 
 Reported as the **outcome scorecard** (resolved-locally / LLM-correct / after-clarification /
