@@ -116,6 +116,41 @@ def _apply_setup(hass: HomeAssistant, setup: dict[str, StateChange]) -> None:
         )
 
 
+def stage_case(hass: HomeAssistant, case: Case) -> dict[str, object] | None:
+    """Apply a case's pre-turn setup and snapshot the world if it is state-scored.
+
+    Returns the pre-turn snapshot for a state-scored case (the baseline `finalize_score`
+    diffs against) or ``None`` for a tool/answer-scored case. Shared by the LLM runner and
+    the local-first driver so both stage a case identically.
+    """
+    if case.setup:
+        _apply_setup(hass, case.setup)
+    return snapshot(hass) if case.state_scored else None
+
+
+def finalize_score(
+    hass: HomeAssistant,
+    case: Case,
+    observed: ObservedTurn,
+    before: dict[str, object] | None,
+    *,
+    llm: bool,
+) -> CaseResult:
+    """Fold the post-turn world diff into ``observed`` (if staged) and score the case.
+
+    ``llm`` selects the scope-specific expectation (`expected_for`): the LLM expectation
+    for a model-handled turn, the local one for a turn the deterministic path handled.
+    """
+    if before is not None:
+        observed = replace(
+            observed,
+            unexpected_changes=unexpected_changes(
+                before, snapshot(hass), case.expect_changes, case.ignore_changes
+            ),
+        )
+    return score_case(case, observed, expected=case.expected_for(llm=llm))
+
+
 async def run_case(
     hass: HomeAssistant,
     agent_id: str,
@@ -133,19 +168,8 @@ async def run_case(
     A state-scored case is staged (`setup`) and snapshotted around the turn, and the
     resulting `unexpected_changes` drives correctness instead of the tool/answer match.
     """
-    if case.setup:
-        _apply_setup(hass, case.setup)
-    before = snapshot(hass) if case.state_scored else None
-
+    before = stage_case(hass, case)
     observed = await observe_turn(
         hass, agent_id, case.utterance, routed_locally=not llm, device_id=device_id
     )
-
-    if before is not None:
-        observed = replace(
-            observed,
-            unexpected_changes=unexpected_changes(
-                before, snapshot(hass), case.expect_changes, case.ignore_changes
-            ),
-        )
-    return score_case(case, observed, expected=case.expected_for(llm=llm))
+    return finalize_score(hass, case, observed, before, llm=llm)
