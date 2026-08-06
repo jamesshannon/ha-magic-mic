@@ -20,9 +20,9 @@ Compile a per-turn API:
 7. Recover explicitly from retrieval misses instead of silently claiming incapability.
 
 Start with structural signals + BM25/text retrieval, session affinity, dependency expansion,
-and a discovery fallback. Run it in shadow mode against the full-tool baseline before it can
-remove tools from real requests. Do not begin with a separate routing LLM or an embedding
-dependency.
+and a miss-recovery search that shares the referent index with `find_entities`. Run it in
+shadow mode against the full-tool baseline before it can remove tools from real requests. Do
+not begin with a separate routing LLM or an embedding dependency.
 
 ---
 
@@ -336,30 +336,110 @@ The legacy registry and the current permissive unknown-tool boundary are specifi
 Retrieval misses are inevitable. The assistant must not silently translate a miss into “I
 cannot do that.”
 
-### Preferred fallback: discovery without execution
+### One search over referents, not a second catalog
 
-Keep a small non-executing discovery capability available:
+An earlier draft of this section proposed `discover_capabilities(query)`, a separate
+non-executing search over the capability catalog. That was a second retrieval system for a
+problem that has one, and it drew its boundary in the wrong place.
+
+A household does not distinguish between a light named "Party" and a script named "Party
+Mode". Both are things you name and things you do. Bad STT sharpens this: drop the leading
+verb from "run focus mode" and the model is left with the bare noun "focus", which carries
+no domain or verb signal at all, and nothing about that word says whether the target is a
+light, a script, or neither. Retrieval that spans only one type is wrong by construction on
+exactly those inputs.
+
+So the recovery primitive is one ranked search over **referents**, everything the home names
+and can act on, sharing the resolver core with `find_entities`
+([`find-entities.md`](find-entities.md) "The shared referent core"):
 
 ```text
-discover_capabilities(query)
+search(query, *filters)
 ```
 
-It searches the complete **already availability-filtered** catalog and returns compact
-capability headers. Choosing a result marks that bundle for exposure on the next generation.
-The fallback costs an extra generation only on a miss and cannot itself execute an arbitrary
-hidden operation.
+Filters stay available at the last-chance end, because a miss is often partly informed. "Turn
+off the so-and-so light" failed to resolve a name, but the domain is not in doubt, so the
+model should be able to combine "last chance" with `domain=light` rather than choosing
+between them. What the last-chance layer drops is the *relevance floor*, not the structured
+filters.
 
-This is the runtime home for the low-lexical-score semantic match, so the ranker does not
-have to be clairvoyant: "help me concentrate" can miss `Focus Mode` at selection time and
-still be recovered here. Whether acting on a discovered match then confirms is governed by the
-confidence-and-confirmation model in [`tool-policy.md`](tool-policy.md) ("Confidence, severity,
-and the confirmation gate"). A low retrieval score routes to the model and does not by itself
-force a confirmation; severity and model-recognized ambiguity do.
+**Abstract capabilities are the exception that keeps the catalog.** Timers, calendar, weather,
+and memory have no referent to rank; there is no timer in the home until you make one. Those
+stay catalog-shaped, and their miss story is residency and budget (Stage 4), not name search.
 
-Validate in the proving ground that HA's tool set can expand safely between generations in
-one turn. If the current seam cannot, that is evidence for a core selection/loading seam.
-Do not work around it with a broad `invoke_anything(name, arguments)` tool; that would erase
-schemas, authorization visibility, and useful model constraints.
+The recovery is selection re-run on a better query. `search("focus concentration deep work")`
+is a stronger retrieval string than the raw utterance "help me concentrate", and the model is
+the thing that can write it. Same index, same scorer, same assembler, better input. That, and
+not a different index, is why the fallback recovers what first-pass selection missed.
+
+### Return what it takes to choose, for a capped set
+
+There are two distinct payloads, and conflating them is what makes a discovery tool look
+expensive:
+
+- **Choosing** needs name, type, area, description, and parameter names. Roughly 150 to 250
+  tokens for a documented script.
+- **Calling** needs the validated schema registered in the provider's tool list.
+
+A results list carrying only names and areas (about 20 tokens each) is a *teaser*, and a
+teaser produces the failure worth designing against: the model picks the interesting-looking
+name, asks for detail, decides the parameters do not fit, picks the next one, and burns ten
+turns arbitrating between titles. Per §5.9, the home's own description is the information most
+likely to prevent a wrong choice, and withholding it protects nothing.
+
+Full metadata is affordable precisely because the result set is ranked and capped. Twenty
+results with descriptions is 3k to 5k tokens; four hundred is not, and four hundred tool
+schemas is worse still. The cap is the same budget assembler this document already specifies,
+so a fallback that returns "everything" is not the design.
+
+### What executes today, and what hits the wall
+
+`HassTurnOn(name="Party Mode")` runs a script through tools already in the roster.
+`_get_exposed_entities` splits scripts out of the prompt's entity list, so the model does not
+know the script exists, but the intent matcher does expose it and `OnOffIntentHandler` carries
+no domain restriction. The execution path is open; only the knowledge was missing, and that is
+what search supplies.
+
+The boundary is **parameters, not type**:
+
+- **A referent with no arguments** is fully recoverable now. Search names it, a generic intent
+  runs it, nothing about the roster changes.
+- **A referent with arguments** needs its schema. `HassTurnOn` on a parameterized script still
+  "succeeds" while discarding every argument, which is a correctness trap, not a limitation:
+  "run movie night in the basement" runs movie night in the living room and reports success.
+
+Hydrating that schema requires the exposed tool set to change between generations within one
+turn, and it currently cannot. `internal/claude/entity.py` builds `model_args` once in
+`_get_model_args` before the iteration loop; the loop updates `messages` and `container` and
+never recomputes `model_args["tools"]`. The roster is frozen for the whole turn, in our fork
+and in the upstream component it mirrors.
+
+**Hit that wall deliberately and log it.** When search returns a parameterized referent the
+turn cannot hydrate, record it rather than degrading quietly:
+
+```text
+search matched a parameterized referent (%s) but mid-turn tool hydration is unavailable
+```
+
+That log is the evidence, and evidence is the precondition for asking anyone to change the
+loop. A provider and core change to recompute tools per iteration should be proposed only
+after two things exist: a count showing how often real turns hit it, and a working
+implementation in the fork we control showing that hydration recovers the request. Neither is
+a reason to block; the parameterless path covers whatever it covers, and we do not yet know
+what share of real scripts declare fields.
+
+Do not route around this with `invoke_anything(name, arguments)`. A domain-scoped variant
+(`run_script(entity_id, variables)`) is narrower and tempting, and it is still the same trade:
+it erases per-script schema validation, hides argument-level authorization from the policy
+layer, and removes the constraints that keep the model from inventing fields.
+
+Whether acting on a recovered match confirms is governed by the confidence-and-confirmation
+model in [`tool-policy.md`](tool-policy.md) ("Confidence, severity, and the confirmation
+gate"). A low retrieval score routes to the model and does not by itself force a confirmation;
+severity and model-recognized ambiguity do. Recovery adds one case that model does not yet
+name: a **recovered, mutating referent with no policy classification** combines a
+low-confidence match with an unknown blast radius, and unknown currently resolves to
+permissive. For that cell, confirm.
 
 ### Optional automatic expanded retry
 
@@ -459,7 +539,7 @@ The golden set needs positive, negative, and adversarial cases:
 5. Dependency expansion and simple tool/token budgets.
 6. Selection traces.
 7. Shadow-mode comparison against the full-tool baseline.
-8. A bounded, non-executing discovery fallback.
+8. A bounded, non-executing miss-recovery search over the shared referent index.
 9. Enforcement only after evaluation.
 
 Deferred until evidence demands them:
@@ -701,6 +781,55 @@ measurement that will read them are now both in place.
 
 ---
 
+### Localized retrieval documents (2026-08-05, `wave1_localized_catalog`)
+
+The English-catalog blocker was written as if the fix were a hand-translated catalog. It is
+not. `home_assistant_intents` is already a dependency of the conversation integration and
+ships HASSIL sentence templates for 60 languages keyed by intent, which is the phrase set a
+person uses in that language to trigger that capability. `evals/harness/localized_catalog.py`
+builds bundle documents from it and scores them against the authored English ones, with no
+key and no model.
+
+Documents are built by rendering templates rather than harvesting their text. German writes
+inflection as an optional suffix (`dreh[e]`), so harvesting chunks yields stems the
+exact-token scorer cannot match; rendering yields `drehe` and `dreh` as real words.
+
+On English corpora the derived documents cost nothing and gain a little. Wave 0 case recall
+rises from 95% to 100% at budgets 8 and 12 (the recovered case is `conditional-reminder`)
+with exposure unchanged at about 7.8 tools. The script corpus is unchanged at budget 8 and
+12, including 100% in-vocabulary and 53% out-of-vocabulary, which is expected: script
+documents already come from the household and were not touched. At budget 24 one
+out-of-vocabulary script (`oob-fish`) is displaced, because larger bundle documents score
+higher and crowd a marginal script when the budget is wide.
+
+On German the authored catalog does what "Localization" warned it would. Across 76 held-out
+utterances at budget 8 it reaches 30% recall while exposing 4.25 tools, and **16 of the 76
+cases collapse to the two resident reads**, which a live request experiences as device
+control not existing. The 30% is not partial competence: every hit is carried by the
+loanwords `timer` (13), `position` (3), and `track` (2), plus five cases where the English
+word "in" happened to appear inside a German sentence. The derived catalog reaches 100% and
+exposes 7.84 tools with no collapses.
+
+The German number carries a bound, recorded in the artifact rather than a footnote. The split
+is disjoint by sentence, since two templates can render the same string and those are
+excluded, but only **9% of held-out tokens were unseen** by the half that built the document
+(25 of 76 cases carry any novel token). So 100% reads as "the derived document covers this
+language's vocabulary for these intents", which is what refutes the collapse above. It is not
+evidence that German retrieval survives wording nobody upstream wrote down; that is the
+out-of-vocabulary regime, and no rendering of upstream templates can stand in for it.
+
+Three bundles have no upstream sentences, because `find_entities`, `GetLiveContext`, and
+`GetDateTime` are Magic Mic's own tools rather than HASSIL intents. Their documents stay
+authored and localize through `strings.json` like every other user-facing string (§5.7), so
+the derivation covers the built-in intent surface and the normal translation path covers the
+rest.
+
+This is measurement, not shipped behavior. The component keeps its English catalog and
+`DEFAULT_CAPABILITY_SELECTION` stays off; moving the builder into
+`capabilities/capability_selection.py` is Wave 2 work.
+
+---
+
 ## Worked examples
 
 ### Contextual calendar follow-up
@@ -757,12 +886,21 @@ execution:
 ### Retrieval miss
 
 ```text
-Request: valid but unusual paraphrase
-initial selection: misses the needed capability
-model: calls discover_capabilities with a compact query
-discovery: returns filtered matching headers
-next generation: selected bundle is exposed
-trace: records miss, recovery, extra generation, and final outcome
+Request: "help me concentrate"
+initial selection: misses Focus Mode (no lexical bridge to "concentrate")
+model: calls search("focus concentration deep work"), rewriting the query
+search: returns ranked referents with name, area, description, parameter names
+model: picks the Focus Mode script
+
+parameterless script:
+  runs now via HassTurnOn(name="Focus Mode"), roster unchanged
+
+script declaring fields:
+  needs its schema, the roster is frozen for the turn, so log the wall and say so
+  rather than running it with silently discarded arguments
+
+trace: records miss, the rewritten query, recovery or the hydration gap,
+       extra generation, and final outcome
 ```
 
 ---

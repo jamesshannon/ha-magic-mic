@@ -59,6 +59,13 @@ These are non-negotiable and shape almost every change. Full rationale in
    the HA↔LLM contract itself is what you need to change. See
    [`docs/testbed-proxy.md`](docs/testbed-proxy.md).
 
+8. **The user is cooperative but naive; their metadata informs, it never authorizes.** Give
+   the model every piece of metadata the home wrote down, especially for high-blast-radius
+   actions: a script's description is the one signal that can stop a wrong choice, and
+   hiding it protects nobody (§5.9). Never let that text decide a confirmation gate, and
+   check provenance before trusting it, since an imported blueprint's description is
+   third-party content on the model's input path.
+
 When a change would violate one of these, stop and raise it with the human rather than
 working around it.
 

@@ -320,7 +320,10 @@ Never upload entity, automation/script, actor, state value, service data, or nar
 Measure:
 
 - catalog size, filtered count, selected count, and prompt-token buckets;
-- discovery fallback and effect-free expanded-retry rate;
+- miss-recovery search and effect-free expanded-retry rate;
+- turns whose recovery matched a parameterized referent the frozen roster could not
+  hydrate (the count that would justify asking for a per-iteration tool seam);
+- share of a home's scripts that declare fields, which bounds how often that binds;
 - selected tool absent/miss signals;
 - unavailable-hint outcomes;
 - dependency-expansion failures;
@@ -339,7 +342,7 @@ Every rate must name its denominator:
 
 - offer acceptance / offers shown, not all turns;
 - reminder acknowledgement / due deliverable occurrences, not created reminders;
-- discovery fallback / LLM turns with selectable capabilities;
+- miss-recovery search / LLM turns with selectable capabilities;
 - learned-fix improvement / accepted fixes that were later reused;
 - explainability attribution / valid explain-state requests with recorder available.
 

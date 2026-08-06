@@ -360,10 +360,12 @@ the naive attempt fails silently.
 Structured alternatives fix it without teaching the scorer a query language: the model emits a
 list, nothing parses an operator, and it stays language-neutral (no localized `OR` to strip).
 The scorer is reused unchanged, called once per alternative with the best kept per candidate,
-and the IDF tie-break likewise takes each candidate's best alternative. This is the runtime
-recovery for a low-lexical-score match that capability selection missed (the discovery fallback
-in [`capability-selection.md`](capability-selection.md)); whether acting on it then confirms is
-the confidence gate in [`tool-policy.md`](tool-policy.md).
+and the IDF tie-break likewise takes each candidate's best alternative. Alternatives are also
+what makes miss recovery work: the model rewrites "help me concentrate" into
+`["focus", "concentration", "deep work"]`, and a better query against the same index is the
+whole mechanism ([`capability-selection.md`](capability-selection.md) "Miss recovery").
+Whether acting on the result then confirms is the confidence gate in
+[`tool-policy.md`](tool-policy.md).
 
 The tool is constructed per request from Magic Mic's `conversation` translation category.
 Its description and every parameter description therefore use the request language with
@@ -426,6 +428,54 @@ two-stage pipeline, tuned against the model-free resolver micro-benchmark
 Out of scope for weighting and tracked separately: **synonyms** ("light" ↔ "lamp",
 the one benchmark case IDF can't close), phonetic matching, and `preferred_area_id`
 bias.
+
+---
+
+## The shared referent core (the third consumer, and the boundary it draws)
+
+Consumers 1 and 2 already share one resolve step. A third arrived from the other direction:
+capability selection's miss recovery needs to answer "what in this home could the user have
+meant", and that is the same question with a different threshold
+([`capability-selection.md`](capability-selection.md) "Miss recovery").
+
+The thing being searched is a **referent**: anything the household names and can act on.
+Entities, scripts, and scenes are all referents. The split that matters is not entity versus
+script, which is a Home Assistant implementation detail the speaker never sees, but referent
+versus abstract capability. A light named "Party" and a script named "Party Mode" are the
+same kind of thing to a person; a countdown timer is not, because no timer exists to be named
+until one is made.
+
+Today the same script is ranked by two scorers with different inputs:
+
+| | Signals | Scorer | Decides |
+|---|---|---|---|
+| `capability_selection.action_descriptor` | name, aliases, **description**, area | IDF-weighted lexical over the pooled document | pre-turn tool exposure |
+| `entity_candidates.resolve_name_over_states` | name, aliases, area/floor context | `token_set_ratio` plus the ambiguity guard | in-turn resolution |
+
+They disagree on real cases. Capability selection drops `focus_mode` for "help me
+concentrate" at budget 8 (`wave1_scripts_selection_shadow.json`), while `find_entities`
+resolves the name list `["concentration", "focus", "zone"]` to `script.focus_mode`
+(`test_find_entities.py`). The subsystem holding *more* signal, the one that reads the
+description, is the one that loses it. Two indexes over the same objects will keep drifting,
+so the core is shared and the layers differ:
+
+- **Core.** One ranked lookup over referents, one signal set (name, aliases, description,
+  area), one score scale. Entity descriptions feed it too, which the resolver does not read
+  today and should.
+- **Resolution layer** (`find_entities`, the match fallback). Hard filters, the caution
+  regime that holds false-resolves at zero on the decoy and near-miss benchmark, returns a
+  resolved target or a small candidate set. Optimized for "pick one and act".
+- **Exposure layer** (selection, miss recovery). Same index, recall-oriented threshold, no
+  relevance floor at the last-chance end, returns compact headers with enough metadata to
+  choose. Optimized for "do not lose the capability".
+
+Two thresholds over one index is the point, and it has to stay explicit. Importing the
+resolution layer's caution into an exposure decision would suppress exactly the marginal
+candidate exposure is meant to keep.
+
+The consumers keep separate cost models even with a shared core. An entity name costs a few
+prompt tokens; a tool costs a full schema and a slot against the provider's 128-tool ceiling.
+Same ranking, different budgets.
 
 ---
 

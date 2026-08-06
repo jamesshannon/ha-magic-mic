@@ -1045,6 +1045,41 @@ hassil **built-in sentence set** (`builtin_sentences.markdown`) plus the per-lan
 value-add counts ([`docs/evaluation.md`](docs/evaluation.md) Part E). Treat a parity miss
 as a blocking regression, the same as a broken tool.
 
+### 5.9 The cooperative but naive user (metadata informs, it never authorizes)
+
+The person configuring a home is on our side. They name a script "Movie Night" because they
+want it found, they write voice triggers so it gets matched, and they fill in a description
+so it is understood. Nobody writes cryptic metadata to defeat their own assistant. Where a
+user really is adversarial toward their own house, that is their house.
+
+**So give the model every piece of metadata the home has before it acts, especially for the
+things with the largest blast radius.** A script can range from playing a song to unlocking
+the door. The only thing that distinguishes them is the text the user wrote, and withholding
+that text does not make the choice safer; it removes the one signal that could have stopped
+a bad one. A description reading "do not run this, there is a bug and the house catches
+fire" is worth more than any inference we could make from the name `party_time`. This is why
+aliases and descriptions are legitimate retrieval documents (§5.2,
+[`docs/capability-selection.md`](docs/capability-selection.md)) rather than a shortcut: they
+are the home's own account of itself.
+
+Naive is the other half, and it is where the principle stops:
+
+- **Trust their words to inform, never to authorize.** A description saying an action is
+  safe does not lower a confirmation gate, and a script named "Cleanup" that unlocks doors
+  is gated on what it does, not what it is called. Consequence policy stays deterministic
+  and stays at execution ([`docs/tool-policy.md`](docs/tool-policy.md)).
+- **A user who has not anticipated a failure has not consented to it.** Cooperative means
+  their metadata is honest, not that it is complete or correct.
+- **Check the provenance before extending the trust.** This principle covers text the
+  household authored. A description that arrived with an imported blueprint, an add-on, or a
+  shared automation is third-party content on the model's input path, and
+  [`docs/security.md`](docs/security.md) governs it.
+
+The practical test: if we are about to hide information from the model that the user wrote
+down and would expect it to have, we are protecting nothing. If we are about to let that
+information decide whether an action needs confirmation, we have confused informing with
+authorizing.
+
 ---
 
 ## 6. Proposed file structure (custom component)

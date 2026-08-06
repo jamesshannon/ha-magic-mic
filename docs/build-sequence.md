@@ -242,9 +242,13 @@ Open gates (each blocks the wave's go/no-go):
   recall@budget gate is what holds the flip. On the widened 50-tool script corpus (36 cases,
   2026-08-05), budget-8 recall is 100% in-vocabulary but 53% out-of-vocabulary, the misses being
   6 name-only (unconfigured) scripts plus 3 true synonym gaps
-  ([`capability-selection.md`](capability-selection.md)). Closing this is a decision on whether
-  that out-of-vocabulary cost is acceptable (it mostly hits unconfigured scripts), or work to
-  lift the synonym-gap class (stemming, the discovery fallback, or embeddings) first.
+  ([`capability-selection.md`](capability-selection.md)). Recall does not move with budget: the
+  miss list is identical at 8, 12, 16, 24, and 50, so it is a retrieval floor and a wider budget
+  buys nothing. A second reason holds the flag independently of any recall number, and it is the
+  one that decides Wave 1: the demo catalog's retrieval documents are English, which
+  "Localization" forbids from gating a live request. Measured on 2026-08-05, an English catalog
+  scoring German utterances leaves 16 of 76 cases with nothing but the two resident reads. Both
+  fixes are now scoped and carried to Wave 2 rather than attempted here.
 - [ ] **`prefer_local_intents` flip [HA]**. The Δhassil-intervention read is done: the
   local-first run routes 14/25 turns off-cloud with 22/25 routing agreement, and its one local
   "wrong action" (`turn-off-all-lights`) is the room-scoped behavior a 2026-08-04 ruling deemed
@@ -271,6 +275,43 @@ Open gates (each blocks the wave's go/no-go):
 - Prepare the `find_entities` results, tests, and proposed match-layer seam for maintainer
   discussion (§7). The eval/trace work can be discussed independently if it proves broadly
   useful; neither is assumed to land unchanged.
+
+**Capability selection, carried from Wave 1.** The Wave 1 read is recorded, not acted on:
+enforcement stays off, and these are the four items that would let the flip be reconsidered,
+in cost order. Items 1 and 2 are the ones with a measured number behind them.
+
+1. **[C] Move the localized-document builder into the component**
+   ([`capability-selection.md`](capability-selection.md) "Localized retrieval documents").
+   `evals/harness/localized_catalog.py` derives bundle documents from
+   `home_assistant_intents`, which is already a dependency. English recall rises 95% → 100%
+   at budget 8 on the Wave 0 set; German rises 30% → 100% on 76 held-out utterances, against
+   an authored English catalog that leaves 16 of those 76 with nothing but the resident
+   reads. Retires the localization blocker, which was the flag's second and independent
+   reason for being off.
+2. **[C] Unify the referent index** ([`find-entities.md`](find-entities.md) "The shared
+   referent core"). One ranked lookup over entities, scripts, and scenes with one signal set
+   (name, aliases, description, area), two layers on top: caution-regime resolution, and
+   recall-oriented exposure. Today the same script is ranked by two scorers that disagree on
+   `focus_mode`. Entity descriptions join the resolver's signals here.
+3. **[C] Miss recovery through that index** ([`capability-selection.md`](capability-selection.md)
+   "Miss recovery"). A capped, filterable `search` returning enough metadata to choose
+   (name, area, description, parameter names), not a name-only teaser that costs ten turns of
+   probing. Parameterless referents already execute through `HassTurnOn` inside the frozen
+   roster, so this ships without any loop change. First measure whether the existing
+   `find_entities` name-alternatives path already recovers the hidden-script class; that
+   needs a corpus, not code.
+4. **[C] Residency and budget policy for abstract bundles** (timers, calendar, weather). The
+   one class with no referent to rank, and the only place a catalog-shaped retriever is still
+   the right tool. Residency is earned from the traces, per Stage 4.
+
+**Upstream evidence, not an upstream ask.** Hydrating a parameterized referent's schema needs
+the exposed tool set to change between generations in one turn, and it cannot:
+`internal/claude/entity.py` builds `model_args` once before the iteration loop and never
+recomputes `model_args["tools"]`. Do not open that conversation on the strength of the code
+read alone. Log each turn that hits the wall, then implement per-iteration tool recomputation
+in the fork we control and show it recovers the request. A count plus a working implementation
+is the ask; a design argument is not. Also unknown and worth measuring: what share of real
+homes' scripts declare fields at all, since the parameterless path needs no change.
 
 *Proves:* learning moves the metrics and produces evidence suitable for upstream design
 discussion.

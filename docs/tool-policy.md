@@ -287,10 +287,14 @@ cannot move.
   named is high confidence by construction: the tool made budget and the model chose it. A pick
   made after a `find_entities` round-trip is where graded confidence actually lives, because that
   path is the only one carrying a purpose-built match score and margin.
-- The **discovery fallback** ([`capability-selection.md`](capability-selection.md)) is where
-  low-lexical-score semantic matches get a runtime home: a script beyond the tool budget is still
-  reachable through `find_entities(query=..., domain="script")`, so the ranker does not have to be
-  clairvoyant. This is the alternative to embedding the whole catalog.
+- **Miss recovery** ([`capability-selection.md`](capability-selection.md)) is where
+  low-lexical-score matches get a runtime home: a script beyond the tool budget is still
+  reachable by searching the shared referent index, so the ranker does not have to be
+  clairvoyant. This is the alternative to embedding the whole catalog. Recovery adds one cell
+  this model did not previously name. A **recovered, mutating referent carrying no policy
+  classification** pairs a low-confidence match with an unknown blast radius, and the POC's
+  unclassified default is permissive. That combination confirms; a named, high-confidence match
+  does not pay the same cost.
 
 ### Reproducibility and the no-AI path
 
