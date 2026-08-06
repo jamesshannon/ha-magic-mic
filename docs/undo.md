@@ -160,6 +160,16 @@ Two ways to catch the intent, and the more deterministic one is better (and offl
    (`prefer_local_intents`, §2.9) must be locally undoable, or offline undo breaks. This is
    a **helps-local core contribution** (same DNA as find_entities / calendar intents,
    §7). The intent just triggers "run the last journal inverse."
+
+   **The 2026-08-05 prefer-local verdict raises the stakes on this, and sizes them.** With
+   the setting recommended on, `evals/harness/local_first.py` routes 14 of 25 golden-set
+   turns off-cloud, including every bare `turn on` / `turn off` / `set position`. Those
+   mutations never reach the proxy, so none of them lands in the journal. An undo built only
+   on the LLM path would therefore cover a minority of a typical home's state changes while
+   answering "undo that" as though it covered them all, which is worse than not shipping it.
+   That makes `HassUndo`-as-local-intent, and the core intent chokepoint that emits the same
+   outcome contract for a locally handled action, a **prerequisite of the undo claim**, not
+   a later refinement of it.
 2. **LLM-recognized `undo` tool (fallback)** — for phrasings hassil misses ("no no, I
    liked it how it was") the model recognizes intent-to-undo and calls a deterministic
    `undo` tool. Still no reasoning about *how* — the tool owns that.

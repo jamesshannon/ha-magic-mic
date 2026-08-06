@@ -190,9 +190,13 @@ before more capabilities depend on the earlier placeholder interfaces.
   use its measurements to motivate that discussion with core maintainers. Direct resolution
   uses the single-turn runner; the scripted multi-turn driver already gates **Δturns** and
   disambiguation-recovery claims.
-- **[HA]** Flip **`prefer_local_intents` ON** (§2.9) only after the combined local-first text
-  driver records both the HASSIL intervention and the final action. Then measure
-  **Δhassil-intervention rate** without hiding fallback failures.
+- **[HA]** Recommend **`prefer_local_intents` ON** (§2.9), which the 2026-08-05 verdict in the
+  exit checklist does. The gate was that the combined local-first text driver record both the
+  HASSIL intervention and the final action before the recommendation, so that
+  **Δhassil-intervention rate** could be read without hiding fallback failures; `local_first.py`
+  does both. Every other driver keeps running the off configuration, which is what proves the
+  model still handles the commands HASSIL would have taken
+  ([`evaluation.md`](evaluation.md#both-routing-configurations-stay-covered-an-invariant-not-a-coincidence)).
 - **[C] Testing gate (tool interception):** driven conversation tests now feed a provider
   `tool_use` through the complete baseline and testbed loops. They prove stock baseline
   execution, allowed proxy execution, private undo-outcome stripping, execution-time denial
@@ -256,14 +260,28 @@ Open gates (each blocks the wave's go/no-go):
   "Localization" forbids from gating a live request. Measured on 2026-08-05, an English catalog
   scoring German utterances leaves 16 of 76 cases with nothing but the two resident reads. Both
   fixes are now scoped and carried to Wave 2 rather than attempted here.
-- [ ] **`prefer_local_intents` flip [HA]**. The Δhassil-intervention read is done: the
-  local-first run routes 14/25 turns off-cloud with 22/25 routing agreement, and its one local
-  "wrong action" (`turn-off-all-lights`) is the room-scoped behavior a 2026-08-04 ruling deemed
-  correct against a stale whole-home expectation, so the flip introduces no genuine regression.
-  What remains is the go decision to turn the toggle on, plus the deferred room-scoped rewrite
-  of that corpus case (blocked on the area-less baseline needing a different expectation).
+- [x] **`prefer_local_intents` recommendation [HA]**: closed 2026-08-05, recommend it **on**.
+  There is no flag in this repo to flip. It is a Home Assistant pipeline setting
+  (`assist_pipeline/pipeline.py:431`) that nothing in the integration reads, so the gate closes
+  on a recorded verdict plus the README install step, not on a code change. The
+  Δhassil-intervention read: 14/25 turns off-cloud, 22/25 routing agreement, and zero
+  regressions traceable to routing. The one local "wrong action" (`turn-off-all-lights`) is the
+  room-scoped behavior a 2026-08-04 ruling deemed correct against a stale whole-home
+  expectation, and it fails the same way on the LLM path. None of the three routing
+  disagreements is hassil taking a turn it should not have, so the false-positive pre-emption
+  §2.9 warns about did not appear. Two consequences carried forward rather than closed here:
+  three arg-bearing local wins stay UNJUDGED until the local path exposes an arg convention
+  ([`evaluation.md`](evaluation.md)), and locally handled mutations do not reach the undo
+  journal, which makes `HassUndo`-as-local-intent a prerequisite of the undo claim
+  ([`undo.md`](undo.md)). The deferred room-scoped rewrite of `turn-off-all-lights` is
+  independent of this verdict and still open.
 - [ ] **Wave 1 go/no-go recorded**. The locked artifact that states the token / turn / local
-  verdict, the Wave 1 analogue of `wave0_baseline.json`, once the three reads above are in.
+  verdict, the Wave 1 analogue of `wave0_baseline.json`. All three reads above are now in, so
+  this is the last open gate. Two of the three closed negative or no-op for the shipped
+  defaults (Tier 2 off, enforcement off) and the third is a setting we do not own, which the
+  artifact has to state plainly rather than dress up. The token half also has to say what is
+  still unmeasured: the entity summary versus HA's roster dump, since both name-injection arms
+  ran with the summary applied.
 
 *Proves:* the token/turn/local claims — the **go/no-go** on the design's central bet.
 

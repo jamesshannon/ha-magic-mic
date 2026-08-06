@@ -294,3 +294,23 @@ def test_local_labels_have_expectations() -> None:
             assert outcome.tools or outcome.answer, case.id
         # A replace round-trip proves the case is a well-formed frozen dataclass.
         assert replace(case) == case
+
+
+def test_golden_set_keeps_the_hassil_covered_basics() -> None:
+    """The corpus keeps enough ``local`` cases to exercise the prefer-local-off path.
+
+    Every driver except ``local_first`` addresses the agent by id, which skips the pipeline,
+    so these cases are what proves the model still handles the commands HASSIL would have
+    taken (see ``docs/evaluation.md``, "Both routing configurations stay covered"). A corpus
+    that drifted toward exotic utterances could break "turn on the kitchen light" on the LLM
+    path with nothing going red, so the population is pinned rather than assumed.
+    """
+    corpus = load_corpus(WAVE0_GOLDEN_SET)
+    local = [case for case in corpus.cases if case.routing_truth == "local"]
+
+    assert len(local) >= len(corpus.cases) // 2, (
+        "fewer than half the cases are HASSIL-covered; the prefer-local-off path is "
+        "losing the basics it exists to check"
+    )
+    # The everyday device-control shapes, the ones a regression would be most embarrassing on.
+    assert sum(1 for case in local if case.category == "device-control") >= 5

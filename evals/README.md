@@ -342,6 +342,14 @@ LLM only because the fixture has no weather integration (recognized `HassGetWeat
 handler); a real home with the integration resolves it locally, so the true off-cloud rate
 is a lower bound here.
 
+**Verdict (2026-08-05): recommend `prefer_local_intents` on** (PRODUCT_PLAN §2.9, README
+install step 6). None of the three routing disagreements is HASSIL taking a turn it should
+not have, so this run found no instance of the false-positive pre-emption that was the one
+argument against. Cross-reading the same case ids against `wave0_baseline.json` (which records
+`prefer_local: false`) shows the 14 off-cloud turns also resolve on the model path: 11 correct,
+1 wrong in both arms (`turn-off-all-lights`), 3 unjudged. That cross-read is manual; do it at
+each wave close.
+
 ### Fuzzy fallback / find_entities Consumer 1 (2026-08-04, `claude-haiku-4-5`, hallway satellite)
 
 Live run of `harness/fuzzy_fallback.py` over `corpus/wave1_fuzzy_fallback.yaml`: device names

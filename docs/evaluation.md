@@ -327,6 +327,42 @@ but each artifact must name its scope and must not report a metric its driver ca
 | **Multi-turn text trajectory** | Script user turns over one `conversation_id`; retain ChatLog state and score the final outcome, turns to completion, clarification, correction, cancellation, and intermediate side effects. Start with authored branches; add a user simulator only if scale warrants it. | **Exists (scripted + live):** `evals/harness/trajectory.py` drives turns over one `conversation_id`, `evals/corpus/wave1_disambiguation.yaml` scores recovery, misfire, and turns to completion (world-based, so scripted and live score identically), and `evals/harness/trajectory_live.py` drives the same worlds against a real model for the emergent turn count (stops when the world reaches the goal, one HA instance per case). The live pass (2026-08, `claude-haiku-4-5`, seven cases across lights/fans/covers and name/area ambiguity) recovered all five ambiguous cases at 2 turns and completed both direct commands in 1 (mean 1.71): haiku asks before acting on a real ambiguity, and disambiguation costs +1 turn. | `find_entities` ambiguity recovery, immutable confirmation including “no, do X instead,” session undo, learning offers and acceptance, memory correction, and any claim that a feature removes clarification turns. This makes `resolved after clarification` reachable. |
 | **Controlled voice pipeline** | Feed deterministic STT results through `assist_pipeline` with controlled/mock STT and TTS boundaries. Capture pipeline events, continued-conversation flags, cancellation, spoken output, and delivery/ack transitions. Use real engines or hardware only for a separately labelled performance profile. | Add before a pipeline-owned interaction is called complete. | Continued conversation and its spurious gate, conversation-ID reuse across reopened microphones, streaming cancellation and barge-in, whole-pipeline offline behavior, proactive `start_conversation`, and reminder announce/pull-to-read/ack flows. Spoken duration and absolute end-to-end TTFT/TTLT require the labelled real-engine profile. |
 
+### Both routing configurations stay covered (an invariant, not a coincidence)
+
+Users run with `prefer_local_intents` on or off, and a command that HASSIL captures on one
+box reaches the model on the next. Both paths have to keep working, so both are measured.
+
+The split falls out of which entry point a driver calls. `runner.observe_turn` addresses the
+agent by id (`conversation.async_converse(..., agent_id=...)`), which skips `assist_pipeline`
+entirely, so `prefer_local_intents` is never consulted; `baseline.py`, `fuzzy_fallback.py`,
+`selection_gate.py`, `variant.py`, and `trajectory.py` all run through it. Prefer-local-off is
+therefore the default configuration for every driver except `local_first.py`, which is the
+only one that reproduces the on configuration. Each artifact records which it was in
+`run.prefer_local`.
+
+Three properties keep this honest, and they are worth stating because none is self-evident
+from reading one driver:
+
+- **The corpus carries the basics on purpose.** 17 of the 25 Wave 0 cases are labelled
+  `routing_truth: local`, meaning HASSIL covers them today, and every one of them runs the
+  model path in the baseline. Without that population the LLM path could break on "turn on
+  the kitchen light" and no run would notice. `test_corpus.py` pins a floor on it so the
+  population cannot erode silently as corpora grow.
+- **The two scopes judge different things, and the corpus knows it.** `expected` scores the
+  local path and `expected_llm` the model path (`Case.expected_for`), because core's Assist
+  API drops intents like `HassGetCurrentTime` in favor of `GetDateTime`. The coverage is
+  complementary rather than duplicated: `set-bedroom-brightness` is UNJUDGED locally for want
+  of an arg schema but arg-verified on the LLM path, while `nevermind` is the reverse.
+- **Comparing the two artifacts is a manual step.** Nothing diffs `wave0_baseline.json`
+  against `wave1_local_first.json` per case, so a divergence where one path is right and the
+  other wrong is only visible to a reader who lines them up. Do it at each wave close.
+
+The gap this leaves is on the local side, not the model side: **arguments of a locally routed
+action are verified by nothing.** Three golden-set cases (`set-bedroom-brightness`,
+`start-timer`, `add-shopping-item`) execute locally with args no scorer reads, so a HASSIL
+regression that started a 10-minute timer for "set a timer for 5 minutes" would pass. Closing
+it needs the arg convention noted in the Local-first row above.
+
 The layers are gates on claims, not gates on unrelated implementation. For example, the
 `ScheduledItemStore` and reminder catch-up machinery can land with exhaustive deterministic
 tests before a voice-pipeline driver exists. The reminder feature is not complete as a voice

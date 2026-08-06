@@ -574,9 +574,10 @@ primitive; `SatelliteBusyError` is a first-class *defer* state in its ack/escala
 machine. See [`docs/scheduling-model.md`](docs/scheduling-model.md).
 
 ### 2.9 Local-first routing: `prefer_local_intents` (hassil handles the common path)
-A pipeline option (`assist_pipeline/pipeline.py:431`, **default `False`** — we recommend
-**on**) that routes a command to the **local hassil matcher first** and only falls
-through to the LLM on a miss. The exact semantics (verified) matter and are subtle:
+A pipeline option (`assist_pipeline/pipeline.py:431`, **default `False`**, **recommended on**
+as of the 2026-08-05 verdict below) that routes a command to the **local hassil matcher
+first** and only falls through to the LLM on a miss. The exact semantics (verified) matter
+and are subtle:
 - Engages when the agent is an **LLM with the CONTROL feature** (ours). hassil runs
   **strict** matching — exact wording + exposed entities only (`strict_intents_only=True`,
   `default_agent.py:1454`).
@@ -596,6 +597,21 @@ through to the LLM on a miss. The exact semantics (verified) matter and are subt
 - Locally-handled turns are **invisible** to the LLM-layer features (contextual
   confirmation, memory-offer gate, spurious-gate, multi-intent chaining) — aligned, since
   those target the friction cases that *don't* match locally.
+
+**Verdict (2026-08-05): recommend it on.** This is a Home Assistant pipeline setting, not a
+Magic Mic one; nothing in the integration reads it, so "recommend" is the whole action.
+`evals/harness/local_first.py` over the Wave 0 golden set routes **14 of 25 turns off-cloud**
+with **22/25 routing agreement**, and the off-cloud figure is a floor: `weather` matched
+`HassGetWeather` and fell through only because the fixture home has no weather integration.
+Zero regressions trace to routing. The single local "wrong action", `turn-off-all-lights`, is
+the room-scoped result a 2026-08-04 ruling deemed correct against a stale whole-home
+expectation, and it fails identically on the LLM path. The bounded downside above did not
+appear: none of the three routing disagreements is hassil taking a turn it should not have
+(one fixture gap, one CONTROL deferral by HA's design, one strict miss on `pause-music`).
+Two things the number does not cover: three arg-bearing local wins are reported UNJUDGED
+because the local path exposes no arg schema, and locally handled mutations do not reach the
+undo journal ([`docs/undo.md`](docs/undo.md)), which is why `HassUndo` as a local intent is a
+prerequisite of the undo claim under prefer-local rather than a refinement of it.
 
 **Strategic consequence (dual-payoff):** with prefer-local on, every **"helps-local"
 intent we contribute** (`find_entities`-as-intent, calendar-write intent, what's-playing
