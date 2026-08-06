@@ -20,8 +20,15 @@ DEFAULT_ENTITY_SUMMARY = True
 # the summary, inject exact names for a small, request-relevant subset so the common
 # command stays zero-lookup. Gated separately so the eval harness can A/B summary-only
 # vs summary+names.
+#
+# Off by default since 2026-08-05: measured at 1.45x total spend against summary-only with
+# identical task success, because per-turn names sit inside the single cached system block
+# and re-prefill it every turn. No tool in the Wave 1 roster consumes an entity_id, so the
+# lookup this exists to skip is never taken. Keep the mechanism; re-measure when the first
+# entity_id-consuming tool lands (the Wave 3 scheduling substrate), with the cache-isolated
+# second block (prompt-context.md "Option 2") built at the same time.
 CONF_NAME_INJECTION = "name_injection"
-DEFAULT_NAME_INJECTION = True
+DEFAULT_NAME_INJECTION = False
 # Top-N names injected per request: enough to cover a room's relevant devices, small
 # enough to stay a bounded tail (the point of retiring the roster). Tunable on the eval.
 NAME_INJECTION_LIMIT = 10

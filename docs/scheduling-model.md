@@ -195,6 +195,15 @@ The store owns:
 - cancellation, snooze, acknowledgement, catch-up, and last-occurrence bookkeeping;
 - any external calendar/todo reference needed for visibility or synchronization.
 
+A persisted trigger, condition, or action body has to name its entities by `entity_id`,
+because a friendly name is not stable enough to survive a rename between authoring and
+firing. That makes these the first tools in the project to take an entity as **data** rather
+than as a target resolved in the moment, and it is the trigger for re-measuring Tier-2 name
+injection ([`prompt-context.md`](prompt-context.md) "The verdict, and the trigger that
+reopens it"). Tier 2 went off by default in Wave 1 on a roster where every tool resolved a
+spoken name itself, so the round-trip it exists to skip was never taken. Building here
+changes that, and the A/B becomes meaningful for the first time.
+
 The store is loaded before triggers are attached. On startup the scheduler reconciles all
 non-terminal items, computes missed/next occurrences using the persisted watermark, then
 registers runtime callbacks. Writes use one store service (`create`, `update`, `cancel`,

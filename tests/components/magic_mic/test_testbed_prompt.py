@@ -276,19 +276,25 @@ async def test_driven_turn_injects_relevant_in_room_name(
     Drives a real turn from a living-room satellite whose utterance names the reading
     lamp. The Tier-2 block carries that entity's typed name/id record; the kitchen
     light, neither named nor in the room, stays out.
+
+    Injection is off by default (see `DEFAULT_NAME_INJECTION`), so this opts in the way a
+    user or the eval harness would. The mechanism stays covered while the default is off.
     """
     device_id = await _two_room_home(hass)
     testbed_id = _testbed_id(hass, setup_integration)
 
     mock_create_stream.return_value = [create_content_block(0, ["Done."])]
-    await conversation.async_converse(
-        hass,
-        "turn on the reading lamp",
-        None,
-        Context(),
-        device_id=device_id,
-        agent_id=testbed_id,
-    )
+    with patch(
+        "custom_components.magic_mic.testbed.entity.DEFAULT_NAME_INJECTION", True
+    ):
+        await conversation.async_converse(
+            hass,
+            "turn on the reading lamp",
+            None,
+            Context(),
+            device_id=device_id,
+            agent_id=testbed_id,
+        )
     system = _system_text(mock_create_stream)
 
     assert NAME_INJECTION_HEADER in system
@@ -301,14 +307,25 @@ async def test_driven_turn_does_not_inject_names_when_summary_was_not_applied(
     setup_integration: MockConfigEntry,
     mock_create_stream: AsyncMock,
 ) -> None:
-    """Tier-2 names follow the effective summary strategy, not its requested flag."""
+    """Tier-2 names follow the effective summary strategy, not its requested flag.
+
+    Injection is requested here, so the absent names prove the summary gate rather than
+    the default.
+    """
     device_id = await _two_room_home(hass)
     testbed_id = _testbed_id(hass, setup_integration)
     mock_create_stream.return_value = [create_content_block(0, ["Done."])]
 
-    with patch(
-        "custom_components.magic_mic.testbed.entity.async_prepare_llm_api",
-        return_value=PreparedLLMAPI(llm.LLM_API_ASSIST, entity_summary_applied=False),
+    with (
+        patch(
+            "custom_components.magic_mic.testbed.entity.DEFAULT_NAME_INJECTION", True
+        ),
+        patch(
+            "custom_components.magic_mic.testbed.entity.async_prepare_llm_api",
+            return_value=PreparedLLMAPI(
+                llm.LLM_API_ASSIST, entity_summary_applied=False
+            ),
+        ),
     ):
         await conversation.async_converse(
             hass,
@@ -329,19 +346,28 @@ async def test_driven_turn_omits_names_when_nothing_relevant(
     setup_integration: MockConfigEntry,
     mock_create_stream: AsyncMock,
 ) -> None:
-    """An utterance that names no device injects no Tier-2 block (a lookup would follow)."""
+    """An utterance that names no device injects no Tier-2 block (a lookup would follow).
+
+    Injection is requested, so the empty block is the selector's verdict rather than the
+    default. This is also the behavior that limits Tier 2: the selector keys on name
+    overlap and domain keywords, so an oblique reference produces nothing at all
+    (docs/prompt-context.md "What the selector cannot reach").
+    """
     device_id = await _two_room_home(hass)
     testbed_id = _testbed_id(hass, setup_integration)
 
     mock_create_stream.return_value = [create_content_block(0, ["You're welcome."])]
-    await conversation.async_converse(
-        hass,
-        "thank you very much",
-        None,
-        Context(),
-        device_id=device_id,
-        agent_id=testbed_id,
-    )
+    with patch(
+        "custom_components.magic_mic.testbed.entity.DEFAULT_NAME_INJECTION", True
+    ):
+        await conversation.async_converse(
+            hass,
+            "thank you very much",
+            None,
+            Context(),
+            device_id=device_id,
+            agent_id=testbed_id,
+        )
     system = _system_text(mock_create_stream)
 
     assert NAME_INJECTION_HEADER not in system

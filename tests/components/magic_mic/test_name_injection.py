@@ -277,6 +277,45 @@ async def test_select_returns_none_when_nothing_relevant(
     assert _select(hass, conversation_strings, "what's the weather", kitchen) is None
 
 
+async def test_select_cannot_reach_an_oblique_reference(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
+    """The selector goes silent on exactly the request Tier 2 was justified by.
+
+    "It's stuffy in here" is the oblique reference `prompt-context.md` cites as the case
+    a pre-loaded name should serve, and the fan in the requesting room is the answer. But
+    selection keys on name overlap plus domain keywords: "stuffy" scores near zero against
+    "Ceiling Fan", and the utterance names no domain, so widening cannot fire either. The
+    block is empty, and the request that most needed a name gets none. This is the measured
+    limitation behind the default being off, so it is pinned rather than left implicit.
+    """
+    living = ar.async_get(hass).async_create("Living Room").id
+    _register(hass, "fan.lr_ceiling", "Ceiling Fan", area_id=living)
+
+    assert (
+        _select(
+            hass,
+            conversation_strings,
+            "it's stuffy in here",
+            living,
+            keyword_map={"fan": {"fan"}},
+        )
+        is None
+    )
+    # Name the domain and the same request fills the block, which is the shape of the
+    # problem: it helps when the user already said what the thing is.
+    assert (
+        _select(
+            hass,
+            conversation_strings,
+            "turn on the fan",
+            living,
+            keyword_map={"fan": {"fan"}},
+        )
+        is not None
+    )
+
+
 async def test_select_respects_limit(
     hass: HomeAssistant, conversation_strings: ConversationStrings
 ) -> None:

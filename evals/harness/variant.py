@@ -25,7 +25,6 @@ small difference would affect a decision.
 import argparse
 import asyncio
 from collections.abc import Sequence
-from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -85,7 +84,7 @@ _TESTBED_UNIQUE_SUFFIX = "_testbed"
 # an area-less turn; the room must hold named devices the cases reference. The corpus
 # living room does (lamp, blinds), so it is the default.
 DEFAULT_AREA = "living_room"
-# The module global the proxy reads for the Tier-2 gate; patched off for the control arm.
+# The module global the proxy reads for the Tier-2 gate; both arms patch it explicitly.
 _NAME_INJECTION_FLAG = (
     "custom_components.magic_mic.testbed.entity.DEFAULT_NAME_INJECTION"
 )
@@ -157,8 +156,13 @@ async def _run_variant_case(
     entry: MockConfigEntry,
     names_on: bool,
 ) -> CaseResult:
-    """Run one reset case under one arm of the variant."""
-    gate = nullcontext() if names_on else patch(_NAME_INJECTION_FLAG, False)
+    """Run one reset case under one arm of the variant.
+
+    Both arms patch the flag rather than letting either inherit the shipped default. The
+    default went to False on 2026-08-05 (docs/prompt-context.md), and an arm that reads it
+    implicitly would silently stop testing what it names.
+    """
+    gate = patch(_NAME_INJECTION_FLAG, names_on)
     await apply_provider_options(hass, entry, case.provider_options)
     await world.reset(hass)
     with gate:

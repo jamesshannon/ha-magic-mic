@@ -231,11 +231,18 @@ Built and closed:
 
 Open gates (each blocks the wave's go/no-go):
 
-- [ ] **prompt-context Δtokens verdict**. Entity summary + request-conditioned name injection
-  ship (`DEFAULT_NAME_INJECTION` on) with the Tier-2 keyword map. The first live eval found
-  the prompt-loaded names go unused (stock intent tools fill their own name slots), so the
-  token/TTFT value is unproven; revisit against a realistic corpus (~2026-09) or record an
-  explicit "carry to Wave 2" decision. Closing this needs a decisive Δtokens A/B.
+- [x] **prompt-context Δtokens verdict**: closed 2026-08-05, negative for Tier 2.
+  `DEFAULT_NAME_INJECTION` is now **off**. The A/B was decisive in the unexpected direction:
+  1.45x total spend against summary-only (1.73x prompt-side) at identical task success, because
+  per-turn names sit inside the single cached system block and re-prefill it every turn. Two
+  structural findings say a better corpus would not have changed it. No tool in the Wave 1
+  roster consumes an `entity_id`, so the `find_entities` round-trip the tier exists to skip is
+  never taken; and the selector keys on name overlap plus domain keywords, so it goes silent on
+  the oblique references the tier was justified by. The mechanism, the config option, and the
+  tests stay; the re-test trigger is the first `entity_id`-consuming tool, in Wave 3
+  ([`prompt-context.md`](prompt-context.md)). Tier 1, the entity summary, is unaffected and
+  stays on. Note what this does *not* close: the summary-versus-roster-dump saving is still
+  unmeasured, since both arms ran with the summary applied.
 - [ ] **Capability-selection enforcement flip**. Catalog, availability filter, retriever,
   budget assembler, trace, and gated enforcement are built, but `DEFAULT_CAPABILITY_SELECTION`
   is off. The task-success gate on the golden set is a PASS (0 regressions, exposure 31→17); the
@@ -292,7 +299,13 @@ in cost order. Items 1 and 2 are the ones with a measured number behind them.
    referent core"). One ranked lookup over entities, scripts, and scenes with one signal set
    (name, aliases, description, area), two layers on top: caution-regime resolution, and
    recall-oriented exposure. Today the same script is ranked by two scorers that disagree on
-   `focus_mode`. Entity descriptions join the resolver's signals here.
+   `focus_mode`. Entity descriptions join the resolver's signals here. **When scripts enter
+   the index, re-check Tier-2 name injection against it**
+   ([`prompt-context.md`](prompt-context.md) "What the selector cannot reach"): scripts are
+   the one referent class absent from both the prompt roster and the entity summary, so a
+   selector that can reach them is a different proposition from the one measured in Wave 1.
+   That is a selector question, and it is separate from the tier's own re-test trigger,
+   which is a roster carrying an `entity_id` consumer in Wave 3.
 3. **[C] Miss recovery through that index** ([`capability-selection.md`](capability-selection.md)
    "Miss recovery"). A capped, filterable `search` returning enough metadata to choose
    (name, area, description, parameter names), not a name-only teaser that costs ten turns of
@@ -333,6 +346,14 @@ discussion.
   pipeline driver covers announce, microphone reopening, pull-to-read, and acknowledgement.
 - **Possible core work later:** calendar-write and reminder/scheduling seams, after the
   proving ground establishes their contracts (§7).
+- **[C] Re-measure Tier-2 name injection here, because this is where its trigger fires.**
+  Conditional reminders and scheduled commands are the first tools to take an entity as
+  *data*, so this wave produces the first roster containing an `entity_id` consumer. Tier 2
+  went off by default in Wave 1 measuring 1.45x spend for no benefit on a roster where every
+  tool resolved a spoken name itself ([`prompt-context.md`](prompt-context.md) "The verdict,
+  and the trigger that reopens it"). Build Option 2, the cache-isolated second system block,
+  in the same change so the arm under test costs about 8% rather than 45%, and fix the
+  selector's blind spot on oblique references first or the A/B measures the wrong thing.
 
 *Proves:* the headline VISION demos.
 

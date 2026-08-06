@@ -506,12 +506,13 @@ Refinement A below was weighed during that build and deferred; it is recorded so
 re-derived from scratch. Revisit it when the eval says the fast path is leaving turns on
 the table.
 
-> **The first live measurement says the fast path is not being used at all** (see "Measured
-> (Wave 1, first name-injection run)" under Measurement below). On the golden set, injected
-> names were read once and changed nothing, because the stock intent tools resolve a spoken
-> name themselves. This whole tier is flagged for a revisit against a realistic corpus
-> before it is built on further; read that section before tuning Tier 2 or adopting
-> Refinement A or Option 2.
+> **Tier 2 is off by default as of 2026-08-05** (`DEFAULT_NAME_INJECTION = False`). It
+> measured 1.45x the total spend of summary-only with identical task success, and two
+> structural findings say the corpus was not the only reason: no tool in the Wave 1 roster
+> consumes an `entity_id`, and the selector cannot reach the oblique references this tier
+> was justified by. Read "Measured (Wave 1, first name-injection run)" and "What the
+> selector cannot reach" below before tuning Tier 2 or adopting Refinement A or Option 2.
+> The mechanism and `CONF_NAME_INJECTION` stay; the re-test trigger is named there.
 
 #### Refinement A — domain-name decoration instead of keyword widening
 
@@ -651,6 +652,82 @@ Option 1's cache cost showed up as designed: names-on created 42,707 cache token
 names-off's 5,273 (per-turn names bust the system-block cache) and read 46,034 fewer.
 Output tokens fell 549.
 
+**That cache cost is the expensive kind, which an earlier draft of this section got wrong.**
+It read "its cost is cache tokens, not turns" as a reason the default could stay on. A cache
+*write* bills at 1.25x base input and 12.5x a cache read, so it is the second most expensive
+token class after output. Costed at haiku-4.5 rates:
+
+| Arm | input | cache write | cache read | output | relative spend |
+|---|---|---|---|---|---|
+| summary only | 23,653 | 5,273 | 242,558 | 5,619 | 1.00x |
+| summary + names | 21,383 | 42,707 | 196,524 | 5,070 | **1.45x** |
+
+Excluding output, where the 549-token delta is model variance, the prompt side alone is
+1.73x. The mechanism is in the code, not in the run order: `PromptCaching.PROMPT` sets one
+`cache_control` breakpoint on a single system text block (`internal/claude/entity.py`), and
+`_async_inject_request_names` appends the names *inside* that block, so the whole system
+prompt re-prefills every turn. The summary-only arm shows the contrast directly, reusing one
+stable prefix across all 25 cases at 5k writes against 242k reads.
+
+#### Nothing in the Wave 1 roster consumes an `entity_id`
+
+The tier's payoff is skipping a `find_entities` round-trip, which requires a downstream tool
+that takes an id. Across the 25 cases the model used `GetDateTime`, `GetLiveContext`,
+`HassClimateSetTemperature`, `HassLightSet`, `HassListAddItem`, `HassMediaPause`,
+`HassSetPosition`, `HassSetVolume`, `HassStartTimer`, `HassTurnOff`, and `HassTurnOn`. Every
+one takes a spoken `name`, `area`, or `domain`; `GetLiveContext` included. There is no
+consumer of a resolved id anywhere in the roster, so the lookup this tier exists to skip is
+never on the table. That is not a corpus gap a better set of cases could close.
+
+The consumers arrive with the tools that treat an entity as *data* rather than a target:
+reminders, ephemeral automations, and scheduled commands
+([`scheduling-model.md`](scheduling-model.md), Wave 3). `find_entities`'s own description
+already names that class ("authoring a reminder or automation, listing what exists in an
+area, or resolving an approximate name before another step").
+
+#### What the selector cannot reach
+
+Selection admits an entity on fuzzy name overlap with the utterance, plus keyword widening
+when the utterance names the entity's domain and the entity is in the requesting room. Both
+signals require the user to have said something about the thing. So:
+
+- "It's stuffy in here", with a Ceiling Fan in the room: no domain word, so widening cannot
+  fire; "stuffy" scores near zero against "Ceiling Fan"; **no block is injected at all**.
+- "The thing by the couch": the same, nothing.
+- "Turn on the kitchen light": widening fires on "light" and the block fills, which is
+  precisely the request `HassTurnOn(name="kitchen light")` already resolves unaided.
+
+The oblique reference is the case this document uses to justify the tier, and it is the case
+the implementation goes silent on. Tier 2 pre-loads names for requests that already named
+something, so its selection signal and its value are anti-correlated. Pinned in
+`test_select_cannot_reach_an_oblique_reference`.
+
+Two other classes are worth ruling out explicitly. State questions ("which lights are on in
+here") are unaffected, because the block carries name and `entity_id` and never state, so
+`GetLiveContext` is still required. Ambiguous or misheard names ("the lamp", "the telly")
+are now handled by the match-layer fuzzy fallback
+([`find-entities.md`](find-entities.md) Consumer 1), which retries inside the same generation
+at zero prompt cost and landed after this measurement, so that class no longer needs
+injection either.
+
+#### The verdict, and the trigger that reopens it
+
+`DEFAULT_NAME_INJECTION = False` as of 2026-08-05. The mechanism, `CONF_NAME_INJECTION`, and
+the tests stay: this is a default change on the evidence available, not a deletion of an
+untested design. `main` is what HACS installs track, so the default is what early testers
+pay, and a 1.45x prompt-side premium with no measured benefit is not defensible.
+
+**Re-measure when the first `entity_id`-consuming tool lands**, which is the Wave 3
+scheduling substrate. That is a causal trigger rather than a date, and it is the first point
+at which the tier can actually pay. Build Option 2 in the same change so the arm under test
+costs about 8% rather than 45%: `model_args["system"]` is already a list, so the stable
+prompt takes block one with `cache_control` and the volatile names take an uncached block
+two. Estimated from a 10-line block at roughly 150 tokens across about 1.8 generations per
+turn, against the 46,792 cost units the current churn spends; not measured.
+
+Re-opening the tier should also revisit the selector, since a mechanism that cannot see
+oblique references will not benefit from a corpus full of them.
+
 So on this corpus the injection buys nothing in turns while adding cache churn, because
 Tier 2's fast path is never taken. The one case that read an injected name (`set-volume`,
 names-on passed `name="Living Room Speaker"`) resolved identically to names-off, which
@@ -678,16 +755,17 @@ curated cases, one home, so the effect is likely model-dependent: a weaker model
 fabricate names without a roster, a stronger one need it even less. It is enough to flag,
 not to decide.
 
-**Revisit the whole prompt-budget approach around 2026-09**, sooner if field or fleet data
-lands. Before building further on name injection, re-measure against a larger, realistic
-corpus that includes oblique references and any entity_id-only tools, across more than one
-model. The immediate follow-up that would settle it: add corpus cases that force an
-entity_id lookup (where injection can shave the `find_entities` round-trip). If those also
-resolve without names, the roster is dead weight for capable models and Tier 2 should come
-out; only if they do not does Option 2 (the cache-isolated second system block) become a
-real question. Until then Tier 2 stays on by default (task-neutral, and its cost is cache
-tokens, not turns), but it is a candidate for removal, not just tuning. Artifact:
-`evals/results/wave1_name_injection.json`. This revisit is tracked in the test backlog
+**The wider prompt-budget question stays open**, and a corpus of oblique references alone
+will not settle it, for the reason in "What the selector cannot reach": the mechanism goes
+silent on exactly those utterances, so a harder corpus would measure the selector's blind
+spot rather than the tier's value. Settling it needs both halves, a roster with an
+`entity_id` consumer *and* a selector that can reach a request which names nothing. Across
+more than one model, too: a weaker model may fabricate names without a roster and a stronger
+one need them even less, and this is one model, 25 curated cases, one home.
+
+If the Wave 3 re-test shows those cases also resolve without names, prompt-loaded entity
+context is dead weight for capable models and Tier 2 should come out rather than be tuned.
+Artifact: `evals/results/wave1_name_injection.json`. Tracked in the test backlog
 ([`evaluation.md`](evaluation.md) Part E, "Open hypotheses and corpus gaps") so it is not
 lost between features.
 
