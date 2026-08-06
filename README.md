@@ -56,7 +56,7 @@ As each capability ships it moves from "Coming soon" up into "Working today."
    API key. Select the **Magic Mic** conversation agent in your Assist pipeline to use it.
 6. In the same pipeline, turn on **Prefer handling commands locally**. Home Assistant matches
    the command against its own sentences first and only calls the model on a miss. On our
-   25-case golden set that keeps 14 turns off the cloud: no API round-trip, no tokens, and
+   26-case golden set that keeps 14 turns off the cloud: no API round-trip, no tokens, and
    they still work with the internet down. Magic Mic handles everything the local matcher
    does not recognize, which is where it earns its keep anyway.
 

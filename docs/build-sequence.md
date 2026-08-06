@@ -264,10 +264,10 @@ Open gates (each blocks the wave's go/no-go):
   There is no flag in this repo to flip. It is a Home Assistant pipeline setting
   (`assist_pipeline/pipeline.py:431`) that nothing in the integration reads, so the gate closes
   on a recorded verdict plus the README install step, not on a code change. The
-  Δhassil-intervention read: 14/25 turns off-cloud, 22/25 routing agreement, and zero
-  regressions traceable to routing. The one local "wrong action" (the bare `turn off the lights`) is the
-  room-scoped behavior a 2026-08-04 ruling deemed correct against a stale whole-home
-  expectation, and it fails the same way on the LLM path. None of the three routing
+  Δhassil-intervention read: 14/26 turns off-cloud, 23/26 routing agreement, and zero
+  regressions traceable to routing. The bare `turn off the lights` case that once failed here
+  was split by satellite placement on 2026-08-06; the room-scoped reading now passes on both
+  paths, and the unplaced reading fails on model behavior rather than routing. None of the three routing
   disagreements is hassil taking a turn it should not have, so the false-positive pre-emption
   §2.9 warns about did not appear. Two consequences carried forward rather than closed here:
   the three arg-bearing local wins that the first run could not verify are all verified in the
@@ -287,7 +287,7 @@ Open gates (each blocks the wave's go/no-go):
   prompt spend for identical task success; capability selection blocked by a 53%
   out-of-vocabulary recall floor and English-only retrieval documents), **one passed and ships
   on** (`find_entities`, mean 1.71 turns, 5/5 ambiguities recovered, 0 misfires), and **one is
-  not ours to ship** (`prefer_local_intents`, 14/25 off-cloud, recommended in the README). The
+  not ours to ship** (`prefer_local_intents`, 14/26 off-cloud, recommended in the README). The
   artifact carries the four unmeasured levers as first-class entries, the entity summary versus
   HA's roster dump among them, so the record cannot be read as a clean sweep.
 

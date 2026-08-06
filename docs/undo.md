@@ -162,7 +162,7 @@ Two ways to catch the intent, and the more deterministic one is better (and offl
    §7). The intent just triggers "run the last journal inverse."
 
    **The 2026-08-05 prefer-local verdict raises the stakes on this, and sizes them.** With
-   the setting recommended on, `evals/harness/local_first.py` routes 14 of 25 golden-set
+   the setting recommended on, `evals/harness/local_first.py` routes 14 of 26 golden-set
    turns off-cloud, including every bare `turn on` / `turn off` / `set position`. Those
    mutations never reach the proxy, so none of them lands in the journal. An undo built only
    on the LLM path would therefore cover a minority of a typical home's state changes while

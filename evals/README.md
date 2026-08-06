@@ -290,11 +290,11 @@ Findings the keyless routing measurement surfaced:
 ### Wave 0 exit gate (blocks Wave 1): done
 
 Ran the live baseline keyed from a project-root `.env`: stock full-roster prompt,
-`prefer_local` OFF, model `claude-haiku-4-5`, 25 cases. Current artifact (re-run 2026-08-06):
-**18 resolved-by-LLM-correct, 3 wrong-action, 4 unjudged, 0 unresolved**; routing agreement
-8/25 (every case routes to the LLM with `prefer_local` OFF, so only the 8 `llm`-labelled cases
-agree); 44 generations; 20,656 input / 4,877 output / 216,075 cache-read tokens; TTFT p50
-679ms p95 1,253ms, round p50 3.00s p95 4.12s over 25 model turns. Wave 1 reports Δtokens /
+`prefer_local` OFF, model `claude-haiku-4-5`, 26 cases. Current artifact (re-run 2026-08-06,
+after the bare-lights split): **19 resolved-by-LLM-correct, 3 wrong-action, 4 unjudged, 0
+unresolved**; routing agreement 9/26 (every case routes to the LLM with `prefer_local` OFF, so
+only the 9 `llm`-labelled cases agree); 46 generations; 21,633 input / 4,965 output / 221,091
+cache-read tokens; TTFT p50 777ms p95 1,317ms, round p50 2.83s p95 4.78s over 26 model turns. Wave 1 reports Δtokens /
 Δturns / Δhassil-rate against this artifact.
 
 > **What the 2026-08-06 re-run settled.** The previous artifact (2026-07-30) scored 15
@@ -309,7 +309,12 @@ agree); 44 generations; 20,656 input / 4,877 output / 216,075 cache-read tokens;
 > The three remaining wrong cases are model behavior, not harness faults:
 > `turn-off-lights-unplaced` and `implicit-too-dark` ask which entity instead of acting (the world
 > does not change, so state scoring marks them wrong for the right reason), and `implicit-cold`
-> reads the thermostat then asks how warm. State scoring agrees with the reconciled tool
+> reads the thermostat then asks how warm. The first is worth quoting, because it is what the
+> split isolated: from a satellite in no room the model answers "You have lights in multiple
+> areas: bedroom, office, kitchen, and living room. Which lights would you like to turn off?"
+> and calls nothing, while the same utterance from a living-room satellite turns off that
+> room's light and says so. One case now fails for a real reason instead of two behaviors
+> failing as one. State scoring agrees with the reconciled tool
 > expectations on this corpus while being robust to tool variance: the device cases pass
 > whichever equally-valid tool the model picks. Of the four unjudged, three are unbuilt VISION
 > capabilities with no success predicate, and `nevermind` is a plain acknowledgement that has
@@ -324,39 +329,43 @@ change.
 ### Local-first routing (re-run 2026-08-06, `claude-haiku-4-5`, living_room satellite)
 
 `harness/local_first.py` (the faithful prefer-local path: strict recognize plus HA's CONTROL
-fallback filter, model only on a miss or deferred intent). Routing: **14/25 off-cloud** (local
-wins, no model call), 1 deferred by CONTROL (`is-garage-open`, `HassGetState`), 9 local miss to
-the LLM; **0 locally-routed but unverifiable**; routing agreement 22/25. Scorecard: 13 resolved
-locally and correct, 6 LLM correct, 3 wrong-action, 3 unjudged. Latency over the 11 model
-turns: TTFT p50 646ms / p95 2,172ms, round duration p50 3.43s / p95 4.82s.
+fallback filter, model only on a miss or deferred intent). Routing: **14/26 off-cloud** (local
+wins, no model call), 1 deferred by CONTROL (`is-garage-open`, `HassGetState`), 10 local miss
+to the LLM; **0 locally-routed but unverifiable**; routing agreement **23/26**. Scorecard: 14
+resolved locally and correct, 6 LLM correct, 3 wrong-action, 3 unjudged. Latency over the 12
+model turns: TTFT p50 751ms / p95 5,979ms, round duration p50 3.50s / p95 9.48s.
 
-Routing is identical to the 2026-08-04 run, case for case, which is the useful part: the
-scoring changed and the routing did not. The three former UNJUDGED local wins
-(`set-bedroom-brightness`, `start-timer`, `add-shopping-item`) now resolve correct, two from
-their durable effects and one from state. The remaining 3 unjudged are LLM-routed cases for
-capabilities that do not exist yet (`conditional-reminder`, `remember-fact`, `undo-last`), so
-no local win goes unverified.
+Routing agreement rose because the bare-lights split corrected a label rather than because
+behavior changed: `turn-off-lights-unplaced` is `llm`, and it routes there. The three former
+UNJUDGED local wins (`set-bedroom-brightness`, `start-timer`, `add-shopping-item`) resolve
+correct, two from their durable effects and one from state. The remaining 3 unjudged are
+LLM-routed cases for capabilities that do not exist yet (`conditional-reminder`,
+`remember-fact`, `undo-last`), so no local win goes unverified.
 
-One local win diverged, which is the finding the gate exists to surface. `turn off the
-lights` from a living_room satellite resolves locally to that room (`HassTurnOff`,
-area-preferred), leaving `light.kitchen` on, so the world diff marks it wrong against the
-whole-home expectation (both kitchen and living-room lights off). **Decision (2026-08-04):
-room-scoped is the intended semantics for a bare `turn off the lights` from a room-bound
-satellite; HASSIL is right and the corpus case encodes the wrong (whole-home) expectation.**
-**Rewritten 2026-08-06.** The case is now two, `turn-off-lights-from-room` (satellite in
-`living_room`, only that room's light expected off) and `turn-off-lights-unplaced` (satellite
-assigned to no area, whole home expected off), each pinning `satellite_area` so it means the
-same thing in every driver. The split turned up something the merged case hid: with no room,
-`turn off the lights` **strict-misses HASSIL entirely**, because the template needs an
-`{area}` that only a room-bound satellite supplies from context. So the whole-home reading is
-`routing_truth: llm`, and the old `local` label was right only by accident of where the
-local-first driver put the satellite. The distinct `turn off *all* the lights` phrasing is
-genuinely ambiguous and is TBD later. The re-run makes the mechanism visible rather than
-inferred: the artifact records the bound slots, and this case shows
+**The bare-lights case, and how it resolved.** The 2026-08-04 run surfaced one local win
+that diverged: `turn off the lights` from a living_room satellite resolved locally to that
+room, leaving `light.kitchen` on, and failed against a whole-home expectation. The ruling was
+that HASSIL is right and the corpus encoded the wrong expectation, and the rewrite was
+deferred because one expectation could not be right for both drivers.
+
+**Split 2026-08-06** into `turn-off-lights-from-room` (satellite in `living_room`, only that
+room's light expected off) and `turn-off-lights-unplaced` (satellite in no area, whole home
+expected off), each pinning `satellite_area` so it means the same thing in every driver. The
+split found what the merged case hid: with no room, the utterance **strict-misses HASSIL
+entirely**, because the template needs an `{area}` that only a room-bound satellite supplies
+from context. The whole-home reading is `routing_truth: llm`, and the old `local` label was
+right only by accident of where the local-first driver put the satellite.
+
+Both drivers now agree on both cases. `turn-off-lights-from-room` passes in each: locally it
+scopes to the room, and on the model path it turns off that room's light and says so. The
+artifact shows why, without inference, since it records
 `{'area': 'living_room', 'domain': ['light']}` for an utterance containing no area, which is
-HA's `_make_intent_context` injecting the satellite's area at recognize time. The other two
-wrong-action cases (`implicit-cold`, `implicit-too-dark`) are LLM-routed model behavior, not
-routing. `weather` still routes to the LLM: the fixture registers `weather.home` but no weather
+HA's `_make_intent_context` injecting the satellite's area at recognize time.
+`turn-off-lights-unplaced` fails in both, and that failure is real: the model answers "Which
+lights would you like to turn off?" and calls nothing. One entangled failure became one
+passing case and one honest model miss. The distinct `turn off *all* the lights` phrasing is
+genuinely ambiguous and is TBD later. The other two wrong-action cases (`implicit-cold`,
+`implicit-too-dark`) are LLM-routed model behavior, not routing. `weather` still routes to the LLM: the fixture registers `weather.home` but no weather
 integration, so `HassGetWeather` recognizes with no handler. A real home with the integration
 resolves it locally, making the off-cloud rate a lower bound here.
 
@@ -454,7 +463,7 @@ Four gates, none open, and only one of them ships on:
 | `tokens.name_injection` | NEGATIVE | off: 1.73x prompt spend, 1.45x total, identical task success |
 | `tokens.capability_selection` | NEGATIVE | off: task-success PASS, held by a 53% out-of-vocabulary recall floor and English-only documents |
 | `turns.find_entities` | PASS | on: mean 1.71 turns, 5/5 ambiguities recovered, 0 misfires |
-| `local.prefer_local_intents` | RECOMMEND_ON | not ours: an HA pipeline setting, 14/25 off-cloud, recommended in the README |
+| `local.prefer_local_intents` | RECOMMEND_ON | not ours: an HA pipeline setting, 14/26 off-cloud, recommended in the README |
 
 It is derived, not written. Every figure is read out of the artifact that produced it, and a
 missing or reshaped source raises rather than dropping a leg, so the record cannot quietly

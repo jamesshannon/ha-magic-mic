@@ -1,7 +1,7 @@
 {
   "buckets": {
     "resolved after clarification": 0,
-    "resolved by LLM, correct": 18,
+    "resolved by LLM, correct": 19,
     "resolved locally (hassil)": 0,
     "unjudged (no success predicate)": 4,
     "unresolved / \"I don't understand\"": 0,
@@ -18,24 +18,24 @@
       "generations": 2,
       "id": "current-time",
       "input_tokens": 830,
-      "output_tokens": 94,
+      "output_tokens": 93,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 2059.614,
+      "round_duration_ms": 2062.312,
       "routed_locally": false,
       "routing_truth": "local",
-      "speech": "It's 10:22 PM on Wednesday, August 5th, 2026 (PDT).",
+      "speech": "It's 11:47 PM on Wednesday, August 5, 2026 (PDT).",
       "tools": [
         {
           "args": {},
           "name": "GetDateTime"
         }
       ],
-      "ttft_ms": 646.86,
+      "ttft_ms": 843.914,
       "utterance": "what time is it?"
     },
     {
@@ -55,7 +55,7 @@
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 2064.825,
+      "round_duration_ms": 2216.149,
       "routed_locally": false,
       "routing_truth": "local",
       "speech": "Today is Wednesday, August 5th, 2026.",
@@ -65,8 +65,43 @@
           "name": "GetDateTime"
         }
       ],
-      "ttft_ms": 654.013,
+      "ttft_ms": 710.409,
       "utterance": "what's the date today?"
+    },
+    {
+      "bucket": "resolved by LLM, correct",
+      "cache_creation_tokens": 5016,
+      "cache_read_tokens": 5016,
+      "category": "device-control",
+      "correct": true,
+      "effects": [],
+      "generations": 2,
+      "id": "turn-off-lights-from-room",
+      "input_tokens": 1052,
+      "output_tokens": 281,
+      "provider_options": {
+        "web_fetch": false,
+        "web_search": false
+      },
+      "resolved": true,
+      "resolves_at_wave0": true,
+      "round_duration_ms": 3806.492,
+      "routed_locally": false,
+      "routing_truth": "local",
+      "speech": "Done! I've turned off the lights in the living room.",
+      "tools": [
+        {
+          "args": {
+            "area": "living room",
+            "domain": [
+              "light"
+            ]
+          },
+          "name": "HassTurnOff"
+        }
+      ],
+      "ttft_ms": 636.304,
+      "utterance": "turn off the lights"
     },
     {
       "bucket": "wrong action",
@@ -76,21 +111,21 @@
       "correct": false,
       "effects": [],
       "generations": 1,
-      "id": "turn-off-all-lights",
+      "id": "turn-off-lights-unplaced",
       "input_tokens": 357,
-      "output_tokens": 233,
+      "output_tokens": 224,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 1951.976,
+      "round_duration_ms": 2764.863,
       "routed_locally": false,
-      "routing_truth": "local",
-      "speech": "You have lights in multiple areas:\n- Bedroom Light\n- Desk Lamp (office)\n- Kitchen Light\n- Living Room Lamp\n\nWould you like me to turn off all of them, or specific lights in a particular area?",
+      "routing_truth": "llm",
+      "speech": "You have lights in multiple areas: bedroom, office, kitchen, and living room. Which lights would you like to turn off? You can specify an area, or I can turn off all of them.",
       "tools": [],
-      "ttft_ms": 600.77,
+      "ttft_ms": 1143.572,
       "utterance": "turn off the lights"
     },
     {
@@ -102,30 +137,27 @@
       "effects": [],
       "generations": 2,
       "id": "turn-on-kitchen-light",
-      "input_tokens": 963,
-      "output_tokens": 206,
+      "input_tokens": 1063,
+      "output_tokens": 306,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 3225.6450000000004,
+      "round_duration_ms": 5290.3009999999995,
       "routed_locally": false,
       "routing_truth": "local",
       "speech": "Done! The kitchen light is now on.",
       "tools": [
         {
           "args": {
-            "domain": [
-              "light"
-            ],
             "name": "Kitchen Light"
           },
           "name": "HassTurnOn"
         }
       ],
-      "ttft_ms": 795.585,
+      "ttft_ms": 1084.316,
       "utterance": "turn on the kitchen light"
     },
     {
@@ -137,18 +169,18 @@
       "effects": [],
       "generations": 2,
       "id": "turn-off-living-room-lamp",
-      "input_tokens": 985,
-      "output_tokens": 223,
+      "input_tokens": 917,
+      "output_tokens": 156,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 2996.349,
+      "round_duration_ms": 2821.078,
       "routed_locally": false,
       "routing_truth": "local",
-      "speech": "Done! The living room lamp is now off.",
+      "speech": "Done! I've turned off the living room lamp.",
       "tools": [
         {
           "args": {
@@ -160,7 +192,7 @@
           "name": "HassTurnOff"
         }
       ],
-      "ttft_ms": 724.727,
+      "ttft_ms": 950.195,
       "utterance": "turn off the living room lamp"
     },
     {
@@ -172,18 +204,18 @@
       "effects": [],
       "generations": 2,
       "id": "set-bedroom-brightness",
-      "input_tokens": 949,
-      "output_tokens": 190,
+      "input_tokens": 928,
+      "output_tokens": 169,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 2597.526,
+      "round_duration_ms": 2261.413,
       "routed_locally": false,
       "routing_truth": "local",
-      "speech": "Done! I've set the bedroom light to 30% brightness.",
+      "speech": "Done! The bedroom light is now set to 30% brightness.",
       "tools": [
         {
           "args": {
@@ -193,7 +225,7 @@
           "name": "HassLightSet"
         }
       ],
-      "ttft_ms": 845.091,
+      "ttft_ms": 678.462,
       "utterance": "set the bedroom light to 30%"
     },
     {
@@ -205,15 +237,15 @@
       "effects": [],
       "generations": 2,
       "id": "open-garage-door",
-      "input_tokens": 970,
-      "output_tokens": 210,
+      "input_tokens": 949,
+      "output_tokens": 189,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 2942.452,
+      "round_duration_ms": 2829.9570000000003,
       "routed_locally": false,
       "routing_truth": "local",
       "speech": "The garage door is now open.",
@@ -228,7 +260,7 @@
           "name": "HassTurnOn"
         }
       ],
-      "ttft_ms": 615.796,
+      "ttft_ms": 528.325,
       "utterance": "open the garage door"
     },
     {
@@ -240,15 +272,15 @@
       "effects": [],
       "generations": 2,
       "id": "close-blinds",
-      "input_tokens": 1065,
-      "output_tokens": 300,
+      "input_tokens": 967,
+      "output_tokens": 202,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 4094.318,
+      "round_duration_ms": 4745.229,
       "routed_locally": false,
       "routing_truth": "local",
       "speech": "Done! The living room blinds are now closed.",
@@ -258,12 +290,13 @@
             "domain": [
               "cover"
             ],
-            "name": "Living Room Blinds"
+            "name": "Living Room Blinds",
+            "position": 0
           },
-          "name": "HassTurnOff"
+          "name": "HassSetPosition"
         }
       ],
-      "ttft_ms": 572.318,
+      "ttft_ms": 911.686,
       "utterance": "close the living room blinds"
     },
     {
@@ -275,18 +308,18 @@
       "effects": [],
       "generations": 2,
       "id": "set-blinds-position",
-      "input_tokens": 1017,
-      "output_tokens": 247,
+      "input_tokens": 997,
+      "output_tokens": 229,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 4071.037,
+      "round_duration_ms": 2923.089,
       "routed_locally": false,
       "routing_truth": "local",
-      "speech": "Done! The living room blinds are now set to 50%.",
+      "speech": "Done! I've set the living room blinds to 50% open.",
       "tools": [
         {
           "args": {
@@ -296,7 +329,7 @@
           "name": "HassSetPosition"
         }
       ],
-      "ttft_ms": 577.886,
+      "ttft_ms": 653.286,
       "utterance": "set the living room blinds to 50%"
     },
     {
@@ -308,28 +341,27 @@
       "effects": [],
       "generations": 2,
       "id": "room-temperature",
-      "input_tokens": 1001,
-      "output_tokens": 227,
+      "input_tokens": 1121,
+      "output_tokens": 216,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 2732.031,
+      "round_duration_ms": 3419.121,
       "routed_locally": false,
       "routing_truth": "local",
-      "speech": "The current temperature in the living room is 19\u00b0C. The thermostat is set to heat mode with a target temperature of 20\u00b0C.",
+      "speech": "The current temperature in the living room is **19\u00b0C**. The thermostat is set to heat mode with a target temperature of 20\u00b0C.",
       "tools": [
         {
           "args": {
-            "area": "living room",
-            "domain": "climate"
+            "area": "living room"
           },
           "name": "GetLiveContext"
         }
       ],
-      "ttft_ms": 655.608,
+      "ttft_ms": 1093.696,
       "utterance": "what's the temperature in the living room?"
     },
     {
@@ -341,18 +373,18 @@
       "effects": [],
       "generations": 2,
       "id": "weather",
-      "input_tokens": 909,
-      "output_tokens": 151,
+      "input_tokens": 906,
+      "output_tokens": 147,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 2254.415,
+      "round_duration_ms": 2579.1279999999997,
       "routed_locally": false,
       "routing_truth": "local",
-      "speech": "The weather is currently sunny with a temperature of 22\u00b0C (or about 72\u00b0F).",
+      "speech": "The weather is currently sunny with a temperature of 22\u00b0C (about 72\u00b0F).",
       "tools": [
         {
           "args": {
@@ -361,7 +393,7 @@
           "name": "GetLiveContext"
         }
       ],
-      "ttft_ms": 541.919,
+      "ttft_ms": 1165.903,
       "utterance": "what's the weather?"
     },
     {
@@ -373,29 +405,28 @@
       "effects": [],
       "generations": 2,
       "id": "set-volume",
-      "input_tokens": 1039,
-      "output_tokens": 258,
+      "input_tokens": 970,
+      "output_tokens": 205,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 4119.4169999999995,
+      "round_duration_ms": 4792.141,
       "routed_locally": false,
       "routing_truth": "local",
       "speech": "Done! I've set the living room speaker volume to 40%.",
       "tools": [
         {
           "args": {
-            "area": "living room",
             "name": "Living Room Speaker",
             "volume_level": 40
           },
           "name": "HassSetVolume"
         }
       ],
-      "ttft_ms": 1196.8,
+      "ttft_ms": 623.663,
       "utterance": "set the living room volume to 40%"
     },
     {
@@ -407,15 +438,15 @@
       "effects": [],
       "generations": 2,
       "id": "pause-music",
-      "input_tokens": 1009,
-      "output_tokens": 256,
+      "input_tokens": 977,
+      "output_tokens": 224,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 4136.5,
+      "round_duration_ms": 3685.689,
       "routed_locally": false,
       "routing_truth": "local",
       "speech": "Done! I've paused the music on the Living Room Speaker.",
@@ -430,7 +461,7 @@
           "name": "HassMediaPause"
         }
       ],
-      "ttft_ms": 1176.621,
+      "ttft_ms": 1195.443,
       "utterance": "pause the music"
     },
     {
@@ -451,18 +482,18 @@
       ],
       "generations": 2,
       "id": "start-timer",
-      "input_tokens": 943,
-      "output_tokens": 201,
+      "input_tokens": 953,
+      "output_tokens": 208,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 2532.81,
+      "round_duration_ms": 3052.139,
       "routed_locally": false,
       "routing_truth": "local",
-      "speech": "Done! I've set a timer for 10 minutes.",
+      "speech": "Your 10 minute timer has been set!",
       "tools": [
         {
           "args": {
@@ -471,7 +502,7 @@
           "name": "HassStartTimer"
         }
       ],
-      "ttft_ms": 483.641,
+      "ttft_ms": 597.704,
       "utterance": "set a timer for 10 minutes"
     },
     {
@@ -491,18 +522,18 @@
       ],
       "generations": 2,
       "id": "add-shopping-item",
-      "input_tokens": 944,
-      "output_tokens": 185,
+      "input_tokens": 908,
+      "output_tokens": 149,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 3489.1059999999998,
+      "round_duration_ms": 3044.017,
       "routed_locally": false,
       "routing_truth": "local",
-      "speech": "Done! I've added milk to your shopping list.",
+      "speech": "Done! I've added milk to your Shopping List.",
       "tools": [
         {
           "args": {
@@ -512,7 +543,7 @@
           "name": "HassListAddItem"
         }
       ],
-      "ttft_ms": 679.449,
+      "ttft_ms": 1753.329,
       "utterance": "add milk to the shopping list"
     },
     {
@@ -525,19 +556,19 @@
       "generations": 1,
       "id": "nevermind",
       "input_tokens": 355,
-      "output_tokens": 68,
+      "output_tokens": 81,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 1683.617,
+      "round_duration_ms": 2303.11,
       "routed_locally": false,
       "routing_truth": "local",
-      "speech": "No problem! Let me know if you need anything later.",
+      "speech": "No problem! Let me know if you need anything else.",
       "tools": [],
-      "ttft_ms": 1267.138,
+      "ttft_ms": 1357.425,
       "utterance": "never mind"
     },
     {
@@ -549,18 +580,18 @@
       "effects": [],
       "generations": 2,
       "id": "is-garage-open",
-      "input_tokens": 975,
-      "output_tokens": 199,
+      "input_tokens": 921,
+      "output_tokens": 130,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 3043.28,
+      "round_duration_ms": 2832.362,
       "routed_locally": false,
       "routing_truth": "local",
-      "speech": "Yes, the garage door is open. Its current position is at 100%, which indicates it's fully open.",
+      "speech": "Yes, the garage door is open.",
       "tools": [
         {
           "args": {
@@ -569,7 +600,7 @@
           "name": "GetLiveContext"
         }
       ],
-      "ttft_ms": 1053.714,
+      "ttft_ms": 1197.377,
       "utterance": "is the garage door open?"
     },
     {
@@ -581,15 +612,15 @@
       "effects": [],
       "generations": 2,
       "id": "compound-two-devices",
-      "input_tokens": 1105,
-      "output_tokens": 248,
+      "input_tokens": 1145,
+      "output_tokens": 288,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 3658.465,
+      "round_duration_ms": 2591.574,
       "routed_locally": false,
       "routing_truth": "llm",
       "speech": "Done! I've turned off the kitchen light and the bedroom fan.",
@@ -613,7 +644,7 @@
           "name": "HassTurnOff"
         }
       ],
-      "ttft_ms": 1713.027,
+      "ttft_ms": 621.887,
       "utterance": "turn off the kitchen light and the bedroom fan"
     },
     {
@@ -625,27 +656,28 @@
       "effects": [],
       "generations": 2,
       "id": "implicit-cold",
-      "input_tokens": 969,
-      "output_tokens": 230,
+      "input_tokens": 1054,
+      "output_tokens": 284,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 4115.186,
+      "round_duration_ms": 3328.713,
       "routed_locally": false,
       "routing_truth": "llm",
-      "speech": "I can help warm things up! Your thermostat is currently set to 20\u00b0C and the current temperature is 19\u00b0C. \n\nWhat temperature would you like me to set it to? A typical comfortable temperature is around 21-22\u00b0C.",
+      "speech": "Your thermostat is currently set to 20\u00b0C. What temperature would you like me to set it to?",
       "tools": [
         {
           "args": {
+            "domain": "climate",
             "name": "Thermostat"
           },
           "name": "GetLiveContext"
         }
       ],
-      "ttft_ms": 1169.987,
+      "ttft_ms": 616.544,
       "utterance": "I'm cold"
     },
     {
@@ -658,19 +690,19 @@
       "generations": 1,
       "id": "implicit-too-dark",
       "input_tokens": 359,
-      "output_tokens": 199,
+      "output_tokens": 175,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 2188.491,
+      "round_duration_ms": 2311.195,
       "routed_locally": false,
       "routing_truth": "llm",
-      "speech": "I can help brighten things up! Which area are you in? I can turn on lights in:\n- Bedroom\n- Office\n- Kitchen\n- Living Room\n\nLet me know which room, and I'll turn on the lights for you.",
+      "speech": "I can help brighten things up! Which room are you in? I have lights available in:\n\n- Bedroom\n- Office\n- Kitchen\n- Living Room\n\nLet me know which area you'd like me to turn on the light in.",
       "tools": [],
-      "ttft_ms": 643.779,
+      "ttft_ms": 936.878,
       "utterance": "it's too dark in here"
     },
     {
@@ -682,15 +714,15 @@
       "effects": [],
       "generations": 2,
       "id": "reasoning-did-i-leave-garage",
-      "input_tokens": 979,
-      "output_tokens": 194,
+      "input_tokens": 985,
+      "output_tokens": 200,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 3431.225,
+      "round_duration_ms": 2402.4449999999997,
       "routed_locally": false,
       "routing_truth": "llm",
       "speech": "Yes, your garage door is open. Would you like me to close it for you?",
@@ -703,7 +735,7 @@
           "name": "GetLiveContext"
         }
       ],
-      "ttft_ms": 777.124,
+      "ttft_ms": 536.223,
       "utterance": "did I leave the garage door open?"
     },
     {
@@ -716,19 +748,19 @@
       "generations": 1,
       "id": "knowledge-capital-france",
       "input_tokens": 360,
-      "output_tokens": 64,
+      "output_tokens": 74,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": true,
-      "round_duration_ms": 1183.239,
+      "round_duration_ms": 2603.338,
       "routed_locally": false,
       "routing_truth": "llm",
       "speech": "The capital of France is Paris.",
       "tools": [],
-      "ttft_ms": 594.141,
+      "ttft_ms": 1090.856,
       "utterance": "what's the capital of France?"
     },
     {
@@ -741,7 +773,7 @@
         {
           "data": {
             "device_id": "56ceaf0fbc7a5cd1d9352edc93cdcc85",
-            "name": "Close garage door",
+            "name": "Garage door reminder",
             "seconds": 3600
           },
           "kind": "timer.started"
@@ -749,28 +781,28 @@
       ],
       "generations": 2,
       "id": "conditional-reminder",
-      "input_tokens": 1023,
-      "output_tokens": 290,
+      "input_tokens": 1009,
+      "output_tokens": 276,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": false,
-      "round_duration_ms": 3998.217,
+      "round_duration_ms": 3530.9669999999996,
       "routed_locally": false,
       "routing_truth": "llm",
-      "speech": "Done! I've set a timer for 1 hour to remind you to close the garage door. The timer will alert you when the hour is up.",
+      "speech": "I've set a 1-hour reminder for the garage door. When the timer goes off, you'll be reminded to check if you've closed it.",
       "tools": [
         {
           "args": {
             "hours": 1,
-            "name": "Close garage door"
+            "name": "Garage door reminder"
           },
           "name": "HassStartTimer"
         }
       ],
-      "ttft_ms": 1030.317,
+      "ttft_ms": 690.028,
       "utterance": "remind me in an hour if I haven't closed the garage door"
     },
     {
@@ -783,19 +815,19 @@
       "generations": 1,
       "id": "remember-fact",
       "input_tokens": 362,
-      "output_tokens": 214,
+      "output_tokens": 237,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": false,
-      "round_duration_ms": 3049.113,
+      "round_duration_ms": 2760.234,
       "routed_locally": false,
       "routing_truth": "llm",
-      "speech": "I can't store or remember passwords or other sensitive security credentials. This is an important security practice to protect your accounts.\n\nFor your wifi password, I'd recommend:\n- Storing it in a secure password manager (like Bitwarden, 1Password, or your device's built-in password manager)\n- Writing it down and keeping it in a safe physical location\n- Not sharing it through chat or voice assistants\n\nIf you need help with anything else related to your Home Assistant setup, I'm happy to assist!",
+      "speech": "I can't store or remember passwords or sensitive information like WiFi credentials. That's a security best practice.\n\nFor managing your WiFi password:\n- Store it securely in a password manager (like Bitwarden, 1Password, or LastPass)\n- Use your Home Assistant system's built-in credential storage for integrations that need it\n- Keep it written down in a secure location if needed\n\nIs there anything else I can help you with for your smart home?",
       "tools": [],
-      "ttft_ms": 980.309,
+      "ttft_ms": 574.267,
       "utterance": "remember the wifi password is hunter2-galaxy"
     },
     {
@@ -808,43 +840,43 @@
       "generations": 1,
       "id": "undo-last",
       "input_tokens": 356,
-      "output_tokens": 107,
+      "output_tokens": 139,
       "provider_options": {
         "web_fetch": false,
         "web_search": false
       },
       "resolved": true,
       "resolves_at_wave0": false,
-      "round_duration_ms": 1370.757,
+      "round_duration_ms": 1731.378,
       "routed_locally": false,
       "routing_truth": "llm",
-      "speech": "I haven't made any changes yet, so there's nothing to undo. This is the beginning of our conversation. \n\nWhat would you like me to help you with?",
+      "speech": "I don't have any record of a previous action in this conversation to undo. Could you let me know what you'd like me to reverse? For example, did you want me to turn something off, close something, or adjust a setting?",
       "tools": [],
-      "ttft_ms": 617.045,
+      "ttft_ms": 710.779,
       "utterance": "undo that"
     }
   ],
   "cost_totals": {
-    "cache_creation_tokens": 5025,
-    "cache_read_tokens": 216075,
-    "generations": 44,
-    "input_tokens": 20656,
-    "output_tokens": 4877
+    "cache_creation_tokens": 10041,
+    "cache_read_tokens": 221091,
+    "generations": 46,
+    "input_tokens": 21633,
+    "output_tokens": 4965
   },
   "latency_ms": {
-    "model_turns": 25,
-    "round_duration_p50": 2996.3,
-    "round_duration_p95": 4118.6,
-    "ttft_clocked": 25,
-    "ttft_p50": 679.4,
-    "ttft_p95": 1253.1
+    "model_turns": 26,
+    "round_duration_p50": 2825.5,
+    "round_duration_p95": 4780.4,
+    "ttft_clocked": 26,
+    "ttft_p50": 777.3,
+    "ttft_p95": 1317.4
   },
   "routing_agreement": {
-    "agree": 8,
-    "total": 25
+    "agree": 9,
+    "total": 26
   },
   "run": {
-    "cases": 25,
+    "cases": 26,
     "corpus": "wave0_golden_set.yaml",
     "effect_telemetry": true,
     "kind": "wave0-live-baseline",
@@ -852,6 +884,6 @@
     "prefer_local": false,
     "provider_options": "per-case",
     "subset": false,
-    "timestamp": "2026-08-06T05:23:12.945919+00:00"
+    "timestamp": "2026-08-06T06:48:41.482000+00:00"
   }
 }

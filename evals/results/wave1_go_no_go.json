@@ -3,7 +3,7 @@
     "gates": 4,
     "kind": "wave1-go-no-go",
     "open_gates": 0,
-    "timestamp": "2026-08-06T06:00:47.688843+00:00",
+    "timestamp": "2026-08-06T06:50:07.344346+00:00",
     "wave": 1
   },
   "sources": {
@@ -23,7 +23,7 @@
       "corpus": "wave0_golden_set.yaml",
       "kind": "wave1-local-first",
       "predates_rescoring": false,
-      "timestamp": "2026-08-06T05:36:16.867876+00:00"
+      "timestamp": "2026-08-06T06:49:45.662274+00:00"
     },
     "wave1_localized_catalog": {
       "corpus": null,
@@ -78,18 +78,18 @@
         "buckets": {
           "resolved after clarification": 0,
           "resolved by LLM, correct": 6,
-          "resolved locally (hassil)": 13,
+          "resolved locally (hassil)": 14,
           "unjudged (no success predicate)": 3,
           "unresolved / \"I don't understand\"": 0,
           "wrong action": 3
         },
-        "cases": 25,
+        "cases": 26,
         "deferred": 1,
-        "missed": 9,
+        "missed": 10,
         "off_cloud": 14,
         "routing_agreement": {
-          "agree": 22,
-          "total": 25
+          "agree": 23,
+          "total": 26
         },
         "unverifiable_local_wins": 0
       },

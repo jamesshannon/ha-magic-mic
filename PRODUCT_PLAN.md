@@ -600,12 +600,13 @@ and are subtle:
 
 **Verdict (2026-08-05): recommend it on.** This is a Home Assistant pipeline setting, not a
 Magic Mic one; nothing in the integration reads it, so "recommend" is the whole action.
-`evals/harness/local_first.py` over the Wave 0 golden set routes **14 of 25 turns off-cloud**
-with **22/25 routing agreement**, and the off-cloud figure is a floor: `weather` matched
+`evals/harness/local_first.py` over the Wave 0 golden set routes **14 of 26 turns off-cloud**
+with **23/26 routing agreement**, and the off-cloud figure is a floor: `weather` matched
 `HassGetWeather` and fell through only because the fixture home has no weather integration.
-Zero regressions trace to routing. The single local "wrong action", `turn-off-all-lights`, is
-the room-scoped result a 2026-08-04 ruling deemed correct against a stale whole-home
-expectation, and it fails identically on the LLM path. The bounded downside above did not
+Zero regressions trace to routing, and no local win is wrong: the bare `turn off the lights`
+case that once failed here was split by satellite placement on 2026-08-06, after which the
+room-scoped reading passes on both paths and only the unplaced reading fails, on model
+behavior rather than routing. The bounded downside above did not
 appear: none of the three routing disagreements is hassil taking a turn it should not have
 (one fixture gap, one CONTROL deferral by HA's design, one strict miss on `pause-music`).
 The 2026-08-06 re-run closed the arg-bearing gap: every local win is now verified, two of them
