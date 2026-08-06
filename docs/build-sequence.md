@@ -270,10 +270,10 @@ Open gates (each blocks the wave's go/no-go):
   expectation, and it fails the same way on the LLM path. None of the three routing
   disagreements is hassil taking a turn it should not have, so the false-positive pre-emption
   §2.9 warns about did not appear. Two consequences carried forward rather than closed here:
-  the artifact reports three arg-bearing local wins UNJUDGED, all three of which close on the
-  next run under the 2026-08-05 changes (`start-timer` and `add-shopping-item` judged from
-  their durable effects, `set-bedroom-brightness` converted to state scoring), leaving no
-  UNJUDGED local win ([`evaluation.md`](evaluation.md)); and locally handled mutations do not reach the undo
+  the three arg-bearing local wins that the first run could not verify are all verified in the
+  2026-08-06 re-run (`start-timer` and `add-shopping-item` from their durable effects,
+  `set-bedroom-brightness` from state), so no local win goes unverified
+  ([`evaluation.md`](evaluation.md)); and locally handled mutations do not reach the undo
   journal, which makes `HassUndo`-as-local-intent a prerequisite of the undo claim
   ([`undo.md`](undo.md)). The deferred room-scoped rewrite of `turn-off-all-lights` is
   independent of this verdict and still open.

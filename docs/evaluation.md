@@ -368,10 +368,11 @@ missing arg schema makes it look. A locally routed action never exposes its argu
 HASSIL regression starting a 10-minute timer for "set a timer for 5 minutes" is caught.
 
 The one case with arguments and no observable effect, `set-bedroom-brightness`, was converted
-to `expect_changes` the same day, so **no Wave 0 case is UNJUDGED on the local path any
-more**. The fix there was not an arg convention but the one `set-volume` already took: 30% is
-brightness 76 of 255 in the attributes, which is the argument, observed. Both artifacts
-predate these changes and report the old counts until they are rerun.
+to `expect_changes` the same day. The fix there was not an arg convention but the one
+`set-volume` already took: 30% is brightness 76 of 255 in the attributes, which is the
+argument, observed. The 2026-08-06 re-run confirms it end to end, with
+`unjudged_local: 0` against the previous 3 and **routing identical case for case**, so the
+scoring got stricter without the off-cloud claim moving.
 
 The residual is a shape rather than a case: an arg-bearing local action whose arguments leave
 neither a state change nor a durable effect. Nothing in the Wave 0 set is one. A future
@@ -671,8 +672,11 @@ because the two borrowings are independent:
   observe. A tenth followed on 2026-08-05: `set-bedroom-brightness` looked like it needed tool
   precision, but the percentage is what the attribute records (30% is brightness 76 of 255),
   and its two tool expectations disagreed on the grounding slot. A case with a loose end state
-  (`implicit-cold`) stays tool-scored. The locked baseline artifact predates this and needs a
-  keyed re-run to refresh its scoring basis (see `evals/README.md`).
+  (`implicit-cold`) stays tool-scored. The baseline artifact was re-run keyed on 2026-08-06 so
+  its scoring basis matches; it now reads 18 LLM-correct / 3 wrong / 4 unjudged, and the two
+  predictions the stale artifact carried (the `weather` fixture defect, and the effect
+  telemetry that would judge `start-timer` and `add-shopping-item`) both held (see
+  `evals/README.md`).
 - **`synthetic_home`: adopted at the format level only, not the component.** The three levels
   of coupling: (1) the inventory *format*, our own parser, no dependency; (2) the PyPI library
   `synthetic-home` (Apache-2.0, `requires_python >=3.13`) as a pinned test-only dep behind an

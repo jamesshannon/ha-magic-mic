@@ -608,11 +608,12 @@ the room-scoped result a 2026-08-04 ruling deemed correct against a stale whole-
 expectation, and it fails identically on the LLM path. The bounded downside above did not
 appear: none of the three routing disagreements is hassil taking a turn it should not have
 (one fixture gap, one CONTROL deferral by HA's design, one strict miss on `pause-music`).
-Two things the number does not cover: three arg-bearing local wins are reported UNJUDGED
-in that artifact, all of which close on the next run under the 2026-08-05 scoring changes
-(`docs/evaluation.md`), and locally handled mutations do not reach the
-undo journal ([`docs/undo.md`](docs/undo.md)), which is why `HassUndo` as a local intent is a
-prerequisite of the undo claim under prefer-local rather than a refinement of it.
+The 2026-08-06 re-run closed the arg-bearing gap: every local win is now verified, two of them
+from their durable effects and one from state, so the artifact carries **0 unverifiable local
+wins** and the routing figures above are unchanged case for case. What the number still does
+not cover is undo: locally handled mutations do not reach the undo journal
+([`docs/undo.md`](docs/undo.md)), which is why `HassUndo` as a local intent is a prerequisite
+of the undo claim under prefer-local rather than a refinement of it.
 
 **Strategic consequence (dual-payoff):** with prefer-local on, every **"helps-local"
 intent we contribute** (`find_entities`-as-intent, calendar-write intent, what's-playing

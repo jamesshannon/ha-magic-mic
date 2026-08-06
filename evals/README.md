@@ -288,28 +288,30 @@ Findings the keyless routing measurement surfaced:
 ### Wave 0 exit gate (blocks Wave 1): done
 
 Ran the live baseline keyed from a project-root `.env`: stock full-roster prompt,
-`prefer_local` OFF, model `claude-haiku-4-5`, 25 cases. Rescored result through R23: 15
-resolved-by-LLM-correct, 4 wrong-action, 6 unjudged, 0 unresolved; routing agreement 8/25
-(every case routes to the LLM with
-`prefer_local` OFF, so only the 8 `llm`-labelled cases agree); 44 generations. Wave 1 reports
-Δtokens / Δturns / Δhassil-rate against this artifact.
+`prefer_local` OFF, model `claude-haiku-4-5`, 25 cases. Current artifact (re-run 2026-08-06):
+**18 resolved-by-LLM-correct, 3 wrong-action, 4 unjudged, 0 unresolved**; routing agreement
+8/25 (every case routes to the LLM with `prefer_local` OFF, so only the 8 `llm`-labelled cases
+agree); 44 generations; 20,656 input / 4,877 output / 216,075 cache-read tokens; TTFT p50
+679ms p95 1,253ms, round p50 3.00s p95 4.12s over 25 model turns. Wave 1 reports Δtokens /
+Δturns / Δhassil-rate against this artifact.
 
-> **Refreshed under state scoring (keyed re-run, `claude-haiku-4-5`).** After nine
-> device-control cases moved to `expect_changes`, the keyed baseline was re-run so its
-> scoring basis matches. R20 through R23 later rescored the stored observations as 15
-> LLM-correct / 4 wrong-action / 6 unjudged / 0 unresolved, still 44 generations. State
-> scoring agrees with
-> the reconciled tool expectations on this corpus while being robust to tool variance (the
-> device cases pass whichever equally-valid tool the model picks). The three wrong cases are
-> model behavior, not harness faults: `turn-off-all-lights` and `implicit-too-dark` ask which
-> entity instead of acting (the world does not change, so state scoring marks them wrong for
-> the right reason); `implicit-cold` reads the thermostat then asks how warm. The fourth
-> stored wrong result, `weather`, came from the R22 fixture defect and needs a keyed rerun.
-> The three unbuilt VISION cases have no success predicate and cannot raise task success.
-> `nevermind` is also unjudged on the LLM path because a plain acknowledgement has no
-> deterministic success predicate. `start-timer` and `add-shopping-item` are unjudged only
-> because this historical artifact predates durable-effect telemetry; a keyed rerun can
-> prove their effects.
+> **What the 2026-08-06 re-run settled.** The previous artifact (2026-07-30) scored 15
+> LLM-correct / 4 wrong / 6 unjudged and carried two written-down predictions. Both held.
+> `weather` was stored wrong because of the R22 fixture defect, and with the fixture exposing
+> `weather.home` it now answers "sunny, 22°C" and passes. `start-timer` and `add-shopping-item`
+> were unjudged only because that artifact predated durable-effect telemetry; the re-run
+> records `timer.started {seconds: 600}` and `todo.item_created {summary: milk}` and judges
+> both correct. `set-bedroom-brightness` moved to state scoring the same week and stayed
+> correct, which is the check that its two disagreeing tool expectations were not load-bearing.
+>
+> The three remaining wrong cases are model behavior, not harness faults:
+> `turn-off-all-lights` and `implicit-too-dark` ask which entity instead of acting (the world
+> does not change, so state scoring marks them wrong for the right reason), and `implicit-cold`
+> reads the thermostat then asks how warm. State scoring agrees with the reconciled tool
+> expectations on this corpus while being robust to tool variance: the device cases pass
+> whichever equally-valid tool the model picks. Of the four unjudged, three are unbuilt VISION
+> capabilities with no success predicate, and `nevermind` is a plain acknowledgement that has
+> none either.
 
 This is the **pre-magic roster**. Cases without `provider_options` run with `web_search` and
 `web_fetch` off. A search-specific case can enable either provider tool without changing the
@@ -317,14 +319,21 @@ rest of the corpus, and the artifact records the effective options per case. The
 pins unspecified provider defaults off, preserving this reference if shipped defaults ever
 change.
 
-### Local-first routing (2026-08-04, `claude-haiku-4-5`, living_room satellite)
+### Local-first routing (re-run 2026-08-06, `claude-haiku-4-5`, living_room satellite)
 
-First live run of `harness/local_first.py` (the faithful prefer-local path: strict recognize
-plus HA's CONTROL fallback filter, model only on a miss or deferred intent). Routing:
-**14/25 off-cloud** (local wins, no model call), 1 deferred by CONTROL (`is-garage-open`,
-`HassGetState`), 9 local miss to the LLM; routing agreement 22/25. Scorecard: 10 resolved
-locally and correct, 6 LLM correct, 3 wrong-action, 6 unjudged. Latency over the 11 model
-turns: TTFT p50 634ms / p95 2673ms, round duration p50 3.06s / p95 5.88s.
+`harness/local_first.py` (the faithful prefer-local path: strict recognize plus HA's CONTROL
+fallback filter, model only on a miss or deferred intent). Routing: **14/25 off-cloud** (local
+wins, no model call), 1 deferred by CONTROL (`is-garage-open`, `HassGetState`), 9 local miss to
+the LLM; **0 locally-routed but unverifiable**; routing agreement 22/25. Scorecard: 13 resolved
+locally and correct, 6 LLM correct, 3 wrong-action, 3 unjudged. Latency over the 11 model
+turns: TTFT p50 646ms / p95 2,172ms, round duration p50 3.43s / p95 4.82s.
+
+Routing is identical to the 2026-08-04 run, case for case, which is the useful part: the
+scoring changed and the routing did not. The three former UNJUDGED local wins
+(`set-bedroom-brightness`, `start-timer`, `add-shopping-item`) now resolve correct, two from
+their durable effects and one from state. The remaining 3 unjudged are LLM-routed cases for
+capabilities that do not exist yet (`conditional-reminder`, `remember-fact`, `undo-last`), so
+no local win goes unverified.
 
 One local win diverged, which is the finding the gate exists to surface. `turn off the
 lights` from a living_room satellite resolves locally to that room (`HassTurnOff`,
@@ -335,18 +344,14 @@ satellite; HASSIL is right and the corpus case encodes the wrong (whole-home) ex
 The corpus case `turn-off-all-lights` needs a room-scoped rewrite (deferred: its expectation
 is entangled with the area-less baseline, which has no room to scope to, so the two drivers
 may need different expectations). The distinct `turn off *all* the lights` phrasing is
-genuinely ambiguous and is TBD later. The other two wrong-action cases (`implicit-cold`,
-`implicit-too-dark`) are LLM-routed model behavior, not routing. The three arg-bearing local wins
-(`set-bedroom-brightness`, `start-timer`, `add-shopping-item`) are UNJUDGED: they executed
-locally but the local path exposes no arg schema to verify against. **Superseded (2026-08-05),
-and this artifact predates it:** the driver now judges an arg-bearing local win from a
-declared durable effect, which `start-timer` (`timer.started`, seconds) and
-`add-shopping-item` (`todo.item_created`, summary) both produce on the local path, and
-`set-bedroom-brightness` moved to state scoring. All three resolve on the next run, leaving no
-UNJUDGED local win in the corpus. `weather` routed to the
-LLM only because the fixture has no weather integration (recognized `HassGetWeather`, no
-handler); a real home with the integration resolves it locally, so the true off-cloud rate
-is a lower bound here.
+genuinely ambiguous and is TBD later. The re-run makes the mechanism visible rather than
+inferred: the artifact records the bound slots, and this case shows
+`{'area': 'living_room', 'domain': ['light']}` for an utterance containing no area, which is
+HA's `_make_intent_context` injecting the satellite's area at recognize time. The other two
+wrong-action cases (`implicit-cold`, `implicit-too-dark`) are LLM-routed model behavior, not
+routing. `weather` still routes to the LLM: the fixture registers `weather.home` but no weather
+integration, so `HassGetWeather` recognizes with no handler. A real home with the integration
+resolves it locally, making the off-cloud rate a lower bound here.
 
 **Verdict (2026-08-05): recommend `prefer_local_intents` on** (PRODUCT_PLAN §2.9, README
 install step 6). None of the three routing disagreements is HASSIL taking a turn it should
