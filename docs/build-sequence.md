@@ -277,13 +277,17 @@ Open gates (each blocks the wave's go/no-go):
   journal, which makes `HassUndo`-as-local-intent a prerequisite of the undo claim
   ([`undo.md`](undo.md)). The deferred room-scoped rewrite of `turn-off-all-lights` is
   independent of this verdict and still open.
-- [ ] **Wave 1 go/no-go recorded**. The locked artifact that states the token / turn / local
-  verdict, the Wave 1 analogue of `wave0_baseline.json`. All three reads above are now in, so
-  this is the last open gate. Two of the three closed negative or no-op for the shipped
-  defaults (Tier 2 off, enforcement off) and the third is a setting we do not own, which the
-  artifact has to state plainly rather than dress up. The token half also has to say what is
-  still unmeasured: the entity summary versus HA's roster dump, since both name-injection arms
-  ran with the summary applied.
+- [x] **Wave 1 go/no-go recorded**: `evals/results/wave1_go_no_go.json`, assembled by
+  `evals/harness/go_no_go.py` (no model, no key). It is derived rather than written: every
+  figure is pulled from the keyed artifact that produced it, so a re-run moves the record with
+  it, and a missing or reshaped source raises instead of quietly dropping a leg. Four gates,
+  none open. **Two closed against their own feature** and ship off (name injection at 1.73x
+  prompt spend for identical task success; capability selection blocked by a 53%
+  out-of-vocabulary recall floor and English-only retrieval documents), **one passed and ships
+  on** (`find_entities`, mean 1.71 turns, 5/5 ambiguities recovered, 0 misfires), and **one is
+  not ours to ship** (`prefer_local_intents`, 14/25 off-cloud, recommended in the README). The
+  artifact carries the four unmeasured levers as first-class entries, the entity summary versus
+  HA's roster dump among them, so the record cannot be read as a clean sweep.
 
 *Proves:* the token/turn/local claims — the **go/no-go** on the design's central bet.
 

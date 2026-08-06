@@ -26,9 +26,11 @@ evals/
     console.py                   interactive CLI to hand-drive turns (needs a key)
     backing.py                   real executable entities for the fixture home
     resolution.py                the resolver micro-benchmark loader + runner + scorecard
+    go_no_go.py                  assembles the wave verdict from the other artifacts (no key)
   results/
     wave0_baseline.json          the recorded live baseline Wave 1 measures against
     wave1_fuzzy_fallback.json    the recorded fuzzy-fallback (Consumer 1) run
+    wave1_go_no_go.json          the Wave 1 verdict: what shipped, and what went unmeasured
 ```
 
 ## What the corpus is
@@ -430,6 +432,38 @@ Run the full baseline, or a subset:
 .venv/bin/python -m evals.harness.baseline --routing llm       # just the llm-labelled cases
 .venv/bin/python -m evals.harness.baseline --list              # show the selection, no key
 ```
+
+### Wave 1 verdict (2026-08-06, `wave1_go_no_go.json`)
+
+The wave's closing record, assembled by `harness/go_no_go.py` from the artifacts above. It
+spends nothing and needs no key, so re-run it whenever a source artifact changes:
+
+```
+.venv/bin/python -m evals.harness.go_no_go
+```
+
+Four gates, none open, and only one of them ships on:
+
+| Gate | Outcome | Ships |
+|---|---|---|
+| `tokens.name_injection` | NEGATIVE | off: 1.73x prompt spend, 1.45x total, identical task success |
+| `tokens.capability_selection` | NEGATIVE | off: task-success PASS, held by a 53% out-of-vocabulary recall floor and English-only documents |
+| `turns.find_entities` | PASS | on: mean 1.71 turns, 5/5 ambiguities recovered, 0 misfires |
+| `local.prefer_local_intents` | RECOMMEND_ON | not ours: an HA pipeline setting, 14/25 off-cloud, recommended in the README |
+
+It is derived, not written. Every figure is read out of the artifact that produced it, and a
+missing or reshaped source raises rather than dropping a leg, so the record cannot quietly
+disagree with the runs it summarizes. The spend ratios are recomputed from the raw arm token
+counts using the published price weights (cache write 1.25x, cache read 0.1x, output 5x),
+which are recorded in the artifact so the arithmetic is checkable by hand.
+
+The artifact also carries what the wave **did not** measure, as first-class entries rather
+than a footnote: the entity summary against HA's Static Context roster dump (both
+name-injection arms ran with the summary applied, so it was never isolated), undo coverage of
+locally handled mutations, end-to-end voice latency, and argument correctness for a local
+action leaving neither state nor effect. Two source artifacts predate the 2026-08-06
+re-scoring and are flagged; both are paired A/Bs whose comparison is unaffected, since both
+arms used the same scorer.
 
 ### Model non-determinism
 

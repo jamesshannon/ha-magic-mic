@@ -1,0 +1,231 @@
+{
+  "run": {
+    "gates": 4,
+    "kind": "wave1-go-no-go",
+    "open_gates": 0,
+    "timestamp": "2026-08-06T06:00:47.688843+00:00",
+    "wave": 1
+  },
+  "sources": {
+    "wave1_disambiguation_live": {
+      "corpus": "wave1_disambiguation.yaml",
+      "kind": "wave1-disambiguation-live",
+      "predates_rescoring": false,
+      "timestamp": "2026-08-05T01:52:13.274082+00:00"
+    },
+    "wave1_fuzzy_fallback": {
+      "corpus": "wave1_fuzzy_fallback.yaml",
+      "kind": "wave1-fuzzy-fallback",
+      "predates_rescoring": false,
+      "timestamp": "2026-08-05T07:53:54.528801+00:00"
+    },
+    "wave1_local_first": {
+      "corpus": "wave0_golden_set.yaml",
+      "kind": "wave1-local-first",
+      "predates_rescoring": false,
+      "timestamp": "2026-08-06T05:36:16.867876+00:00"
+    },
+    "wave1_localized_catalog": {
+      "corpus": null,
+      "kind": "wave1-localized-catalog",
+      "predates_rescoring": false,
+      "timestamp": "2026-08-05T19:36:19.066931+00:00"
+    },
+    "wave1_name_injection": {
+      "corpus": "wave0_golden_set.yaml",
+      "kind": "wave1-name-injection",
+      "predates_rescoring": true,
+      "timestamp": "2026-07-31T00:46:58.750459+00:00"
+    },
+    "wave1_scripts_selection_shadow": {
+      "corpus": null,
+      "kind": "wave1-capability-selection-shadow",
+      "predates_rescoring": false,
+      "timestamp": "2026-08-05T15:50:48.843714+00:00"
+    },
+    "wave1_selection_gate": {
+      "corpus": "wave0_golden_set.yaml",
+      "kind": "wave1-capability-selection-gate",
+      "predates_rescoring": true,
+      "timestamp": "2026-08-05T02:46:08.848118+00:00"
+    }
+  },
+  "unmeasured": [
+    {
+      "lever": "prompt-context Tier 1 (entity summary vs HA's Static Context roster dump)",
+      "measures_it": "a summary-on against summary-off pass over the same corpus",
+      "why": "both name-injection arms ran with the summary applied, so the A/B never isolated the summary itself"
+    },
+    {
+      "lever": "undo coverage of locally handled mutations",
+      "measures_it": "HassUndo as a local intent, plus a core intent chokepoint emitting the same outcome contract",
+      "why": "locally routed turns never reach the proxy, so their mutations do not enter the journal; at a 14/25 off-cloud rate that is most of them"
+    },
+    {
+      "lever": "end-to-end voice latency (TTFT/TTLT, spoken duration)",
+      "measures_it": "the controlled voice pipeline layer, with a labelled real-engine profile",
+      "why": "the wave clocks provider rounds only; no controlled pipeline driver exists yet"
+    },
+    {
+      "lever": "argument correctness of a local action with no state or effect trace",
+      "measures_it": "an ExpectedEffect declared at the external boundary of such a capability",
+      "why": "no Wave 0 case has that shape, so the residual is a shape rather than a gap"
+    }
+  ],
+  "verdicts": {
+    "local.prefer_local_intents": {
+      "evidence": {
+        "buckets": {
+          "resolved after clarification": 0,
+          "resolved by LLM, correct": 6,
+          "resolved locally (hassil)": 13,
+          "unjudged (no success predicate)": 3,
+          "unresolved / \"I don't understand\"": 0,
+          "wrong action": 3
+        },
+        "cases": 25,
+        "deferred": 1,
+        "missed": 9,
+        "off_cloud": 14,
+        "routing_agreement": {
+          "agree": 22,
+          "total": 25
+        },
+        "unverifiable_local_wins": 0
+      },
+      "notes": [
+        "Nothing in the integration reads the setting, so the deliverable is a recorded verdict and a README step, not a code change.",
+        "None of the three routing disagreements is the local matcher taking a turn it should not have, so the false-positive pre-emption the design warned about did not appear.",
+        "The off-cloud count is a floor: `weather` matched locally and fell through only because the fixture home has no weather integration."
+      ],
+      "outcome": "RECOMMEND_ON",
+      "question": "How much of the corpus does the local matcher take off the cloud path?",
+      "reopens": null,
+      "ships": "not ours to ship: a Home Assistant pipeline setting, recommended in the README",
+      "sources": [
+        "wave1_local_first"
+      ]
+    },
+    "tokens.capability_selection": {
+      "evidence": {
+        "budget": 8,
+        "exposure": {
+          "avg_exposed_after": 17.12,
+          "avg_exposed_before": 31.0
+        },
+        "localization": {
+          "authored_english_catalog": 23,
+          "cases": 76,
+          "derived_localized_catalog": 76,
+          "language": "de"
+        },
+        "recall_at_8": {
+          "in_vocabulary": 1.0,
+          "out_of_vocabulary": 0.5263,
+          "overall": 0.75
+        },
+        "task_success": {
+          "enforced": 17,
+          "full": 17,
+          "regressions": 0,
+          "selection_attributed_regressions": 0,
+          "total": 25,
+          "verdict": "PASS"
+        }
+      },
+      "notes": [
+        "The task-success gate passes and exposure falls by nearly half, so the flag is not held by task success.",
+        "Recall does not move with budget: the miss list is identical at 8, 12, 16, 24, and 50, so it is a retrieval floor and a wider budget buys nothing.",
+        "The independent blocker is localization: retrieval documents are English, and an English catalog scoring German utterances strands the corpus."
+      ],
+      "outcome": "NEGATIVE",
+      "question": "Can the tool roster be cut per request without losing task success?",
+      "reopens": "the localized-document builder moving into the component, and a retrieval signal that reaches name-only scripts; both scoped into Wave 2",
+      "ships": "off (DEFAULT_CAPABILITY_SELECTION = False)",
+      "sources": [
+        "wave1_selection_gate",
+        "wave1_scripts_selection_shadow",
+        "wave1_localized_catalog"
+      ]
+    },
+    "tokens.name_injection": {
+      "evidence": {
+        "arms": {
+          "control": "summary_only",
+          "treatment": "summary_names"
+        },
+        "buckets": {
+          "resolved after clarification": 0,
+          "resolved by LLM, correct": 15,
+          "resolved locally (hassil)": 0,
+          "unjudged (no success predicate)": 6,
+          "unresolved / \"I don't understand\"": 0,
+          "wrong action": 4
+        },
+        "cost_totals": {
+          "summary_names": {
+            "cache_creation_tokens": 42707,
+            "cache_read_tokens": 196524,
+            "generations": 45,
+            "input_tokens": 21383,
+            "output_tokens": 5070
+          },
+          "summary_only": {
+            "cache_creation_tokens": 5273,
+            "cache_read_tokens": 242558,
+            "generations": 47,
+            "input_tokens": 23653,
+            "output_tokens": 5619
+          }
+        },
+        "prompt_spend_ratio": 1.7325,
+        "task_success_identical": true,
+        "token_weights": {
+          "cache_creation_tokens": 1.25,
+          "cache_read_tokens": 0.1,
+          "input_tokens": 1.0,
+          "output_tokens": 5.0
+        },
+        "total_spend_ratio": 1.4501
+      },
+      "notes": [
+        "Costs more, not less: per-turn names sit inside the single cached system block and re-prefill it every turn.",
+        "No Wave 1 tool consumes an entity_id, so the find_entities round-trip the tier exists to skip is never taken.",
+        "The selector keys on name overlap and domain keywords, so it goes silent on the oblique references the tier was justified by.",
+        "Scored before the 2026-08-06 re-scoring; both arms used the same scorer, so the comparison holds and only the absolute buckets are dated."
+      ],
+      "outcome": "NEGATIVE",
+      "question": "Does request-conditioned name injection (prompt-context Tier 2) reduce spend?",
+      "reopens": "the first tool that consumes an entity_id, in Wave 3, measured against the cache-isolated second system block rather than the single cached block",
+      "ships": "off (DEFAULT_NAME_INJECTION = False)",
+      "sources": [
+        "wave1_name_injection"
+      ]
+    },
+    "turns.find_entities": {
+      "evidence": {
+        "consumer1_cases": 7,
+        "consumer1_correct": 4,
+        "echoed_own_room": 0,
+        "mean_turns_to_complete": 1.7143,
+        "misfired": 0,
+        "no_action": 0,
+        "passed": 7,
+        "recovered": 5,
+        "total": 7
+      },
+      "notes": [
+        "Every genuine ambiguity cost exactly one extra turn, and no case misfired by acting on a guess.",
+        "This is the one Wave 1 lever that ships on by default."
+      ],
+      "outcome": "PASS",
+      "question": "Does deterministic fuzzy resolution complete a task in fewer turns?",
+      "reopens": null,
+      "ships": "on (both consumers wired into the testbed roster)",
+      "sources": [
+        "wave1_disambiguation_live",
+        "wave1_fuzzy_fallback"
+      ]
+    }
+  }
+}
