@@ -105,23 +105,53 @@ cases:
     template: "<what_is> the date [today]"
     note: No-slot date intent.
 
-  - id: turn-off-all-lights
+  # "turn off the lights" means different things depending on where the satellite sits, and
+  # both readings are correct, so the two placements are separate cases. HA injects a
+  # room-bound satellite's area into the recognize context (`_make_intent_context`), which
+  # scopes a bare command to that room; an unplaced satellite has no room to scope to and the
+  # command targets the whole home. Neither case omits `satellite_area`: the outcome depends
+  # on it, so leaving it to the run's default would make each case mean one thing in the
+  # baseline and another in the local-first driver. The distinct "turn off *all* the lights"
+  # phrasing is genuinely ambiguous and is not covered here.
+  - id: turn-off-lights-from-room
     utterance: turn off the lights
     category: device-control
     routing_truth: local
     resolves_at_wave0: true
+    satellite_area: living_room
     requires: [light.kitchen, light.living_room, light.bedroom, light.office_desk]
-    # State-scored: the two lit lights must end off (bedroom and office start off).
-    # Whatever tool the model uses, the world is judged; asking which light instead of
-    # acting leaves them on and fails.
+    # Room-scoped: only the living-room light goes off. The kitchen light staying on is the
+    # assertion, not a tolerance; `statediff` fails the case if an unlisted entity changes.
+    expect_changes:
+      light.living_room: {state: "off"}
+    permitted_tools:
+      - name: HassTurnOff
+      - name: GetLiveContext
+    template: "<turn> (off|out) [<all>] [<the>] {area} <light>"
+    note: >-
+      Bare "the lights" from a room-bound satellite scopes to that room (ruling of
+      2026-08-04; HA's own test_default_agent asserts the same behavior upstream).
+
+  - id: turn-off-lights-unplaced
+    utterance: turn off the lights
+    category: device-control
+    # LLM, not local, and the split is what revealed it: the HASSIL template needs an {area},
+    # which a room-bound satellite supplies from context and an unplaced one cannot, so this
+    # phrasing strict-misses and falls through. The merged case looked local only because the
+    # local-first driver happened to place the satellite in a room.
+    routing_truth: llm
+    resolves_at_wave0: true
+    satellite_area: unplaced
+    requires: [light.kitchen, light.living_room, light.bedroom, light.office_desk]
+    # Whole-home: with no room to scope to, both lit lights must end off (bedroom and office
+    # start off). Asking which light instead of acting leaves them on and fails.
     expect_changes:
       light.kitchen: {state: "off"}
       light.living_room: {state: "off"}
     permitted_tools:
       - name: HassTurnOff
       - name: GetLiveContext
-    template: "<turn> (off|out) [<all>] [<the>] {area} <light>"
-    note: Bare "the lights" targets all exposed lights.
+    note: Bare "the lights" from an unplaced satellite targets all exposed lights.
 
   - id: turn-on-kitchen-light
     utterance: turn on the kitchen light

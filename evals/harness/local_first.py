@@ -80,7 +80,12 @@ from .corpus import (  # noqa: E402
     load_corpus,
 )
 from .effects import effect_cursor, effects_since  # noqa: E402
-from .runner import finalize_score, observe_turn, stage_case  # noqa: E402
+from .runner import (  # noqa: E402
+    finalize_score,
+    observe_turn,
+    place_satellite,
+    stage_case,
+)
 from .scoring import (  # noqa: E402
     Bucket,
     CaseResult,
@@ -472,7 +477,11 @@ async def run_local_first(
     results: list[LocalFirstResult] = []
     for index, case in enumerate(cases, start=1):
         await world.reset(hass)
-        print(f"  [{index:>2}/{len(cases)}] {case.id} ...", flush=True)
+        room = place_satellite(hass, satellite, case, default=area)
+        print(
+            f"  [{index:>2}/{len(cases)}] {case.id} (from {room or 'nowhere'}) ...",
+            flush=True,
+        )
         results.append(
             await run_case_prefer_local(
                 hass, agent_id, case, device_id=satellite.device_id

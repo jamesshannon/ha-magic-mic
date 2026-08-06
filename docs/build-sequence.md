@@ -265,7 +265,7 @@ Open gates (each blocks the wave's go/no-go):
   (`assist_pipeline/pipeline.py:431`) that nothing in the integration reads, so the gate closes
   on a recorded verdict plus the README install step, not on a code change. The
   Δhassil-intervention read: 14/25 turns off-cloud, 22/25 routing agreement, and zero
-  regressions traceable to routing. The one local "wrong action" (`turn-off-all-lights`) is the
+  regressions traceable to routing. The one local "wrong action" (the bare `turn off the lights`) is the
   room-scoped behavior a 2026-08-04 ruling deemed correct against a stale whole-home
   expectation, and it fails the same way on the LLM path. None of the three routing
   disagreements is hassil taking a turn it should not have, so the false-positive pre-emption
@@ -275,8 +275,10 @@ Open gates (each blocks the wave's go/no-go):
   `set-bedroom-brightness` from state), so no local win goes unverified
   ([`evaluation.md`](evaluation.md)); and locally handled mutations do not reach the undo
   journal, which makes `HassUndo`-as-local-intent a prerequisite of the undo claim
-  ([`undo.md`](undo.md)). The deferred room-scoped rewrite of `turn-off-all-lights` is
-  independent of this verdict and still open.
+  ([`undo.md`](undo.md)). The room-scoped rewrite of that case landed on 2026-08-06 as a
+  two-case split pinning `satellite_area`, which also corrected its routing label: with no
+  room to supply the template's `{area}`, the whole-home reading strict-misses HASSIL and is
+  the model's to handle.
 - [x] **Wave 1 go/no-go recorded**: `evals/results/wave1_go_no_go.json`, assembled by
   `evals/harness/go_no_go.py` (no model, no key). It is derived rather than written: every
   figure is pulled from the keyed artifact that produced it, so a re-run moves the record with

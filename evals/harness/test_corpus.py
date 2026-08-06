@@ -19,7 +19,7 @@ from evals.harness import (
     load_corpus,
     validate_corpus,
 )
-from evals.harness.corpus import WAVE0_GOLDEN_SET, as_alternatives
+from evals.harness.corpus import UNPLACED, WAVE0_GOLDEN_SET, as_alternatives
 
 
 def _case(**overrides: object) -> Case:
@@ -314,3 +314,64 @@ def test_golden_set_keeps_the_hassil_covered_basics() -> None:
     )
     # The everyday device-control shapes, the ones a regression would be most embarrassing on.
     assert sum(1 for case in local if case.category == "device-control") >= 5
+
+
+def test_unplaced_is_accepted_without_being_a_world_area() -> None:
+    """The sentinel validates on its own; it names no room, so no world declares it."""
+    world = World(
+        areas=("kitchen",),
+        entities=(Entity(entity_id="light.kitchen", name="Kitchen Light"),),
+    )
+    corpus = Corpus(world=world, cases=(_case(satellite_area=UNPLACED),))
+
+    validate_corpus(corpus)  # does not raise
+
+
+def test_a_world_area_colliding_with_the_sentinel_is_rejected() -> None:
+    """A fixture room literally named "unplaced" would make the sentinel ambiguous."""
+    world = World(
+        areas=(UNPLACED,),
+        entities=(Entity(entity_id="light.kitchen", name="Kitchen Light"),),
+    )
+    corpus = Corpus(world=world, cases=(_case(),))
+
+    with pytest.raises(CorpusError, match="reserved satellite_area sentinel"):
+        validate_corpus(corpus)
+
+
+def test_an_unknown_satellite_area_is_still_rejected() -> None:
+    """Adding the sentinel must not weaken the check on a real area key."""
+    world = World(
+        areas=("kitchen",),
+        entities=(Entity(entity_id="light.kitchen", name="Kitchen Light"),),
+    )
+    corpus = Corpus(world=world, cases=(_case(satellite_area="den"),))
+
+    with pytest.raises(CorpusError, match="absent from the fixture world"):
+        validate_corpus(corpus)
+
+
+def test_the_bare_lights_cases_declare_their_placement() -> None:
+    """Both "turn off the lights" cases pin the satellite, since the outcome depends on it.
+
+    Omitting the field would leave each case meaning one thing under the area-less baseline
+    and another under the local-first driver's room-bound satellite, which is the failure
+    that split them in two.
+    """
+    corpus = load_corpus(WAVE0_GOLDEN_SET)
+    by_id = {case.id: case for case in corpus.cases}
+
+    room, unplaced = (
+        by_id["turn-off-lights-from-room"],
+        by_id["turn-off-lights-unplaced"],
+    )
+    assert room.utterance == unplaced.utterance
+    assert room.satellite_area == "living_room"
+    assert unplaced.satellite_area == UNPLACED
+    # And they route differently: the HASSIL template needs an {area}, which only a
+    # room-bound satellite supplies, so the unplaced reading is the model's to handle.
+    assert room.routing_truth == "local"
+    assert unplaced.routing_truth == "llm"
+    # Room-scoped expects only its own room; unplaced expects every lit light.
+    assert set(room.expect_changes) == {"light.living_room"}
+    assert set(unplaced.expect_changes) == {"light.kitchen", "light.living_room"}

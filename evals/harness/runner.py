@@ -20,9 +20,10 @@ from homeassistant.components.conversation.trace import (
     async_get_traces,
 )
 from homeassistant.core import Context, HomeAssistant
-from homeassistant.helpers import intent
+from homeassistant.helpers import area_registry as ar, intent
 
-from .corpus import Case, StateChange
+from .backing import Satellite
+from .corpus import UNPLACED, Case, StateChange
 from .effects import effect_cursor, effects_since
 from .scoring import CaseResult, ObservedTurn, ToolCall, score_case
 from .statediff import snapshot, unexpected_changes
@@ -114,6 +115,38 @@ def _apply_setup(hass: HomeAssistant, setup: dict[str, StateChange]) -> None:
         hass.states.async_set(
             entity_id, state, {**base_attributes, **change.attributes}
         )
+
+
+def place_satellite(
+    hass: HomeAssistant,
+    satellite: Satellite,
+    case: Case,
+    *,
+    default: str | None,
+) -> str | None:
+    """Move the satellite where ``case`` needs it and return the resulting area name.
+
+    ``case.satellite_area`` wins: an area key places it there, and ``UNPLACED`` assigns it to
+    no area at all. A case that omits the field is claiming its outcome does not depend on
+    placement, so it runs at ``default``, the run's own placement.
+
+    Every driver calls this rather than pinning one satellite for a whole run. Otherwise a
+    case whose outcome *does* depend on placement means different things in different
+    drivers, which is exactly how `turn-off-all-lights` came to fail the local-first driver
+    while passing the area-less baseline. The returned area name is what the artifact should
+    record, so a reader can see the context a case actually ran under.
+    """
+    requested = case.satellite_area or default
+    satellite.move_to(
+        hass,
+        None if requested in (None, UNPLACED) else _area_id(hass, requested),
+    )
+    return satellite.area_name(hass)
+
+
+def _area_id(hass: HomeAssistant, area_key: str) -> str:
+    """Resolve a corpus area key (e.g. "den") to its area id, creating it if needed."""
+    return ar.async_get(hass).async_get_or_create(area_key.replace("_", " ")).id
 
 
 def stage_case(hass: HomeAssistant, case: Case) -> dict[str, object] | None:

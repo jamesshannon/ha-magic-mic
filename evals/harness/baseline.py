@@ -71,7 +71,7 @@ from .corpus import (  # noqa: E402
     ProviderOptions,
     load_corpus,
 )
-from .runner import run_case  # noqa: E402
+from .runner import place_satellite, run_case  # noqa: E402
 from .scoring import CaseResult, Scorecard, build_scorecard  # noqa: E402
 from .world import async_setup_local_agent  # noqa: E402
 
@@ -208,7 +208,13 @@ async def run_baseline(
     for index, case in enumerate(cases, start=1):
         await apply_provider_options(hass, entry, case.provider_options)
         await world.reset(hass)
-        print(f"  [{index:>2}/{len(cases)}] {case.id} ...", flush=True)
+        # The baseline's own placement is nowhere, so a case that does not name an area runs
+        # from an unknown location. A case that names one overrides that here.
+        room = place_satellite(hass, satellite, case, default=None)
+        print(
+            f"  [{index:>2}/{len(cases)}] {case.id} (from {room or 'nowhere'}) ...",
+            flush=True,
+        )
         results.append(
             await run_case(
                 hass, agent_id, case, llm=True, device_id=satellite.device_id

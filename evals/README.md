@@ -49,7 +49,7 @@ Each case is a single-turn `(utterance [, context] -> expected action(s) / answe
 | `routing_truth` | Ground-truth label for the **local-vs-LLM split**: `local` = a built-in HASSIL template covers it (given the referenced entities are exposed); `llm` = no HASSIL template, only the model resolves it. This is the label; the runner measures where the utterance *actually* routes and the scorecard compares the two. |
 | `resolves_at_wave0` | Whether Wave 0 (pass-through proxy, no capabilities yet) can produce a judgeable successful outcome. A `false` case is a VISION feature not built yet and cannot declare a success predicate. An error lands in `unresolved`; any successful-looking response lands in `unjudged`, never in a success bucket. |
 | `requires` | Fixture entities/features the case depends on (documents the context assumption; the runner must expose these). |
-| `satellite_area` | Optional world area key (e.g. `den`) placing the requesting satellite for this case. The room is context: it decides where a bare name resolves and whether an echoed area scopes away the target, so one corpus can pair a same-room and a different-room variant. Read by `harness/fuzzy_fallback.py`; omitted cases use the run's default placement. |
+| `satellite_area` | Where the requesting satellite sits: a world area key (e.g. `den`), or the reserved value `unplaced` for a satellite assigned to no area. The room is context: it decides where a bare name resolves, whether an echoed area scopes away the target, and whether a bare "turn off the lights" means this room or the whole home. Every driver applies it per case. **Omitting it asserts the case's outcome does not depend on placement**, and leaves the satellite at the run's default. A case whose outcome does depend on placement must say so, including saying "nowhere", because the drivers default differently (the baseline runs area-less, the local-first driver runs in a room) and an omitted field would make such a case mean different things in each. `unplaced` is spelled out rather than written as a YAML null so that "nowhere" and "omitted" cannot look alike. |
 | `provider_options` | Optional provider setup for this case. `web_search` and `web_fetch` are independent booleans and both default off when omitted. The live runner applies changes through the Magic Mic config entry before the turn and records the effective values in the artifact. |
 | `expected.tools` | Ordered list of required `{name, args}` calls. Named argument values match exactly after Unicode, case, and whitespace normalization; unspecified observed arguments are allowed. Every undeclared extra call fails. |
 | `expected.supporting_tools` | Optional call patterns that may appear around the required calls without being required themselves. Use for a deliberate read-before-answer step such as `GetLiveContext`, not as a broad tool allowlist. |
@@ -307,7 +307,7 @@ agree); 44 generations; 20,656 input / 4,877 output / 216,075 cache-read tokens;
 > correct, which is the check that its two disagreeing tool expectations were not load-bearing.
 >
 > The three remaining wrong cases are model behavior, not harness faults:
-> `turn-off-all-lights` and `implicit-too-dark` ask which entity instead of acting (the world
+> `turn-off-lights-unplaced` and `implicit-too-dark` ask which entity instead of acting (the world
 > does not change, so state scoring marks them wrong for the right reason), and `implicit-cold`
 > reads the thermostat then asks how warm. State scoring agrees with the reconciled tool
 > expectations on this corpus while being robust to tool variance: the device cases pass
@@ -343,9 +343,14 @@ area-preferred), leaving `light.kitchen` on, so the world diff marks it wrong ag
 whole-home expectation (both kitchen and living-room lights off). **Decision (2026-08-04):
 room-scoped is the intended semantics for a bare `turn off the lights` from a room-bound
 satellite; HASSIL is right and the corpus case encodes the wrong (whole-home) expectation.**
-The corpus case `turn-off-all-lights` needs a room-scoped rewrite (deferred: its expectation
-is entangled with the area-less baseline, which has no room to scope to, so the two drivers
-may need different expectations). The distinct `turn off *all* the lights` phrasing is
+**Rewritten 2026-08-06.** The case is now two, `turn-off-lights-from-room` (satellite in
+`living_room`, only that room's light expected off) and `turn-off-lights-unplaced` (satellite
+assigned to no area, whole home expected off), each pinning `satellite_area` so it means the
+same thing in every driver. The split turned up something the merged case hid: with no room,
+`turn off the lights` **strict-misses HASSIL entirely**, because the template needs an
+`{area}` that only a room-bound satellite supplies from context. So the whole-home reading is
+`routing_truth: llm`, and the old `local` label was right only by accident of where the
+local-first driver put the satellite. The distinct `turn off *all* the lights` phrasing is
 genuinely ambiguous and is TBD later. The re-run makes the mechanism visible rather than
 inferred: the artifact records the bound slots, and this case shows
 `{'area': 'living_room', 'domain': ['light']}` for an utterance containing no area, which is
@@ -360,7 +365,7 @@ install step 6). None of the three routing disagreements is HASSIL taking a turn
 not have, so this run found no instance of the false-positive pre-emption that was the one
 argument against. Cross-reading the same case ids against `wave0_baseline.json` (which records
 `prefer_local: false`) shows the 14 off-cloud turns also resolve on the model path: 11 correct,
-1 wrong in both arms (`turn-off-all-lights`), 3 unjudged. That cross-read is manual; do it at
+1 wrong in both arms (the bare-lights case), 3 unjudged. That cross-read is manual; do it at
 each wave close.
 
 ### Fuzzy fallback / find_entities Consumer 1 (2026-08-04, `claude-haiku-4-5`, hallway satellite)
@@ -409,7 +414,7 @@ attaching location improves the answer enough to justify the privacy cost, a dec
 eval informs precisely because it is more than a mirror of defaults.
 
 Three wrong-action cases are model behavior worth recording:
-`turn-off-all-lights` and `implicit-too-dark` ask which entity instead of acting;
+`turn-off-lights-unplaced` and `implicit-too-dark` ask which entity instead of acting;
 `implicit-cold` reads the thermostat then asks how warm. The fourth stored wrong result,
 `weather`, is the historical R22 fixture failure and needs a keyed rerun.
 `conditional-reminder`,

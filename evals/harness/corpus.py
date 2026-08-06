@@ -26,6 +26,13 @@ _ROUTING_VALUES = frozenset({ROUTING_LOCAL, ROUTING_LLM})
 PHRASING_IN_VOCAB = "in_vocabulary"
 PHRASING_OUT_OF_VOCAB = "out_of_vocabulary"
 _PHRASING_VALUES = frozenset({PHRASING_IN_VOCAB, PHRASING_OUT_OF_VOCAB})
+
+# Reserved `satellite_area` value: the satellite is assigned to no area at all, the way a
+# device nobody has placed comes out of the box. It is a spelled-out placement rather than a
+# YAML null so that "nowhere" and "the field was omitted" cannot look alike in a corpus file;
+# they mean different things, and one of them is a claim about the case. `validate_corpus`
+# rejects a fixture world that names an area this, so the sentinel can never be ambiguous.
+UNPLACED = "unplaced"
 _PROVIDER_OPTION_KEYS = frozenset({"web_fetch", "web_search"})
 _READ_ONLY_SUPPORTING_TOOLS = frozenset({"GetDateTime", "GetLiveContext"})
 
@@ -160,10 +167,18 @@ class Case:
     routing_truth: str
     resolves_at_wave0: bool
     phrasing: str | None = None
-    # The area the requesting satellite sits in for this case, as an area key from the world
-    # (e.g. "den"). Lets one corpus pair a same-room and a different-room variant of a request:
-    # the room is context, so it changes where a bare name resolves and whether an echoed area
-    # scopes away the target. ``None`` leaves the satellite at the run's default placement.
+    # Where the requesting satellite sits for this case: an area key from the world (e.g.
+    # "den"), or ``UNPLACED`` for a satellite assigned to no area at all. The room is context,
+    # so it changes where a bare name resolves, whether an echoed area scopes away the target,
+    # and whether a bare "turn off the lights" means this room or the whole home.
+    #
+    # ``None`` (the field omitted) asserts that **this case's outcome does not depend on
+    # placement**, and leaves the satellite wherever the run put it. That is the common case:
+    # a request naming its target resolves the same from any room. A case whose outcome does
+    # depend on placement must say so, including saying "nowhere" with ``UNPLACED``, because
+    # the drivers deliberately default differently (the baseline runs area-less, the
+    # local-first driver runs in a room) and an omitted field would make such a case mean
+    # different things in each.
     satellite_area: str | None = None
     requires: tuple[str, ...] = ()
     provider_options: ProviderOptions = field(default_factory=ProviderOptions)
@@ -444,10 +459,16 @@ def validate_corpus(corpus: Corpus) -> None:
     )
 
     world_areas = set(corpus.world.areas)
+    if UNPLACED in world_areas:
+        problems.append(
+            f"world: area {UNPLACED!r} collides with the reserved satellite_area sentinel"
+        )
     problems.extend(
         f"{case.id}: satellite_area {case.satellite_area!r} absent from the fixture world"
         for case in corpus.cases
-        if case.satellite_area is not None and case.satellite_area not in world_areas
+        if case.satellite_area is not None
+        and case.satellite_area != UNPLACED
+        and case.satellite_area not in world_areas
     )
 
     # Every entity a case stages, expects, or ignores must exist in the fixture world;

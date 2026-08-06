@@ -37,7 +37,6 @@ from pytest_homeassistant_custom_component.common import async_test_home_assista
 
 import custom_components
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import area_registry as ar
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RESULTS_DIR = REPO_ROOT / "evals" / "results"
@@ -58,7 +57,7 @@ from custom_components.magic_mic.internal.claude.const import (  # noqa: E402
 
 from .baseline import BaselineError, load_api_key, pin_pre_magic_roster  # noqa: E402
 from .corpus import Case, Corpus, load_corpus  # noqa: E402
-from .runner import run_case  # noqa: E402
+from .runner import place_satellite, run_case  # noqa: E402
 from .scoring import CaseResult, Scorecard, ToolCall, build_scorecard  # noqa: E402
 from .variant import stand_up_testbed  # noqa: E402
 
@@ -308,10 +307,9 @@ async def run_fuzzy_fallback(
     with patch(_NAME_INJECTION_FLAG, False):
         for index, case in enumerate(cases, start=1):
             await world.reset(hass)
-            # Place the satellite for this case: same-room vs different-room is what decides
-            # where a bare name resolves and whether an echoed area scopes away the target.
-            satellite.move_to(hass, _case_area_id(hass, case.satellite_area or area))
-            satellite_room = satellite.area_name(hass)
+            # Same-room vs different-room decides where a bare name resolves and whether
+            # an echoed area scopes away the target.
+            satellite_room = place_satellite(hass, satellite, case, default=area)
             print(
                 f"  [{index:>2}/{len(cases)}] {case.id} (from {satellite_room}) ...",
                 flush=True,
@@ -328,11 +326,6 @@ async def run_fuzzy_fallback(
             )
             results.append(classify_path(result, exact_names, changed, satellite_room))
     return FuzzyReport(tuple(results))
-
-
-def _case_area_id(hass: HomeAssistant, area_key: str) -> str:
-    """Resolve a corpus area key (e.g. "den") to its area id, creating it if needed."""
-    return ar.async_get(hass).async_get_or_create(area_key.replace("_", " ")).id
 
 
 def _entity_states(

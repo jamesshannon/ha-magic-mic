@@ -14,6 +14,7 @@ from evals.harness.backing import (
     register_satellite,
 )
 from evals.harness.corpus import (
+    UNPLACED,
     Case,
     Entity,
     Expected,
@@ -24,6 +25,7 @@ from evals.harness.corpus import (
     World,
     load_corpus,
 )
+from evals.harness.runner import place_satellite
 from homeassistant.components import conversation
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.core import HomeAssistant
@@ -492,3 +494,70 @@ async def test_state_only_entity_preserves_area_and_device_class(
     hass.states.async_set(entry.entity_id, "99")
     await world.reset(hass)
     assert hass.states.get(entry.entity_id).attributes["device_class"] == "temperature"
+
+
+def _placement_case(satellite_area: str | None) -> Case:
+    """A case that declares (or omits) where the requesting satellite sits."""
+    return Case(
+        id="p",
+        utterance="turn off the lights",
+        category="device-control",
+        routing_truth="local",
+        resolves_at_wave0=True,
+        satellite_area=satellite_area,
+    )
+
+
+async def test_declared_satellite_area_overrides_the_run_default(
+    hass: HomeAssistant, setup_integration: MockConfigEntry
+) -> None:
+    """A case naming an area is placed there whatever the driver's own default is."""
+    satellite = register_satellite(hass, area_id=None)
+
+    room = place_satellite(hass, satellite, _placement_case("den"), default="kitchen")
+
+    assert room == "den"
+
+
+async def test_unplaced_assigns_the_satellite_to_no_area(
+    hass: HomeAssistant, setup_integration: MockConfigEntry
+) -> None:
+    """``UNPLACED`` means nowhere, even when the run placed the satellite in a room.
+
+    This is the value that makes a whole-home expectation mean the same thing in every
+    driver: without it, an area-less claim would silently inherit the local-first driver's
+    living-room default.
+    """
+    kitchen = ar.async_get(hass).async_get_or_create("kitchen")
+    satellite = register_satellite(hass, area_id=kitchen.id)
+
+    room = place_satellite(
+        hass, satellite, _placement_case(UNPLACED), default="kitchen"
+    )
+
+    assert room is None
+    assert satellite.area_id(hass) is None
+
+
+async def test_an_omitted_area_takes_the_run_default(
+    hass: HomeAssistant, setup_integration: MockConfigEntry
+) -> None:
+    """Omitting the field claims the outcome does not depend on placement."""
+    satellite = register_satellite(hass, area_id=None)
+
+    assert (
+        place_satellite(hass, satellite, _placement_case(None), default="den") == "den"
+    )
+    assert place_satellite(hass, satellite, _placement_case(None), default=None) is None
+
+
+async def test_placement_is_reapplied_per_case_not_pinned_per_run(
+    hass: HomeAssistant, setup_integration: MockConfigEntry
+) -> None:
+    """Driving two cases in sequence must not leak the first one's room into the second."""
+    satellite = register_satellite(hass, area_id=None)
+
+    place_satellite(hass, satellite, _placement_case("den"), default=None)
+    second = place_satellite(hass, satellite, _placement_case(None), default=None)
+
+    assert second is None
