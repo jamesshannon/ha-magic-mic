@@ -609,7 +609,9 @@ expectation, and it fails identically on the LLM path. The bounded downside abov
 appear: none of the three routing disagreements is hassil taking a turn it should not have
 (one fixture gap, one CONTROL deferral by HA's design, one strict miss on `pause-music`).
 Two things the number does not cover: three arg-bearing local wins are reported UNJUDGED
-because the local path exposes no arg schema, and locally handled mutations do not reach the
+in that artifact (two of them, `start-timer` and `add-shopping-item`, become judgeable from
+their durable effects under the 2026-08-05 scorer and close on the next run), and locally
+handled mutations do not reach the
 undo journal ([`docs/undo.md`](docs/undo.md)), which is why `HassUndo` as a local intent is a
 prerequisite of the undo claim under prefer-local rather than a refinement of it.
 

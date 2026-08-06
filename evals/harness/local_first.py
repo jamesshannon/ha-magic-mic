@@ -20,11 +20,19 @@ Part C):
   here too, so the off-cloud rate is the real one, not an over-count.
 
 What it can and cannot score. A locally-routed turn carries no LLM tool call, so a
-tool-with-args expectation (e.g. ``HassLightSet`` at brightness 30) cannot be arg-verified
-from the local path. State-scored cases (world diff) and answer cases (speech) judge
-cleanly and catch the main regression class: a turn HA would have gotten right that HASSIL
-grabbed and got wrong. The arg-bearing minority is reported UNJUDGED rather than guessed, so
-a passing number is never inflated by a turn this harness could not actually check.
+tool-with-args expectation is never verified from the args themselves. Three predicates
+cover it instead, in descending directness: world diff for a state-scored case, speech for
+an answer case, and a **declared durable effect** for an action whose arguments land
+somewhere observable (``timer.started`` carries the seconds, ``todo.item_created`` the
+summary). Between them they catch the main regression class, a turn HA would have gotten
+right that HASSIL grabbed and got wrong, including a wrong argument.
+
+What is left is the action with arguments and no observable trace of them, such as
+``HassLightSet`` scored as a tool call rather than by the brightness it leaves behind. That
+is reported UNJUDGED rather than guessed, so a passing number is never inflated by a turn
+this harness could not actually check; converting the case to state scoring is how to close
+it. Slot values are recorded for diagnosis but deliberately not scored: see ``LocalRouting``
+for why that check belongs upstream.
 
 Run it with a live key (only the miss/deferred cases spend; local wins never call the LLM):
 
@@ -34,10 +42,11 @@ Run it with a live key (only the miss/deferred cases spend; local wins never cal
 import argparse
 import asyncio
 from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 import json
 from pathlib import Path
+from typing import Any
 
 from pytest_homeassistant_custom_component.common import async_test_home_assistant
 
@@ -78,6 +87,7 @@ from .scoring import (  # noqa: E402
     ObservedTurn,
     Scorecard,
     _answer_matches,
+    _effects_match,
     build_scorecard,
 )
 
@@ -104,12 +114,24 @@ class LocalRouting:
     ``matched`` is whether a strict local intent recognized at all (before the CONTROL
     filter). ``deferred`` is a match HA holds back for the LLM. ``routed_locally`` is the
     faithful outcome: matched, not deferred, and it actually resolved without an error.
+
+    ``slots`` records what the local path bound, for diagnosis only: **nothing scores it.**
+    Home Assistant already tests that its sentence templates bind the right slots and that
+    those slots reach the right service call, correlating both halves in one test
+    (`tests/components/conversation/test_default_agent.py`), and per-language template
+    binding is tested in the `home-assistant/intents` repo that owns the sentences. Scoring
+    slots here would restate an upstream guarantee against a weaker fixture. Recording them
+    still pays: when a case routes or resolves unexpectedly, the artifact says what the
+    utterance bound to without needing a repro. The values are post-resolution (areas as
+    ids, a percentage already converted), so they show what the handler acted on rather than
+    what the sentence matched.
     """
 
     matched: bool
     intent: str | None
     deferred: bool
     routed_locally: bool
+    slots: dict[str, Any] = field(default_factory=dict)
 
 
 def _make_input(
@@ -130,6 +152,33 @@ def _make_input(
 def _speech(response: intent.IntentResponse) -> str:
     """Pull the plain spoken text out of an intent response."""
     return response.speech.get("plain", {}).get("speech", "")
+
+
+def _resolved_slots(response: intent.IntentResponse) -> dict[str, Any]:
+    """Reduce a handled intent's slots to artifact-safe ``{name: value}`` diagnostics.
+
+    HA carries each slot as ``{"value": ..., "text": ...}``; only the value is kept, since
+    the text is the utterance we already record. A value an intent defines as an arbitrary
+    object is stringified rather than dropped, so writing the artifact cannot fail on a slot
+    type this harness has never seen.
+    """
+    if response.intent is None:
+        return {}
+    slots: dict[str, Any] = {}
+    for name, slot in response.intent.slots.items():
+        value = slot.get("value")
+        if isinstance(value, (bool, int, float, str, type(None))):
+            slots[name] = value
+        elif isinstance(value, (list, tuple)):
+            slots[name] = [
+                item
+                if isinstance(item, (bool, int, float, str, type(None)))
+                else str(item)
+                for item in value
+            ]
+        else:
+            slots[name] = str(value)
+    return slots
 
 
 async def probe_local(
@@ -173,7 +222,8 @@ async def probe_local(
         response is not None
         and response.response_type is not intent.IntentResponseType.ERROR
     )
-    return LocalRouting(matched, name, deferred, resolved), response
+    slots = _resolved_slots(response) if resolved and response is not None else {}
+    return LocalRouting(matched, name, deferred, resolved, slots), response
 
 
 async def observe_prefer_local(
@@ -222,23 +272,43 @@ def _judge_local(
 ) -> bool | None:
     """Judge a locally-routed, non-state turn from what the local path exposes.
 
-    Correct when the spoken answer matches, or when the executed intent matches a no-arg
-    expected local intent (a full verification, since there are no args to check). A match
-    against an arg-bearing expected intent, or no match at all, is ``None`` (unjudged): the
-    local path carries no arg schema, so this harness declines to call it right or wrong
-    rather than guess. A genuine wrong action on a non-state case is invisible here; the
-    state-scored cases (world diff) are where a local regression is actually caught.
+    Three predicates, in the order they settle a case. A matching spoken answer is correct.
+    Otherwise the executed intent has to be one the case expected, and then either its
+    **declared effects** decide it, or, for an intent that takes no arguments, the name
+    match is itself the full verification.
+
+    Effects are what make an arg-bearing local win judgeable. The local path exposes no
+    LLM-tool schema, so its slot values never become `ObservedTurn.tools`, but a durable
+    effect records the same fact downstream of the arguments: `timer.started` carries the
+    seconds a wrong duration would change, `todo.item_created` carries the summary text. A
+    declared effect that does not match is a genuine wrong action, so this returns ``False``
+    rather than declining.
+
+    ``None`` (unjudged) remains for the case with arguments and no effect to observe, where
+    calling it right or wrong would be a guess. Converting such a case to state scoring is
+    the way to close it, as `set-volume` already did. A wrong action is still invisible on a
+    non-state case with neither an answer nor an effect.
     """
-    for outcome in as_alternatives(case.expected_for(llm=False)):
+    outcomes = as_alternatives(case.expected_for(llm=False))
+    for outcome in outcomes:
         if outcome.answer is not None and _answer_matches(
             outcome.answer, observed.speech
         ):
             return True
-    for outcome in as_alternatives(case.expected_for(llm=False)):
-        for tool in outcome.tools:
-            if tool.name == routing.intent:
-                return True if not tool.args else None
-    return None
+
+    contradicted = False
+    for outcome in outcomes:
+        if not any(tool.name == routing.intent for tool in outcome.tools):
+            continue
+        if outcome.effects:
+            if _effects_match(outcome.effects, observed.effects):
+                return True
+            contradicted = True
+        elif all(
+            not tool.args for tool in outcome.tools if tool.name == routing.intent
+        ):
+            return True
+    return False if contradicted else None
 
 
 async def run_case_prefer_local(
@@ -326,6 +396,7 @@ def _routing_to_dict(routing: LocalRouting) -> dict[str, object]:
         "intent": routing.intent,
         "deferred": routing.deferred,
         "routed_locally": routing.routed_locally,
+        "slots": routing.slots,
     }
 
 

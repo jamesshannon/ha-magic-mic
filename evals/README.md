@@ -337,7 +337,11 @@ may need different expectations). The distinct `turn off *all* the lights` phras
 genuinely ambiguous and is TBD later. The other two wrong-action cases (`implicit-cold`,
 `implicit-too-dark`) are LLM-routed model behavior, not routing. The three arg-bearing local wins
 (`set-bedroom-brightness`, `start-timer`, `add-shopping-item`) are UNJUDGED: they executed
-locally but the local path exposes no arg schema to verify against. `weather` routed to the
+locally but the local path exposes no arg schema to verify against. **Superseded for two of
+them (2026-08-05):** the driver now judges an arg-bearing local win from a declared durable
+effect, which `start-timer` (`timer.started`, seconds) and `add-shopping-item`
+(`todo.item_created`, summary) both produce on the local path, so they resolve on the next
+run and only `set-bedroom-brightness` stays UNJUDGED. This artifact predates that change. `weather` routed to the
 LLM only because the fixture has no weather integration (recognized `HassGetWeather`, no
 handler); a real home with the integration resolves it locally, so the true off-cloud rate
 is a lower bound here.
