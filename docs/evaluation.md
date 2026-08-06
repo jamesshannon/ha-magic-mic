@@ -350,9 +350,12 @@ from reading one driver:
   population cannot erode silently as corpora grow.
 - **The two scopes judge different things, and the corpus knows it.** `expected` scores the
   local path and `expected_llm` the model path (`Case.expected_for`), because core's Assist
-  API drops intents like `HassGetCurrentTime` in favor of `GetDateTime`. The coverage is
-  complementary rather than duplicated: `set-bedroom-brightness` is UNJUDGED locally for want
-  of an arg schema but arg-verified on the LLM path, while `nevermind` is the reverse.
+  API drops intents like `HassGetCurrentTime` in favor of `GetDateTime`. `current-time` is the
+  clean example: `HassGetCurrentTime` locally, `GetDateTime` for the model, same answer. The
+  divergence is also a warning sign. When the two scopes disagree about *grounding* rather
+  than tool name, as `set-bedroom-brightness` did with `area` locally against `name` for the
+  model, it usually means neither expectation is load-bearing and the case wants state
+  scoring.
 - **Comparing the two artifacts is a manual step.** Nothing diffs `wave0_baseline.json`
   against `wave1_local_first.json` per case, so a divergence where one path is right and the
   other wrong is only visible to a reader who lines them up. Do it at each wave close.
@@ -362,15 +365,18 @@ missing arg schema makes it look. A locally routed action never exposes its argu
 **declared durable effect observes them downstream**: `start-timer` records
 `timer.started {seconds: 600}` and `add-shopping-item` records
 `todo.item_created {summary: milk}` on the local path exactly as on the model path, so a
-HASSIL regression starting a 10-minute timer for "set a timer for 5 minutes" is caught. The
-driver consults effects as of 2026-08-05; `wave1_local_first.json` predates that and still
-reports both cases UNJUDGED until the next run.
+HASSIL regression starting a 10-minute timer for "set a timer for 5 minutes" is caught.
 
-What genuinely remains is the action with arguments and no observable trace of them.
-`set-bedroom-brightness` is the only such case in the Wave 0 set: it is scored as a tool call,
-and the local path shows neither args nor an effect. The fix is not an arg convention but the
-one `set-volume` already took, converting it to `expect_changes` so the brightness it leaves
-behind is the evidence.
+The one case with arguments and no observable effect, `set-bedroom-brightness`, was converted
+to `expect_changes` the same day, so **no Wave 0 case is UNJUDGED on the local path any
+more**. The fix there was not an arg convention but the one `set-volume` already took: 30% is
+brightness 76 of 255 in the attributes, which is the argument, observed. Both artifacts
+predate these changes and report the old counts until they are rerun.
+
+The residual is a shape rather than a case: an arg-bearing local action whose arguments leave
+neither a state change nor a durable effect. Nothing in the Wave 0 set is one. A future
+capability that only talks to an external service would be, and it should declare an
+`ExpectedEffect` at that boundary rather than reach for slot scoring.
 
 **Slot values are recorded, never scored.** `LocalRouting.slots` carries the post-resolution
 slots of a local win into the artifact so a surprising route is diagnosable without a repro,
@@ -662,8 +668,10 @@ because the two borrowings are independent:
   `set-volume` dropped its name-vs-area `expected_llm`, and the four previously-falsified tool
   predictions became moot. The routing split, generation count, and token totals are
   untouched; only the correctness signal changed, and only where a state change exists to
-  observe. Cases that need tool precision (`set-bedroom-brightness`) or have a loose end state
-  (`implicit-cold`) stay tool-scored. The locked baseline artifact predates this and needs a
+  observe. A tenth followed on 2026-08-05: `set-bedroom-brightness` looked like it needed tool
+  precision, but the percentage is what the attribute records (30% is brightness 76 of 255),
+  and its two tool expectations disagreed on the grounding slot. A case with a loose end state
+  (`implicit-cold`) stays tool-scored. The locked baseline artifact predates this and needs a
   keyed re-run to refresh its scoring basis (see `evals/README.md`).
 - **`synthetic_home`: adopted at the format level only, not the component.** The three levels
   of coupling: (1) the inventory *format*, our own parser, no dependency; (2) the PyPI library

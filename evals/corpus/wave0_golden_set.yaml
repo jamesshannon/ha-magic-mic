@@ -157,16 +157,15 @@ cases:
     routing_truth: local
     resolves_at_wave0: true
     requires: [light.bedroom]
-    expected:
-      tools:
-        - name: HassLightSet
-          args: {area: bedroom, brightness: 30}
-    # The live model grounds "bedroom light" to the exposed entity by name rather than
-    # filling the area slot the local template uses. Both target the same light.
-    expected_llm:
-      tools:
-        - name: HassLightSet
-          args: {name: Bedroom Light, brightness: 30}
+    # State-scored: the light starts off, and 30% is brightness 76 of 255 whichever path
+    # got there. This replaces a pair of tool expectations that disagreed on the grounding
+    # slot (area for the local template, name for the model) and could never both be right,
+    # and it makes the case judgeable on the local path, which exposes no tool args.
+    expect_changes:
+      light.bedroom: {state: "on", attributes: {brightness: 76}}
+    permitted_tools:
+      - name: HassLightSet
+      - name: GetLiveContext
     template: "[<numeric_value_set>] [<the>] {area} [to] {brightness} percent"
 
   - id: open-garage-door

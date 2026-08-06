@@ -99,10 +99,11 @@ generations/tokens/latency delta the scorecard tracks and the case *for* `prefer
 the world it leaves, which is identical whether HASSIL or the LLM acted and whichever
 equally-valid tool got there. So it carries no `expected_llm` and no `any_of`; the nine
 device-control cases migrated to `expect_changes` dropped exactly that machinery (see
-[`docs/evaluation.md`](../docs/evaluation.md) Part H). Cases where the tool matters for
-precision (`set-bedroom-brightness`, where the percentage-to-0-255 value is the point) or
-where the end state is loose (`implicit-cold` raising a setpoint by an unspecified amount)
-stay tool-scored on purpose.
+[`docs/evaluation.md`](../docs/evaluation.md) Part H). `set-bedroom-brightness` joined them on
+2026-08-05: the percentage is exactly what a state check reads, since 30% is brightness 76 of
+255 in the attributes, and the pair of tool expectations it carried disagreed on the grounding
+slot (`area` locally, `name` for the model). A case with a genuinely loose end state
+(`implicit-cold` raising a setpoint by an unspecified amount) stays tool-scored on purpose.
 
 ## Scope notes worth remembering
 
@@ -337,11 +338,12 @@ may need different expectations). The distinct `turn off *all* the lights` phras
 genuinely ambiguous and is TBD later. The other two wrong-action cases (`implicit-cold`,
 `implicit-too-dark`) are LLM-routed model behavior, not routing. The three arg-bearing local wins
 (`set-bedroom-brightness`, `start-timer`, `add-shopping-item`) are UNJUDGED: they executed
-locally but the local path exposes no arg schema to verify against. **Superseded for two of
-them (2026-08-05):** the driver now judges an arg-bearing local win from a declared durable
-effect, which `start-timer` (`timer.started`, seconds) and `add-shopping-item`
-(`todo.item_created`, summary) both produce on the local path, so they resolve on the next
-run and only `set-bedroom-brightness` stays UNJUDGED. This artifact predates that change. `weather` routed to the
+locally but the local path exposes no arg schema to verify against. **Superseded (2026-08-05),
+and this artifact predates it:** the driver now judges an arg-bearing local win from a
+declared durable effect, which `start-timer` (`timer.started`, seconds) and
+`add-shopping-item` (`todo.item_created`, summary) both produce on the local path, and
+`set-bedroom-brightness` moved to state scoring. All three resolve on the next run, leaving no
+UNJUDGED local win in the corpus. `weather` routed to the
 LLM only because the fixture has no weather integration (recognized `HassGetWeather`, no
 handler); a real home with the integration resolves it locally, so the true off-cloud rate
 is a lower bound here.
