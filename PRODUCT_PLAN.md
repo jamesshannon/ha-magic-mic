@@ -429,6 +429,16 @@ gets its own file there. Current docs:
   survives, and that's [`undo.md`](docs/undo.md)'s journal. Value = low-freq/high-trust
   (like undo); **Wave 3–4** (needs recorder). No such feature in core (verified).
 
+- [`docs/core-deltas.md`](docs/core-deltas.md) — **ledger, not a topic doc.** One entry per
+  Home Assistant behavior Magic Mic works around or depends on, each pinned to the HA
+  release it was verified against, to the compensation in our tree, and to a test in
+  `test_core_contracts.py` that fails when core changes it (so a workaround gets deleted on
+  evidence, not on a guess). Every entry also states what an upstream fix would look like,
+  which is the §7 contribution the workaround would otherwise bury. Seeded with the
+  `ActionTool` selector asymmetry (area and floor names are resolved to ids, entity names are
+  not, and the prompt carries no ids), the exact `_filter_by_name`, and the `IndexError` in
+  core's own area conversion.
+
 _All planned topic docs now written._
 
 ---
@@ -469,7 +479,15 @@ into the local `ha-core/` clone.
   around HA intents (`HassTurnOn`, `HassLightSet`, …). `IntentTool.async_call`
   dispatches to `intent.async_handle`. (`helpers/llm.py:223`)
 - `ActionTool` wraps a service/action directly; currently used for exposed
-  **scripts**. (`helpers/llm.py:614`)
+  **scripts**. (`helpers/llm.py:979`)
+- **The heading is the rule, and scripts are the exception.** An exposed script's
+  fields are whatever its author declared, so a script with an `EntitySelector`
+  field *does* ask the model for an `entity_id` (`{"type": "string", "format":
+  "entity_id"}`, `helpers/llm.py:816`) while the prompt contains none (§2.5). Area
+  and floor fields on the same tool are converted from name to id before the
+  service call (`helpers/llm.py:1011-1035`); entity fields are not. The model
+  therefore invents ids and the service call targets nothing. Details, the fix
+  shape, and the contract test: [`docs/core-deltas.md`](docs/core-deltas.md) CD1.
 - The Assist API (`components/llm/__init__.py:94`) aggregates tools from every
   integration exposing an `llm.py` platform via `async_get_tools`
   (`LLMToolsPlatformProtocol`). Recent refactor — tools are contributed per
@@ -509,6 +527,13 @@ into the local `ha-core/` clone.
   is no fuzzy safety net downstream. Either the exact name must reach the model,
   or a lookup tool must return the canonical `entity_id`. → motivates
   `find_entities` (§5.2).
+- **Two failure paths, not one.** The above is the *intent* path, where a miss
+  raises `MatchFailedError` and our fallback can catch it. A script tool taking an
+  `entity_id` (§2.2) never reaches the matcher at all: the invented id goes
+  straight to `hass.services.async_call` and silently targets nothing. Same root
+  cause (the model must produce an identifier core never gave it), different
+  seam, and the fallback does not cover the second one. See
+  [`docs/core-deltas.md`](docs/core-deltas.md) CD1.
 
 ### 2.5 What's exposed to the LLM today (15 `llm.py` platforms)
 | Group | Integration → tools |
@@ -1242,7 +1267,10 @@ publishing **+** this selection mechanism, never publishing alone.
 - **Likely discussion/adoption sequence (least → most controversial), subject to core
   architecture review:**
   1. `find_entities` / fuzzy resolution — arguably a fix to the exact-match
-     limitation; helps local most.
+     limitation; helps local most. The candidate patches, their citations, and the
+     evidence behind each are the ledger in
+     [`docs/core-deltas.md`](docs/core-deltas.md); an entry that only records a
+     workaround has thrown the contribution away.
   2. Calendar-write intents/tools — fills an obvious read/write asymmetry.
   3. Persistent reminders — new primitive; moderate discussion (delivery,
      persistence, overlap with timers/todo).

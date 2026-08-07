@@ -39,8 +39,17 @@
   in the garage" browsing — where the model needs `entity_id`s as *data*, with no
   intent firing to piggyback on.
 - **Shared primitive** (§5.6) = the **scorer + top-1/top-2 ambiguity guard**
-  (rapidfuzz `token_set_ratio` + margin), with **two consumers**: the match-layer
-  fallback and the tool. One of them is not a tool.
+  (rapidfuzz `token_set_ratio` + margin), with **three resolution consumers** here:
+  the match-layer fallback (1), the tool (2), and entity arguments on script tools
+  (3). Only one of the three is a tool. The scorer has further consumers outside
+  resolution, each numbered locally in its own doc: proactive name injection at
+  prompt-build ([`prompt-context.md`](prompt-context.md) Tier 2) and capability
+  selection's miss recovery (§"The shared referent core").
+- **Script tools are a second, uncovered failure path.** The match-layer fallback
+  catches `MatchFailedError`, which only *intent* tools raise. An exposed script
+  whose field is an `EntitySelector` asks the model for an `entity_id` that no
+  prompt ever supplied, and the invented id goes straight to the service call. See
+  §"The `ActionTool` selector asymmetry" and [`core-deltas.md`](core-deltas.md) CD1.
 - **Reuse `async_match_targets`** for all *structured* filtering; its only gap is
   the exact name match. rapidfuzz is a **new** HA dep (difflib fallback).
 
@@ -65,6 +74,42 @@ The one forgiving input is a literal `entity_id` (`intent.py:428`) — the seam.
 Why this is LLM-specific (§2.4): hassil's "fuzzy" is an n-gram score over the
 *carrier sentence* with entity names matched exactly via a trie, and hassil isn't
 in the LLM tool path anyway. The local agent's leniency does not cover us.
+
+And a third chokepoint that matches no name at all, below.
+
+---
+
+## The `ActionTool` selector asymmetry
+
+The two chokepoints above are *name* matching that is too strict. Exposed **scripts**
+fail earlier than that: they never get a name to match.
+
+`ActionTool.async_call` converts registry references from names to ids before the
+service call, for exactly two selector types (`helpers/llm.py:1011-1035`, HA 2026.7.4):
+`AreaSelector` through `intent.find_areas`, `FloorSelector` through `find_floors`. So a
+script field declared as an area takes the *name* "Kitchen" from the model and receives
+`area_id` at execution. Entity fields get none of that. `EntitySelector` serializes to
+`{"type": "string", "format": "entity_id"}` (`helpers/llm.py:816`) and the model's string
+goes to `hass.services.async_call` unchanged, while the prompt contains no entity ids
+(§2.5). Areas and floors are name-in and id-resolved; entities are id-in and unresolved.
+
+Two consequences that matter for this doc:
+
+- **Consumer 1 does not cover it.** The match-layer fallback hangs off
+  `intent.MatchFailedError`, which only intent tools raise. A script handed a
+  fabricated id never reaches `async_match_targets`, so there is no miss to catch and
+  the service call quietly targets nothing. This is a real hole in Magic Mic today, not
+  only in core.
+- **An unguessable `entity_id` was never the underlying problem.** `_filter_by_name`
+  compares against the friendly name, never the id, so `light.office_lamp_a1b2c3`
+  already matches "Office Lamp". What breaks is a tool whose *parameter* is an id.
+
+**Consumer 3** (below) is the response: resolve `EntitySelector` arguments by name at the
+proxy before execution. Upstream, the fix is to give entity fields the same conversion
+area fields already get, which is a smaller change than any of the alternatives (prompt-
+side ids, a mandatory lookup, or a resolution action every script author must call). The
+citations, the `IndexError` in core's own area conversion not to copy, and the contract
+tests that catch a core fix live in [`core-deltas.md`](core-deltas.md) CD1 and CD3.
 
 ---
 
@@ -372,6 +417,39 @@ Its description and every parameter description therefore use the request langua
 HA's normal English fallback. Failures return a stable machine code (`invalid_area`,
 `invalid_floor`, or `assistant_not_configured`) plus a localized `error_text`; capability
 code never builds model-facing English errors.
+
+### Consumer 3 — entity arguments on script tools (planned)
+
+The response to the selector asymmetry above, and the only consumer that runs **before**
+execution rather than after a failure or ahead of the turn. An exposed script whose field
+is an `EntitySelector` receives whatever string the model produced; nothing validates it,
+and an unknown id makes the service call a no-op.
+
+Shape: at the proxy's tool-execution seam, walk the tool's parameter schema for
+`EntitySelector` fields and resolve each value through the shared primitive before handing
+the call to the inner API instance.
+
+- **Pass through what is already valid.** `hass.states.get(value) is not None` means the
+  model produced a real id (from `find_entities`, from history, or because it guessed
+  correctly). Resolve nothing.
+- **Resolve a name decisively → substitute the canonical id** and execute, exactly as
+  Consumer 1 substitutes into a retried intent.
+- **Ambiguous or below floor → do not execute.** Return the guard's candidate list as the
+  `tool_result` so the model asks. A script is a *behavioral write* in the
+  [`tool-policy.md`](tool-policy.md) sense far more often than a `HassTurnOn` is, so acting
+  on a thin margin is worse here than in Consumer 1.
+- **Exposure still applies.** Candidates come from the assistant-exposed set, so this
+  cannot become a path to a hidden entity.
+
+Two scope calls worth making deliberately rather than by accident. `TargetSelector` carries
+an `entity_id` member through `cv.TARGET_FIELDS` and has the same hole; start with
+`EntitySelector` and treat targets as a follow-up rather than widening the first slice. And
+resolution is per-field, so a script taking two entity arguments resolves each
+independently and either one can come back ambiguous.
+
+Do not mirror core's area conversion literally: `list(intent.find_areas(...))[0]` raises
+`IndexError` on a miss ([`core-deltas.md`](core-deltas.md) CD3). A resolution failure is a
+`tool_result` the model can act on, not an exception.
 
 ### The shared primitive — scorer + ambiguity guard
 
