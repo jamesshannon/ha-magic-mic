@@ -13,6 +13,7 @@ to the entities that ended up wrong (`statediff`). This needs an executable fixt
 """
 
 from dataclasses import replace
+from typing import Any
 
 from homeassistant.components import conversation
 from homeassistant.components.conversation.trace import (
@@ -31,24 +32,32 @@ from .statediff import snapshot, unexpected_changes
 
 def observe_from_trace(
     trace_events: list[dict],
-) -> tuple[tuple[ToolCall, ...], list[dict[str, int | float | None]]]:
-    """Split a turn's trace events into tool calls and generation records.
+) -> tuple[
+    tuple[ToolCall, ...],
+    list[dict[str, int | float | None]],
+    tuple[dict[str, Any], ...],
+]:
+    """Split a turn's trace events into tool calls, generations, and argument rewrites.
 
     Shared with the multi-turn trajectory driver (`trajectory.py`), which reduces each
     turn of a conversation the same way. A generation record carries integer token counts
-    and float-or-None round timing (`ttft_ms`, `duration_ms`).
+    and float-or-None round timing (`ttft_ms`, `duration_ms`). An entity-argument record
+    carries what the model supplied before Consumer 3 rewrote it, which the `TOOL_CALL`
+    event no longer shows.
     """
     tools: list[ToolCall] = []
     generations: list[dict[str, int | float | None]] = []
+    entity_arguments: list[dict[str, Any]] = []
     for event in trace_events:
         data = event.get("data") or {}
         if event["event_type"] == ConversationTraceEventType.TOOL_CALL:
             tools.append(ToolCall(data["tool_name"], dict(data.get("tool_args") or {})))
-        elif event["event_type"] == ConversationTraceEventType.AGENT_DETAIL and (
-            generation := data.get("generation")
-        ):
-            generations.append(generation)
-    return tuple(tools), generations
+        elif event["event_type"] == ConversationTraceEventType.AGENT_DETAIL:
+            if generation := data.get("generation"):
+                generations.append(generation)
+            if rewrite := data.get("entity_arguments"):
+                entity_arguments.append(rewrite)
+    return tuple(tools), generations, tuple(entity_arguments)
 
 
 async def observe_turn(
@@ -73,7 +82,9 @@ async def observe_turn(
     if response.speech:
         speech = response.speech.get("plain", {}).get("speech", "")
 
-    tools, generations = observe_from_trace(async_get_traces()[-1].as_dict()["events"])
+    tools, generations, entity_arguments = observe_from_trace(
+        async_get_traces()[-1].as_dict()["events"]
+    )
     # TTFT is the first round's time to first content delta (what the user waits for);
     # round duration sums the model's per-round compute across the turn. Both are None on a
     # producer that did not clock its stream, so guard with .get and skip Nones.
@@ -84,6 +95,7 @@ async def observe_turn(
     return ObservedTurn(
         speech=speech,
         tools=tools,
+        entity_arguments=entity_arguments,
         effects=effects_since(hass, cursor),
         routed_locally=routed_locally,
         resolved=response.response_type is not intent.IntentResponseType.ERROR,

@@ -81,7 +81,9 @@ async def drive_turn(
     if response.speech:
         speech = response.speech.get("plain", {}).get("speech", "")
 
-    tools, _generations = observe_from_trace(async_get_traces()[-1].as_dict()["events"])
+    tools, _generations, _rewrites = observe_from_trace(
+        async_get_traces()[-1].as_dict()["events"]
+    )
     return TurnObservation(
         utterance=utterance,
         speech=speech,

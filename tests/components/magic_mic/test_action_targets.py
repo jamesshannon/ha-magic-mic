@@ -26,6 +26,11 @@ from custom_components.magic_mic.session_state import MagicMicSessionState, Turn
 from custom_components.magic_mic.testbed import api as testbed_api
 from custom_components.magic_mic.tool_policy import ToolPolicyContext
 from homeassistant.components import conversation
+from homeassistant.components.conversation.trace import (
+    ConversationTrace,
+    ConversationTraceEventType,
+    async_conversation_trace,
+)
 from homeassistant.components.homeassistant.exposed_entities import async_expose_entity
 from homeassistant.const import ATTR_DEVICE_CLASS, ATTR_FRIENDLY_NAME
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse, callback
@@ -777,3 +782,60 @@ async def test_the_proxy_promises_nothing_it_will_not_honor(
 
     description = next(iter(tool.parameters.schema)).description
     assert conversation_strings.action_targets_accepts_name not in (description or "")
+
+
+async def test_the_model_supplied_value_survives_in_the_trace(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
+    """The TOOL_CALL event shows the resolved id, so the model's own value is traced apart.
+
+    Without this an eval (or a user asking why a different light moved) sees only the id
+    that ran and concludes the model produced it.
+    """
+    entity_id = _register(hass, "light.hue_00a3", "Reading Lamp")
+    _seed_action_tool(hass, _entity_field())
+    _capture_service(hass)
+    api = await _wrapped_api(hass, conversation_strings)
+
+    with async_conversation_trace() as trace:
+        await api.async_call_tool(
+            llm.ToolInput(
+                tool_name="script__targeted", tool_args={"target": "Reading Lamp"}
+            )
+        )
+
+    rewrites = _traced_rewrites(trace)
+    assert rewrites == [
+        {
+            "resolved": {"target": entity_id},
+            "supplied": {"target": "Reading Lamp"},
+            "tool_name": "script__targeted",
+        }
+    ]
+
+
+async def test_an_untouched_argument_is_not_traced_as_a_rewrite(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
+    """A live id passes through, so there is no rewrite to record."""
+    entity_id = _register(hass, "light.hue_00a3", "Reading Lamp")
+    _seed_action_tool(hass, _entity_field())
+    _capture_service(hass)
+    api = await _wrapped_api(hass, conversation_strings)
+
+    with async_conversation_trace() as trace:
+        await api.async_call_tool(
+            llm.ToolInput(tool_name="script__targeted", tool_args={"target": entity_id})
+        )
+
+    assert not _traced_rewrites(trace)
+
+
+def _traced_rewrites(trace: ConversationTrace) -> list[dict[str, Any]]:
+    """Return the entity-argument rewrite records a turn's trace recorded."""
+    return [
+        event["data"]["entity_arguments"]
+        for event in trace.as_dict()["events"]
+        if event["event_type"] == ConversationTraceEventType.AGENT_DETAIL
+        and "entity_arguments" in event["data"]
+    ]

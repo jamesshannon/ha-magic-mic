@@ -174,15 +174,17 @@ def classify_source(
     live entity is a real id; one that parses but names nothing is invented; anything else is
     a spoken name.
 
-    The trace records the arguments **as executed**, so in the resolution-on arm a resolved
-    call reads as a live id. That is why the off arm is the one that shows what the model
-    actually produced, and why the two arms are reported separately rather than pooled.
+    `ToolCall.args` holds the arguments **as executed**, so a resolved call reads as a live
+    id no matter what the model typed. `ObservedTurn.entity_arguments` is the proxy's record
+    of the value it overwrote, and it wins here: the whole question is what the model
+    produced, not what ran.
     """
+    rewritten = _rewritten_arguments(result)
     supplied = tuple(
-        str(value)
+        str(rewritten.get((tool.name, field), value))
         for tool in result.observed.tools
         if tool.name in script_tools
-        for value in _argument_values(tool.args)
+        for field, value in _argument_fields(tool.args)
     )
     if not supplied:
         return ArgumentSource.ABSENT, ()
@@ -195,15 +197,30 @@ def classify_source(
     return ArgumentSource.LIVE_ID, supplied
 
 
-def _argument_values(args: dict[str, object]) -> list[object]:
-    """Flatten a script call's argument values, list-valued fields included."""
-    values: list[object] = []
-    for value in args.values():
+def _argument_fields(args: dict[str, object]) -> list[tuple[str, object]]:
+    """Flatten a script call's arguments to (field, value), list-valued fields included."""
+    fields: list[tuple[str, object]] = []
+    for field, value in args.items():
         if isinstance(value, list):
-            values.extend(value)
+            fields.extend((field, item) for item in value)
         else:
-            values.append(value)
-    return values
+            fields.append((field, value))
+    return fields
+
+
+def _rewritten_arguments(result: CaseResult) -> dict[tuple[str, str], object]:
+    """Map (tool_name, field) to the value the model supplied before resolution.
+
+    Multi-valued fields collapse to the whole supplied list rather than per-item values,
+    which reads as a spoken name and so classifies the call by its weakest member. That is
+    the same judgment `classify_source` makes elsewhere, and the corpus has no multi-valued
+    case, so nothing currently depends on the finer distinction.
+    """
+    return {
+        (record["tool_name"], field): value
+        for record in result.observed.entity_arguments
+        for field, value in record["supplied"].items()
+    }
 
 
 def _is_entity_id(value: str) -> bool:
@@ -549,7 +566,15 @@ async def main(argv: Sequence[str] | None = None) -> None:
         build_artifact(report, model, names_on=args.names, summary_on=summary_on),
         out_path,
     )
-    print(f"\nartifact: {written.relative_to(REPO_ROOT)}")
+    print(f"\nartifact: {_display_path(written)}")
+
+
+def _display_path(path: Path) -> str:
+    """Show an artifact path relative to the repo when it is inside it, else in full."""
+    resolved = path.resolve()
+    if resolved.is_relative_to(REPO_ROOT):
+        return str(resolved.relative_to(REPO_ROOT))
+    return str(resolved)
 
 
 if __name__ == "__main__":

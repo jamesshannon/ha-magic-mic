@@ -51,6 +51,11 @@ class ObservedTurn:
 
     speech: str
     tools: tuple[ToolCall, ...] = ()
+    # Entity arguments the proxy rewrote before executing, as {"resolved", "supplied",
+    # "tool_name"} records (find-entities.md Consumer 3). ``tools`` carries the arguments as
+    # executed, so this is the only record of what the model itself passed. Empty when
+    # nothing was rewritten, and on any artifact predating the instrumentation.
+    entity_arguments: tuple[dict[str, Any], ...] = ()
     # ``None`` means a historical artifact predates effect instrumentation.
     effects: tuple[ObservedEffect, ...] | None = ()
     # Did the deterministic local (HASSIL) path handle it, no LLM involved.

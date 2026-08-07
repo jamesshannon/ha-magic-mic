@@ -98,14 +98,29 @@ the compensation never fired and no argument was ever invented.
 
 That run could not have come out differently. It ran with the entity summary on, which
 replaces HA's name roster with area/domain counts, so the prompt held no entity names and the
-model had to look one up; `find_entities` returns exact ids. The behavior in this entry is
-still real (`test_action_tool_does_not_resolve_entity_names` passes, and
-`test_entity_id_tools.py::test_the_two_arms_differ_on_this_fixture` lands the call in one arm
-and not the other), but the run says nothing about how often a model walks into it. Sizing
-that needs `entity_id_tools.py --roster`, which turns the summary off: HA's full name roster
-returns, and `find_entities` goes with it, since the summary and the lookup tool ship as a
-pair. Names in the prompt, no ids, no lookup, which is the setup the report came from.
-Artifact: `evals/results/wave1_entity_id_tools.json`.
+model had to look one up; `find_entities` returns exact ids. It measured the compensation in
+the one configuration where the failure cannot occur.
+
+**Second run, 2026-08-06, `--roster --arms off,resolve`: the failure is total.** With the
+summary off, HA's full name roster returns and `find_entities` goes with it (the two ship as a
+pair in `testbed/prompt.py`), which is the setup this entry was reported from: names in the
+prompt, no ids, no lookup tool. Stock HA scored **0 of 6**. With Consumer 3, **6 of 6**.
+
+The model invented an id on all 12 turns, and always the same way, by slugifying the friendly
+name it had been given:
+
+| spoken | model sent | actually |
+|---|---|---|
+| the reading lamp | `light.reading_lamp` | `light.hue_00a3` |
+| the bedside lamp | `light.bedside_lamp` | `light.bedroom_lamp_v2` |
+| the office roller shade | `cover.office_roller_shade` | `cover.somfy_4412` |
+
+Not one of those entities exists. In the `off` arm every call reached
+`hass.services.async_call`, matched nothing, changed nothing, and the model reported success.
+That is the reporter's bug, reproduced end to end, at a 100% rate on a home whose ids are not
+slugified names. Rung 3 of the compensation (de-slug the id, match within its own domain)
+caught every one. Artifacts: `evals/results/wave1_entity_id_tools_roster.json` and
+`wave1_entity_id_tools_advertise.json`.
 
 **Upstream.** Reported independently on the core issue tracker (2026-08) by a user whose
 exposed script tools received invented ids from Gemini Flash. Their three proposed fixes

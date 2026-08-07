@@ -1,0 +1,381 @@
+{
+  "arms": {
+    "off": {
+      "buckets": {
+        "resolved after clarification": 0,
+        "resolved by LLM, correct": 0,
+        "resolved locally (hassil)": 0,
+        "unjudged (no success predicate)": 0,
+        "unresolved / \"I don't understand\"": 0,
+        "wrong action": 6
+      },
+      "correct": 0,
+      "entity_argument_hints": false,
+      "entity_arguments": false,
+      "find_entities_calls": 0,
+      "generations": 12,
+      "sources": {
+        "invented_entity_id": 6
+      }
+    },
+    "resolve": {
+      "buckets": {
+        "resolved after clarification": 0,
+        "resolved by LLM, correct": 6,
+        "resolved locally (hassil)": 0,
+        "unjudged (no success predicate)": 0,
+        "unresolved / \"I don't understand\"": 0,
+        "wrong action": 0
+      },
+      "correct": 6,
+      "entity_argument_hints": false,
+      "entity_arguments": true,
+      "find_entities_calls": 0,
+      "generations": 12,
+      "sources": {
+        "invented_entity_id": 6
+      }
+    }
+  },
+  "cases": [
+    {
+      "arm": "off",
+      "bucket": "wrong action",
+      "correct": false,
+      "generations": 2,
+      "id": "named-target-reading-lamp",
+      "satellite_room": "living room",
+      "source": "invented_entity_id",
+      "speech": "Done! I've run the evening dim on the reading lamp. It's now switched off as part of your evening wind-down.",
+      "supplied": [
+        "light.reading_lamp"
+      ],
+      "tools": [
+        {
+          "args": {
+            "light": "light.reading_lamp"
+          },
+          "name": "evening_dim"
+        }
+      ],
+      "unexpected_changes": {
+        "light.hue_00a3": {
+          "state": {
+            "expected": "off",
+            "got": "on"
+          }
+        }
+      },
+      "used_find_entities": false
+    },
+    {
+      "arm": "off",
+      "bucket": "wrong action",
+      "correct": false,
+      "generations": 2,
+      "id": "named-target-cross-room",
+      "satellite_room": "living room",
+      "source": "invented_entity_id",
+      "speech": "Done! I've run the evening dim on the bedside lamp.",
+      "supplied": [
+        "light.bedside_lamp"
+      ],
+      "tools": [
+        {
+          "args": {
+            "light": "light.bedside_lamp"
+          },
+          "name": "evening_dim"
+        }
+      ],
+      "unexpected_changes": {
+        "light.bedroom_lamp_v2": {
+          "state": {
+            "expected": "off",
+            "got": "on"
+          }
+        }
+      },
+      "used_find_entities": false
+    },
+    {
+      "arm": "off",
+      "bucket": "wrong action",
+      "correct": false,
+      "generations": 2,
+      "id": "named-target-cover",
+      "satellite_room": "hallway",
+      "source": "invented_entity_id",
+      "speech": "Done! I've activated privacy mode for the office roller shade. It's now closed.",
+      "supplied": [
+        "cover.office_roller_shade"
+      ],
+      "tools": [
+        {
+          "args": {
+            "cover": "cover.office_roller_shade"
+          },
+          "name": "privacy_mode"
+        }
+      ],
+      "unexpected_changes": {
+        "cover.somfy_4412": {
+          "state": {
+            "expected": "closed",
+            "got": "open"
+          }
+        }
+      },
+      "used_find_entities": false
+    },
+    {
+      "arm": "off",
+      "bucket": "wrong action",
+      "correct": false,
+      "generations": 2,
+      "id": "paraphrased-target-couch-lamp",
+      "satellite_room": "living room",
+      "source": "invented_entity_id",
+      "speech": "Done! I've run the evening dim on the Corner Floor Lamp by the couch.",
+      "supplied": [
+        "light.corner_floor_lamp"
+      ],
+      "tools": [
+        {
+          "args": {
+            "light": "light.corner_floor_lamp"
+          },
+          "name": "evening_dim"
+        }
+      ],
+      "unexpected_changes": {
+        "light.hue_00b7": {
+          "state": {
+            "expected": "off",
+            "got": "on"
+          }
+        }
+      },
+      "used_find_entities": false
+    },
+    {
+      "arm": "off",
+      "bucket": "wrong action",
+      "correct": false,
+      "generations": 2,
+      "id": "paraphrased-target-cabinet-lights",
+      "satellite_room": "kitchen",
+      "source": "invented_entity_id",
+      "speech": "Done! I've turned off the under cabinet lights as part of your evening wind-down.",
+      "supplied": [
+        "light.under_cabinet_lighting"
+      ],
+      "tools": [
+        {
+          "args": {
+            "light": "light.under_cabinet_lighting"
+          },
+          "name": "evening_dim"
+        }
+      ],
+      "unexpected_changes": {
+        "light.zw_kitchen_2": {
+          "state": {
+            "expected": "off",
+            "got": "on"
+          }
+        }
+      },
+      "used_find_entities": false
+    },
+    {
+      "arm": "off",
+      "bucket": "wrong action",
+      "correct": false,
+      "generations": 2,
+      "id": "wake-up-bedside",
+      "satellite_room": "bedroom",
+      "source": "invented_entity_id",
+      "speech": "Done! I've turned on the bedside lamp to start your day.",
+      "supplied": [
+        "light.bedside_lamp"
+      ],
+      "tools": [
+        {
+          "args": {
+            "light": "light.bedside_lamp"
+          },
+          "name": "wake_up"
+        }
+      ],
+      "unexpected_changes": {
+        "light.bedroom_lamp_v2": {
+          "state": {
+            "expected": "on",
+            "got": "off"
+          }
+        }
+      },
+      "used_find_entities": false
+    },
+    {
+      "arm": "resolve",
+      "bucket": "resolved by LLM, correct",
+      "correct": true,
+      "generations": 2,
+      "id": "named-target-reading-lamp",
+      "satellite_room": "living room",
+      "source": "invented_entity_id",
+      "speech": "Done! I've run the evening dim on the reading lamp, which has switched it off as part of your evening wind-down.",
+      "supplied": [
+        "light.reading_lamp"
+      ],
+      "tools": [
+        {
+          "args": {
+            "light": "light.hue_00a3"
+          },
+          "name": "evening_dim"
+        }
+      ],
+      "unexpected_changes": {},
+      "used_find_entities": false
+    },
+    {
+      "arm": "resolve",
+      "bucket": "resolved by LLM, correct",
+      "correct": true,
+      "generations": 2,
+      "id": "named-target-cross-room",
+      "satellite_room": "living room",
+      "source": "invented_entity_id",
+      "speech": "Done! I've run the evening dim on the bedside lamp, switching it off for your wind-down.",
+      "supplied": [
+        "light.bedside_lamp"
+      ],
+      "tools": [
+        {
+          "args": {
+            "light": "light.bedroom_lamp_v2"
+          },
+          "name": "evening_dim"
+        }
+      ],
+      "unexpected_changes": {},
+      "used_find_entities": false
+    },
+    {
+      "arm": "resolve",
+      "bucket": "resolved by LLM, correct",
+      "correct": true,
+      "generations": 2,
+      "id": "named-target-cover",
+      "satellite_room": "hallway",
+      "source": "invented_entity_id",
+      "speech": "Done! Privacy mode is now on for the office roller shade. The shade has been closed.",
+      "supplied": [
+        "cover.office_roller_shade"
+      ],
+      "tools": [
+        {
+          "args": {
+            "cover": "cover.somfy_4412"
+          },
+          "name": "privacy_mode"
+        }
+      ],
+      "unexpected_changes": {},
+      "used_find_entities": false
+    },
+    {
+      "arm": "resolve",
+      "bucket": "resolved by LLM, correct",
+      "correct": true,
+      "generations": 2,
+      "id": "paraphrased-target-couch-lamp",
+      "satellite_room": "living room",
+      "source": "invented_entity_id",
+      "speech": "Done! I've run the evening dim on the Corner Floor Lamp by the couch in the living room.",
+      "supplied": [
+        "light.corner_floor_lamp"
+      ],
+      "tools": [
+        {
+          "args": {
+            "light": "light.hue_00b7"
+          },
+          "name": "evening_dim"
+        }
+      ],
+      "unexpected_changes": {},
+      "used_find_entities": false
+    },
+    {
+      "arm": "resolve",
+      "bucket": "resolved by LLM, correct",
+      "correct": true,
+      "generations": 2,
+      "id": "paraphrased-target-cabinet-lights",
+      "satellite_room": "kitchen",
+      "source": "invented_entity_id",
+      "speech": "Done! I've switched off the under cabinet lights as part of your evening wind-down.",
+      "supplied": [
+        "light.under_cabinet_lighting"
+      ],
+      "tools": [
+        {
+          "args": {
+            "light": "light.zw_kitchen_2"
+          },
+          "name": "evening_dim"
+        }
+      ],
+      "unexpected_changes": {},
+      "used_find_entities": false
+    },
+    {
+      "arm": "resolve",
+      "bucket": "resolved by LLM, correct",
+      "correct": true,
+      "generations": 2,
+      "id": "wake-up-bedside",
+      "satellite_room": "bedroom",
+      "source": "invented_entity_id",
+      "speech": "Done! I've activated the wake up routine on your bedside lamp.",
+      "supplied": [
+        "light.bedside_lamp"
+      ],
+      "tools": [
+        {
+          "args": {
+            "light": "light.bedroom_lamp_v2"
+          },
+          "name": "wake_up"
+        }
+      ],
+      "unexpected_changes": {},
+      "used_find_entities": false
+    }
+  ],
+  "run": {
+    "arms": [
+      "off",
+      "resolve"
+    ],
+    "cases": 6,
+    "corpus": "wave1_entity_id_tools.yaml",
+    "entity_summary": false,
+    "kind": "wave1-entity-id-tools",
+    "model": "claude-haiku-4-5",
+    "name_injection": false,
+    "orders": [
+      "off\u2192resolve",
+      "resolve\u2192off",
+      "off\u2192resolve",
+      "resolve\u2192off",
+      "off\u2192resolve",
+      "resolve\u2192off"
+    ],
+    "timestamp": "2026-08-07T04:47:45.893632+00:00"
+  }
+}

@@ -6,6 +6,9 @@ names, and its scripts declare entity selectors that reach the model as real too
 `classify_source` tells apart the three ways a model can fill that argument.
 """
 
+from pathlib import Path
+from tempfile import gettempdir
+
 import pytest
 
 from custom_components.magic_mic.capabilities.localization import (
@@ -25,6 +28,7 @@ from evals.harness.entity_id_tools import (
     ArgumentSource,
     ArmResult,
     EntityIdReport,
+    _display_path,
     _select_arms,
     build_artifact,
     classify_source,
@@ -427,3 +431,10 @@ def test_corpus_path_is_where_the_driver_expects() -> None:
     """The driver's constant and the shipped file agree."""
     assert ENTITY_ID_CORPUS.parent.name == "corpus"
     assert ENTITY_ID_CORPUS.exists()
+
+
+def test_a_relative_out_path_still_prints() -> None:
+    """`--out evals/results/x.json` crashed the run *after* every live turn was spent."""
+    assert _display_path(Path("evals/results/x.json")) == "evals/results/x.json"
+    outside = Path(gettempdir()) / "x.json"
+    assert _display_path(outside) == str(outside.resolve())

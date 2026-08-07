@@ -723,25 +723,33 @@ produce an id). The corpus's load-bearing property is that no object id is deriv
 friendly name, which `test_entity_id_tools.py` asserts, since a guessable fixture would let
 both arms pass and measure nothing.
 
-**First result (2026-08-06, claude-haiku-4-5): the delta is zero.** 5/6 correct in both arms,
-and all 12 turns called `find_entities` before the script tool and handed back a live id.
-Consumer 3 never had an argument to fix. The rung structure is not what failed; nothing
-reached it.
+**Results, 2026-08-06, claude-haiku-4-5, 6 cases per arm.** The value of this consumer turns
+out to depend entirely on what the prompt gives the model, which is worth stating before the
+numbers.
 
-The run was configured so that it could not have gone otherwise, which is the finding worth
-keeping. With the entity summary on, the prompt carries area/domain counts and not one entity
-name (prompt-context.md Tier 1), and its header tells the model to look names up. So the model
-had no source of names except `find_entities`, and `find_entities` returns exact ids. There
-was never an opportunity to invent one. What the run measured is Consumer 3 on top of Consumer
-2, under a prompt that forces Consumer 2.
+| prompt | arms | result |
+|---|---|---|
+| entity summary (counts, no names, `find_entities` present) | off vs resolve | 5/6 both. Delta 0. |
+| full roster (names, no ids, no `find_entities`) | off vs resolve | **0/6 vs 6/6.** |
+| entity summary | resolve vs advertise | 5/6 both, `find_entities` 6 → 1, generations 19 → 15. |
 
-Two arms follow from that, both now in the driver:
+Under the summary the model called `find_entities` on all 12 turns and handed back a live id,
+so resolution never had an argument to fix. That is not the consumer failing; it is the
+configuration removing the failure. The summary replaces the name roster with area/domain
+counts (prompt-context.md Tier 1) and tells the model to look names up, so the model's only
+source of a name was the lookup, and the lookup returns exact ids.
 
-- `--roster` turns the summary off. HA's full name roster comes back, with names and still no
-  ids, and `find_entities` goes away with it, since the summary and the lookup tool ship as a
-  pair (`testbed/prompt.py`). That is the environment CD1 was reported from, and it needs no
-  new gate.
-- `--arms resolve,advertise` is the more interesting one, below.
+Turn the summary off and the picture inverts. `find_entities` ships with the summary
+(`testbed/prompt.py`), so `--roster` restores HA's names and withdraws the lookup, which is
+the configuration CD1 was reported from. The model invented an id on **all 12 turns**, always
+by slugifying the friendly name it had been shown: `light.reading_lamp` for
+`light.hue_00a3`, `cover.office_roller_shade` for `cover.somfy_4412`. Stock HA executed every
+one against nothing and reported success. Rung 3 (de-slug, match within the domain) caught all
+six.
+
+So the honest claim is conditional: on a home whose ids are not slugified names, an
+`entity_id` argument is unusable without either a lookup tool or this resolution. Give the
+model neither, and it fails silently every time.
 
 ## Advertising the resolution
 
@@ -763,6 +771,21 @@ The hint earns its keep by removing a turn from a call that already works. The h
 only when resolution is on: advertising a name that nothing resolves would send the model
 straight into the failure this consumer exists to prevent, and
 `test_the_proxy_promises_nothing_it_will_not_honor` pins that.
+
+**Measured (2026-08-06, under the entity summary): `find_entities` calls fell from 6 to 1 and
+generations from 19 to 15, at identical task success.** The argument-source split flips
+completely, 6/6 `live_entity_id` to 6/6 `spoken_name`: told that a name is accepted, the model
+took the offer every time. One case shows the ambiguity path doing its job rather than the
+lookup: "under cabinet lights" against "Under Cabinet Lighting" missed the exact rungs, came
+back as candidates, and the model picked the id from them and called again, still inside the
+same generation count the lookup arm spent.
+
+Reading that honestly requires the trace fix it exposed. `TOOL_CALL` records arguments *as
+executed*, so a resolved call looks like the model produced an id, and the first run of this
+arm reported 4 of 6 as `live_entity_id` when the model had in fact passed names.
+`_trace_entity_arguments` now records the supplied value alongside the resolved one, which is
+what `ObservedTurn.entity_arguments` carries. Any measurement of what a model produced has to
+read that, not the call.
 
 A scripted multi-turn trajectory is required before claiming disambiguation success or
 fewer turns: it must carry the same `conversation_id`, answer the candidate question, permit a

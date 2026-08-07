@@ -369,16 +369,45 @@ class TestbedAPI(llm.APIInstance):
             self.api.hass, self.llm_context, tool, tool_args, self._strings
         )
         if resolution is not None and resolution.tool_args is not None:
-            LOGGER.debug(
-                "[testbed] resolved entity arguments for %s: %s",
-                tool.name,
-                sorted(
-                    field
-                    for field, value in resolution.tool_args.items()
-                    if tool_args.get(field) != value
-                ),
-            )
+            rewritten = {
+                field: value
+                for field, value in resolution.tool_args.items()
+                if tool_args.get(field) != value
+            }
+            if rewritten:
+                self._trace_entity_arguments(tool.name, tool_args, rewritten)
+                LOGGER.debug(
+                    "[testbed] resolved entity arguments for %s: %s",
+                    tool.name,
+                    sorted(rewritten),
+                )
         return resolution
+
+    @staticmethod
+    def _trace_entity_arguments(
+        tool_name: str, supplied: dict[str, Any], rewritten: dict[str, Any]
+    ) -> None:
+        """Record what the model actually sent, before resolution overwrote it.
+
+        The `TOOL_CALL` event carries the arguments *as executed*, which is right for
+        auditing what happened to the home but erases the model's own value. Anything asking
+        what the model produced (an eval classifying whether it passed a name or an id, a
+        user asking why a different entity moved) cannot recover it from the call alone.
+        """
+        async_conversation_trace_append(
+            ConversationTraceEventType.AGENT_DETAIL,
+            {
+                "entity_arguments": {
+                    "resolved": {
+                        field: rewritten[field] for field in sorted(rewritten)
+                    },
+                    "supplied": {
+                        field: supplied.get(field) for field in sorted(rewritten)
+                    },
+                    "tool_name": tool_name,
+                }
+            },
+        )
 
     def _resolve_name_miss(self, err: intent.MatchFailedError):
         """Fuzzy-resolve an intent's exact name miss, or None to re-raise the error.
