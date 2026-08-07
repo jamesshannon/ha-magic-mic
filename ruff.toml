@@ -186,6 +186,7 @@ split-on-trailing-comma = false
 # dev tools; stdout is their interface.
 "evals/harness/baseline.py" = ["T201"]
 "evals/harness/console.py" = ["T201"]
+"evals/harness/consistency.py" = ["T201"]
 "evals/harness/entity_id_tools.py" = ["T201"]
 "evals/harness/fuzzy_fallback.py" = ["T201"]
 "evals/harness/go_no_go.py" = ["T201"]

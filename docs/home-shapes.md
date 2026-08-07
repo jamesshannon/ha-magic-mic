@@ -47,6 +47,30 @@ Sketching where the boundaries plausibly sit, which is a hypothesis and not a me
   that the same names recur. The 1.45x cost result is a measurement of injection on a home too
   small to need it, not a verdict on the mechanism.
 
+## The summary may buy more than tokens
+
+Added 2026-08-06, from the entity-argument runs. On the corpus's one genuinely ambiguous
+request ("the lamp by the couch", in a room holding a Reading Lamp and a Corner Floor Lamp),
+the model **asked which lamp** under the entity summary and **picked one confidently, wrong**
+under the full roster.
+
+One observation each, so this is a hypothesis and not a result. But the mechanism is plausible
+enough to design around if it holds. The summary reports two lights in the living room as a
+count, so acting at all requires a lookup, and the lookup returns two comparable candidates
+flagged `ambiguous`. The ambiguity arrives as data the model has to deal with. The roster
+hands it two lamp names inline, nothing marks either as the better fit for "by the couch", and
+committing to one is the path of least resistance.
+
+If that is real, the summary's extra generation is not purely a cost. It buys a question
+instead of a confident wrong action, on exactly the requests where a wrong action is most
+likely. That cuts against the simple reading of the table above: the small-home case for the
+full roster is weakest precisely where a home has several similar devices in one room, which
+is common in the homes most likely to be small enough for the roster in the first place.
+
+`evals/harness/consistency.py` exists to test this. Run the same ambiguous case N times under
+each prompt strategy and compare how often each asks. That is the measurement that would turn
+this section into a result or delete it.
+
 ## Why this matters beyond tidiness
 
 It changes how existing results should be read. Three of our recorded findings are currently
@@ -56,10 +80,13 @@ home*:
 - Name injection costs 1.45x for no benefit (`evaluation.md` Part E).
 - Entity-argument resolution has no measurable value (2026-08-06, summary on).
 - Entity-argument resolution rescues 6 of 6 (2026-08-06, roster on, same corpus, same model).
+- The model fabricates an entity_id on 6 of 6 requests, or on 0 of 6 once the field's
+  description forbids it (2026-08-06, roster on, both arms resolving).
 
-The last two are the same code on the same cases, and they disagree because the prompt
-differs. That is not noise. It is the strongest evidence available that the prompt strategy,
-not the resolution machinery, is the variable that decides outcomes here.
+The second and third are the same code on the same cases, disagreeing because the prompt
+differs. The fourth is the same again, moved by a sentence of prompt text. That is not noise.
+It is the strongest evidence available that the prompt strategy, not the resolution machinery,
+is the variable that decides outcomes here.
 
 ## The analogy, and its limit
 

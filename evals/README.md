@@ -25,6 +25,7 @@ evals/
     local_first.py               the faithful prefer-local routing driver (key for fallback)
     fuzzy_fallback.py            the find_entities Consumer 1 driver (summary on, names off)
     entity_id_tools.py           the Consumer 3 driver (arms: off / resolve / advertise)
+    consistency.py               one case, one configuration, N trials, reported as a distribution
     console.py                   interactive CLI to hand-drive turns (needs a key)
     backing.py                   real executable entities for the fixture home
     resolution.py                the resolver micro-benchmark loader + runner + scorecard
@@ -33,6 +34,7 @@ evals/
     wave0_baseline.json          the recorded live baseline Wave 1 measures against
     wave1_fuzzy_fallback.json    the recorded fuzzy-fallback (Consumer 1) run
     wave1_entity_id_tools.json   the recorded entity_id-argument run (both arms)
+    wave1_consistency.json       the recorded consistency run (unrun as of 2026-08-06)
     wave1_go_no_go.json          the Wave 1 verdict: what shipped, and what went unmeasured
 ```
 

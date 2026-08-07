@@ -119,7 +119,14 @@ Not one of those entities exists. In the `off` arm every call reached
 `hass.services.async_call`, matched nothing, changed nothing, and the model reported success.
 That is the reporter's bug, reproduced end to end, at a 100% rate on a home whose ids are not
 slugified names. Rung 3 of the compensation (de-slug the id, match within its own domain)
-caught every one. Artifacts: `evals/results/wave1_entity_id_tools_roster.json` and
+caught every one.
+
+**Third run, same configuration, with the entity field's description forbidding a constructed
+`entity_id`: the fabrication stops.** 6/6 invented ids become 0/6, the model passes friendly
+names instead, rung 2 handles them, and rung 3 never fires. Generations are unchanged. So the
+compensation is what makes the failure survivable, and one sentence of prompt text is what
+keeps the model out of it; neither replaces the other, since a prompt is a tendency and the
+rung is the net. Artifacts: `evals/results/wave1_entity_id_tools_roster.json` and
 `wave1_entity_id_tools_advertise.json`.
 
 **Upstream.** Reported independently on the core issue tracker (2026-08) by a user whose

@@ -932,19 +932,42 @@ three routes agree by having no authority at all. Consistent, and it throws away
 Consumer 1 exists to provide: a paraphrase costs a clarification turn every time. Cheapest to
 implement, worst for the user.
 
-### What was done instead
+### What was done instead, and what it measured
 
 The prompt now states the invariant rather than the code enforcing it. The entity-field hint
 tells the model never to build an `entity_id` out of a name, and that the only valid one is
-what a lookup returned. This attacks the divergence at its source (a model that does not
-fabricate ids never reaches rung 3, and a model that passes names lands on one route) at the
-cost of one clause and no new branch. It is a prompt, so it is a tendency and not a guarantee;
-rung 3 stays as the net. If rung 3 stops firing in the roster arm, that is the measurement
-saying the prohibition worked.
+what a lookup returned. This attacks the divergence at its source at the cost of one clause
+and no new branch. It is a prompt, so it is a tendency and not a guarantee; rung 3 stays as
+the net.
 
-Note that this changes a measured string. The 2026-08-06 advertise numbers (`find_entities`
-6 → 1, generations 19 → 15) were produced with the earlier wording, which lacked the
-prohibition.
+**Measured 2026-08-06, `--roster --arms resolve,advertise`** (full name roster, no
+`find_entities`, so the only way to a target is the entity argument itself):
+
+```
+                     resolve   advertise
+invented_entity_id         6           0
+spoken_name                0           6
+generations               12          12
+```
+
+Total. Told nothing, the model fabricated an id on all six cases; told not to, on none. It
+passed the friendly name instead every time, rung 2 matched it, and **rung 3 never fired**.
+The repair became dead code in the configuration that previously depended on it entirely, and
+it cost nothing: generations identical.
+
+The arm recommendation this doc gave earlier (`--arms off,resolve`) was wrong and is corrected
+in the list below: neither of those arms carries the hint, so neither would have shown the
+prohibition at all.
+
+Task success went 6 to 5 in that run, on `paraphrased-target-couch-lamp`. That is not
+attributable to the prohibition. It is the corpus's one genuinely ambiguous case, and it has
+produced a different result in every observation so far (see the table under "The ambiguous
+case" below). One case at one trial per arm cannot separate a regression from a coin flip,
+which is the whole argument for the consistency driver.
+
+Note that this changes a measured string. The earlier advertise numbers under the entity
+summary (`find_entities` 6 → 1, generations 19 → 15) were produced with the wording that
+lacked the prohibition.
 
 ### In-turn candidates: already the behavior
 
@@ -960,14 +983,55 @@ model supplied, not against a search string it composed deliberately. A model th
 searched `name=["couch lamp", "floor lamp"]` gets candidates for `"Couch Lamp"` instead, which
 is a narrower query than it intended.
 
+### The ambiguous case, and what it exposed
+
+`paraphrased-target-couch-lamp` is "run the evening dim on the lamp by the couch", in a living
+room holding a Reading Lamp and a Corner Floor Lamp. The target is the Corner Floor Lamp. It
+has been observed six times:
+
+| prompt | arm | outcome |
+|---|---|---|
+| summary | resolve | passed `light.hue_00a3`, dimmed the Reading Lamp |
+| summary | advertise | passed "lamp by the couch", got candidates, then looked up, still missed |
+| roster | off | slugified `light.corner_floor_lamp`, correct name, no resolution to land it |
+| roster | resolve | same, resolved, correct |
+| roster | resolve | same, resolved, correct |
+| roster | advertise | passed "Reading Lamp", dimmed the wrong lamp, reported success |
+
+Two things follow, and the second is the more important one.
+
+**No resolution strategy can fix the last row.** `"Reading Lamp"` is an *exact* registry name.
+Rung 2 matched it, the service ran, and the model said "Done! I've dimmed the Reading Lamp."
+Nothing was ambiguous at the resolution layer, because the model's choice was wrong before it
+ever got there. Consumer 3 behaved correctly in every row of that table, including the ones
+that failed. This failure is upstream of everything in this doc, and its only real defenses
+are making the model ask, or a confirmation gate for high blast radius
+([`tool-policy.md`](tool-policy.md)).
+
+**The entity summary appears to induce the asking.** Under the summary the model asked which
+lamp was meant; under the roster it committed. That is one observation each and not a result,
+but there is a plausible mechanism worth stating: the summary shows two lights in the living
+room as a *count*, so acting requires a lookup, and the lookup returns two comparable
+candidates flagged ambiguous. Ambiguity is surfaced as data the model must handle. The roster
+hands it two lamp names inline, where nothing marks either as a better fit for "by the couch",
+and picking one is the path of least resistance.
+
+If that holds, the summary is not only a token-budget mechanism. It changes *behavior* on
+ambiguous referents by forcing the ambiguity through a step that reports it, and the extra
+generation it costs buys a question instead of a confident wrong action. That reframes the
+roster-versus-summary tradeoff recorded in [`home-shapes.md`](home-shapes.md): the small-home
+case for the roster is weakest exactly where a home has several similar devices in one room,
+which is common in the homes most likely to be small. It needs its own measurement before
+anyone leans on it.
+
 ### To try, in rough order of expected value
 
-1. Re-run `--roster --arms off,resolve` with the prohibition in the hint, and count how often
-   rung 3 still fires. Cheap, and it tests the fix actually shipped.
-2. Measure route consistency directly: run the same case repeatedly at fixed configuration and
-   count distinct outcomes. Today nothing measures the variance this section is about, only
-   the mean. A corpus of 6 run once cannot see it at all.
-3. Let the unresolved payload carry the model's own search alternatives, so an in-turn
+1. **Measure route consistency directly.** `evals/harness/consistency.py` runs one case N
+   times at one fixed configuration and reports the distribution of outcomes rather than a
+   mean. Built 2026-08-06, not yet run. Start with `paraphrased-target-couch-lamp` at
+   `--arm advertise`, then the same case with `--roster`, which is the pair that would confirm
+   or kill the summary-induces-asking hypothesis above.
+2. **Let the unresolved payload carry the model's own search alternatives**, so an in-turn
    candidate list can be as wide as a deliberate lookup.
-4. Provenance by utterance containment, if 2 shows the variance is real and 1 has not already
-   removed it.
+3. **Provenance by utterance containment**, if 1 shows the variance is real and the
+   `entity_id` prohibition has not already removed it.
