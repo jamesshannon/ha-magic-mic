@@ -438,6 +438,13 @@ gets its own file there. Current docs:
   `ActionTool` selector asymmetry (area and floor names are resolved to ids, entity names are
   not, and the prompt carries no ids), the exact `_filter_by_name`, and the `IndexError` in
   core's own area conversion.
+- [`docs/home-shapes.md`](docs/home-shapes.md) — **design note, nothing built.** Argues that
+  the full roster, the entity summary, and Tier-2 name injection are not competing defaults
+  but answers to differently shaped homes, selected from deterministic registry facts rather
+  than configured. Prompted by the same corpus and model producing 0/6 and 6/6 on the
+  entity-argument cases depending only on which prompt strategy was on. Records why the losing
+  mechanisms are kept rather than pruned, and what a corpus would need before any of it is
+  testable.
 
 _All planned topic docs now written._
 
