@@ -723,6 +723,16 @@ produce an id). The corpus's load-bearing property is that no object id is deriv
 friendly name, which `test_entity_id_tools.py` asserts, since a guessable fixture would let
 both arms pass and measure nothing.
 
+**First result (2026-08-06, claude-haiku-4-5): the delta is zero.** 5/6 correct in both arms,
+and all 12 turns called `find_entities` before the script tool and handed back a live id.
+Consumer 3 never had an argument to fix. The rung structure is not what failed; nothing
+reached it. Both arms carry `find_entities`, so what the run measures is Consumer 3's value
+*on top of* Consumer 2, and on that question the answer here is none. The environment CD1 was
+reported from had no lookup tool at all, so the remaining test is a third arm with
+`find_entities` withheld. Nothing gates that tool today; adding the gate is the next slice if
+this claim is worth settling. Until then Consumer 3 is insurance whose premium is one exact
+comparison per entity argument, not a measured win.
+
 A scripted multi-turn trajectory is required before claiming disambiguation success or
 fewer turns: it must carry the same `conversation_id`, answer the candidate question, permit a
 correction or unrelated replacement command, and score the final world state. Direct fuzzy

@@ -90,8 +90,17 @@ CD2).
 **Measured by.** `evals/harness/entity_id_tools.py` over
 `evals/corpus/wave1_entity_id_tools.yaml`, paired per case with resolution off and on. Off is
 this entry's behavior, so the arm delta is the size of the problem rather than an assertion
-about it. Unrun against a live model as of 2026-08-06; the arms are proven to differ
-deterministically in `test_entity_id_tools.py`.
+about it.
+
+First run, 2026-08-06 on claude-haiku-4-5: **no delta.** 5/6 correct in both arms. Every one
+of the 12 turns called `find_entities` before the script tool and passed back a live id, so
+the compensation never fired and no argument was ever invented. The behavior in this entry is
+real (`test_action_tool_does_not_resolve_entity_names` still passes, and
+`test_entity_id_tools.py::test_the_two_arms_differ_on_this_fixture` still lands the call in
+one arm and not the other); what the run shows is that this model does not walk into it when
+a lookup tool is on the roster. The reported case came from an assistant with no such tool.
+Sizing the entry against that setup needs an arm with `find_entities` withheld, which nothing
+gates today. Artifact: `evals/results/wave1_entity_id_tools.json`.
 
 **Upstream.** Reported independently on the core issue tracker (2026-08) by a user whose
 exposed script tools received invented ids from Gemini Flash. Their three proposed fixes

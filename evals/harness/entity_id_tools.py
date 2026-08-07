@@ -188,12 +188,14 @@ class EntityIdReport:
         """Render both arms side by side, correctness first, then how it got there."""
         off_card = self.scorecard(entity_arguments=False)
         on_card = self.scorecard(entity_arguments=True)
+        off_correct = _correct(off_card)
+        on_correct = _correct(on_card)
         lines = [
             f"Entity-id tool arguments ({len(self.off)} cases, paired)",
             "",
             (
-                f"  correct  off={off_card.correct}  on={on_card.correct}  "
-                f"delta={on_card.correct - off_card.correct:+d}"
+                f"  correct  off={off_correct}  on={on_correct}  "
+                f"delta={on_correct - off_correct:+d}"
             ),
             (
                 "  find_entities calls  "
@@ -225,6 +227,11 @@ class EntityIdReport:
         return "\n".join(lines)
 
 
+def _correct(scorecard: Scorecard) -> int:
+    """Count cases the arm got right (``correct`` is tri-state; count only True)."""
+    return sum(1 for result in scorecard.results if result.correct is True)
+
+
 def _arm_case_dict(item: ArmResult) -> dict[str, object]:
     """Reduce one arm's scored, classified case to a JSON record."""
     observed = item.result.observed
@@ -247,11 +254,13 @@ def build_artifact(report: EntityIdReport, model: str, *, names_on: bool) -> dic
     """Assemble the artifact: metadata, per-arm aggregates, and per-case detail."""
     off_card = report.scorecard(entity_arguments=False)
     on_card = report.scorecard(entity_arguments=True)
+    off_correct = _correct(off_card)
+    on_correct = _correct(on_card)
     return {
         "arms": {
             "off": {
                 "buckets": {b.value: c for b, c in off_card.buckets.items()},
-                "correct": off_card.correct,
+                "correct": off_correct,
                 "find_entities_calls": report.find_entities_calls(
                     entity_arguments=False
                 ),
@@ -259,7 +268,7 @@ def build_artifact(report: EntityIdReport, model: str, *, names_on: bool) -> dic
             },
             "on": {
                 "buckets": {b.value: c for b, c in on_card.buckets.items()},
-                "correct": on_card.correct,
+                "correct": on_correct,
                 "find_entities_calls": report.find_entities_calls(
                     entity_arguments=True
                 ),
@@ -271,7 +280,7 @@ def build_artifact(report: EntityIdReport, model: str, *, names_on: bool) -> dic
             "kind": "wave1-entity-id-tools",
             "cases": len(report.off),
             "corpus": ENTITY_ID_CORPUS.name,
-            "correct_delta": on_card.correct - off_card.correct,
+            "correct_delta": on_correct - off_correct,
             "entity_summary": True,
             "model": model,
             "name_injection": names_on,

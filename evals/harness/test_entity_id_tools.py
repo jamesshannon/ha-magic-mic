@@ -20,6 +20,9 @@ from evals.harness.corpus import CorpusError, Script, load_corpus, parse_world
 from evals.harness.entity_id_tools import (
     ENTITY_ID_CORPUS,
     ArgumentSource,
+    ArmResult,
+    EntityIdReport,
+    build_artifact,
     classify_source,
 )
 from evals.harness.scoring import Bucket, CaseResult, ObservedTurn, ToolCall
@@ -106,6 +109,68 @@ def test_a_call_is_judged_by_its_weakest_argument() -> None:
 
     assert source == ArgumentSource.INVENTED_ID
     assert len(supplied) == 2
+
+
+# The report, which runs only after every live turn has been paid for.
+
+
+def _arm(*, entity_arguments: bool, source: str, correct: bool | None) -> ArmResult:
+    """One scored, classified case in one arm."""
+    return ArmResult(
+        result=CaseResult(
+            case=_case(),
+            observed=ObservedTurn(speech="ok", tools=()),
+            bucket=Bucket.LLM_CORRECT if correct else Bucket.WRONG_ACTION,
+            correct=correct,
+        ),
+        entity_arguments=entity_arguments,
+        source=source,
+        supplied=(),
+        used_find_entities=False,
+        satellite_room="living room",
+    )
+
+
+def _report() -> EntityIdReport:
+    """A two-case paired report: resolution turns one failure into a success."""
+    return EntityIdReport(
+        off=(
+            _arm(
+                entity_arguments=False,
+                source=ArgumentSource.INVENTED_ID,
+                correct=False,
+            ),
+            _arm(entity_arguments=False, source=ArgumentSource.LIVE_ID, correct=True),
+        ),
+        on=(
+            _arm(entity_arguments=True, source=ArgumentSource.LIVE_ID, correct=True),
+            _arm(entity_arguments=True, source=ArgumentSource.LIVE_ID, correct=True),
+        ),
+        orders=("off→on", "on→off"),
+    )
+
+
+def test_the_report_renders_and_counts_the_delta() -> None:
+    """Rendering runs after 12 live turns, so a typo here costs a whole run."""
+    rendered = _report().render()
+
+    assert "correct  off=1  on=2  delta=+1" in rendered
+    assert f"{ArgumentSource.INVENTED_ID:<20} off=  1" in rendered
+
+
+def test_the_artifact_counts_only_decided_cases() -> None:
+    """``correct`` is tri-state; an unjudged case is not a success."""
+    report = EntityIdReport(
+        off=(_arm(entity_arguments=False, source=ArgumentSource.NAME, correct=None),),
+        on=(_arm(entity_arguments=True, source=ArgumentSource.LIVE_ID, correct=True),),
+        orders=("off→on",),
+    )
+
+    artifact = build_artifact(report, "claude-haiku-4-5", names_on=False)
+
+    assert artifact["arms"]["off"]["correct"] == 0
+    assert artifact["arms"]["on"]["correct"] == 1
+    assert artifact["run"]["correct_delta"] == 1
 
 
 # The corpus itself.
