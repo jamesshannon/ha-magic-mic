@@ -60,7 +60,8 @@
 - **Inject a small, request-conditioned name subset** on top of the summary:
   room-scoped (`device_id → area`; floor is too coarse) ∩ request-relevance
   (domain keywords + fuzzy-name match). This is **`find_entities` run *proactively*
-  at prompt-build** — a *third consumer* of its scorer/guard primitive. Keyword +
+  at prompt-build** — the *prompt-assembly consumer* of its scorer/guard primitive,
+  outside find-entities.md's numbered resolution consumers. Keyword +
   fuzzy, **not embeddings** (§5.3: entities are bounded/structured).
 - **Cache is a within-conversation and within-command-loop lever, not a
   cross-conversation one.** Keep a stable cached prefix (instructions + tools +
@@ -423,9 +424,11 @@ common case stays zero-lookup. Two filters, layered:
    "music/volume" → `media_player`) **plus fuzzy-name match** of request tokens
    against entity names/aliases. Take top-N.
 
-**This is `find_entities` run proactively at prompt-build** — the *third consumer*
-of its scorer + structured-filter primitive (after the match-layer fallback and
-the reactive tool). Same code, run earlier, against the room-scoped candidate set.
+**This is `find_entities` run proactively at prompt-build** — the *prompt-assembly
+consumer* of its scorer + structured-filter primitive. Same code, run earlier, against the
+room-scoped candidate set. It sits outside find-entities.md's numbered resolution
+consumers on purpose: nothing acts on what this returns, so it wants recall where they
+want caution (see that doc's "What the Consumer numbers mean").
 
 Design constraints:
 

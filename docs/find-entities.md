@@ -254,6 +254,15 @@ and close through the on/off handler.
 
 ## Design
 
+> **What the Consumer numbers mean.** The numbered consumers below are the **resolution**
+> sites: a referent string arrives, and something is about to act on the target it names.
+> They share the scorer *and* the ambiguity policy. The scorer's other consumers do a
+> different job and are **named, not numbered**, in their own docs: proactive name
+> injection at prompt-build ([`prompt-context.md`](prompt-context.md) Tier 2) assembles a
+> prompt, and capability selection's miss recovery (§"The shared referent core") decides
+> tool exposure. Both want recall where resolution wants caution, which is why they are a
+> separate list rather than Consumers 4 and 5.
+
 ### Consumer 1 — fuzzy fallback in the match layer (device control)
 
 The fix for the exact-match bug. Flow:
@@ -426,30 +435,89 @@ is an `EntitySelector` receives whatever string the model produced; nothing vali
 and an unknown id makes the service call a no-op.
 
 Shape: at the proxy's tool-execution seam, walk the tool's parameter schema for
-`EntitySelector` fields and resolve each value through the shared primitive before handing
-the call to the inner API instance.
+`EntitySelector` fields and resolve each value before handing the call to the inner API
+instance.
 
-- **Pass through what is already valid.** `hass.states.get(value) is not None` means the
-  model produced a real id (from `find_entities`, from history, or because it guessed
-  correctly). Resolve nothing.
-- **Resolve a name decisively → substitute the canonical id** and execute, exactly as
-  Consumer 1 substitutes into a retried intent.
-- **Ambiguous or below floor → do not execute.** Return the guard's candidate list as the
-  `tool_result` so the model asks. A script is a *behavioral write* in the
-  [`tool-policy.md`](tool-policy.md) sense far more often than a `HassTurnOn` is, so acting
-  on a thin margin is worse here than in Consumer 1.
-- **Exposure still applies.** Candidates come from the assistant-exposed set, so this
-  cannot become a path to a hidden entity.
+**This consumer is exact-first, and fuzzy is the last rung, not the mechanism.** That is a
+deliberate split from Consumer 1, for a reason worth stating plainly, because the two look
+like the same problem:
 
-Two scope calls worth making deliberately rather than by accident. `TargetSelector` carries
-an `entity_id` member through `cv.TARGET_FIELDS` and has the same hole; start with
-`EntitySelector` and treat targets as a follow-up rather than widening the first slice. And
-resolution is per-field, so a script taking two entity arguments resolves each
-independently and either one can come back ambiguous.
+> Consumer 1's input is **the user's own words**, sitting in a slot the model filled from
+> the utterance, reached only after HA's exact match already failed. Consumer 3's input is
+> **an identifier the model synthesized**. Nobody said "light.office_lamp"; the model built
+> it from a name it saw. Fuzzy-matching that string resolves a *guess* to a real device, so
+> the failure mode is not "wrong device, user corrects" but "the model invented a plausible
+> id and we actuated whatever was nearest it." Scripts also skew more behavioral and less
+> reversible than a `HassTurnOn`, so the [`undo.md`](undo.md) safety net that makes
+> optimism affordable elsewhere is thinner here.
+
+So the ladder, first rung that hits wins:
+
+1. **Already a live entity_id → pass through untouched.** `hass.states.get(value) is not
+   None`. No matching runs. This is also the backward-compatibility guarantee: every call
+   that works today is byte-identical afterwards, because we only ever rewrite a value that
+   would otherwise have targeted nothing.
+2. **Exact name or alias match**, exposure-filtered, the same comparison
+   `_filter_by_name` makes. Catches the model that passed "Office Lamp" instead of an id.
+3. **De-slug, then exact.** `light.office_lamp` → domain `light`, tokens "office lamp",
+   matched exactly against names/aliases within that domain. **This is the rung that
+   actually fixes the reported bug**, and it is easy to miss: the string in the field is
+   shaped like an id, not a name, so rungs 2 and 4 both under-perform on it. The model
+   slugified a friendly name; we un-slugify it.
+4. **Fuzzy with the guard, at a raised accept threshold**, and only here. Default it
+   **off** until the corpus (below) shows it earns its keep. Everything above is exact and
+   carries no false-resolve risk; this rung is the only one that can invent a target.
+
+Whatever the rung, **ambiguity never acts**: return the guard's candidate list as the
+`tool_result` so the model asks. A script is a behavioral write in the
+[`tool-policy.md`](tool-policy.md) sense far more often than a `HassTurnOn` is.
+
+Three details that decide whether the slice is correct rather than merely plausible:
+
+- **Honor the selector's own config as structured filters.** `EntitySelectorConfig` carries
+  `domain`, `device_class`, `include_entities`, and `exclude_entities`
+  (`helpers/selector.py:176`, `:992`). The author already narrowed the field; a resolver
+  that ignores that is throwing away free precision and can resolve outside what the script
+  will accept.
+- **`multiple: true` makes the value a list.** Resolve each member independently. Decide
+  explicitly what a partial result means: one ambiguous member should not silently execute
+  the other three.
+- **Exposure still applies.** Candidates come from the assistant-exposed set, so this can
+  never become a path to a hidden entity.
+
+**Why the interception can run at all:** nothing on the LLM path validates tool arguments
+against the selector schema. `EntitySelector.__call__` would reject "Office Lamp" through
+`cv.entity_id_or_uuid`, but it is never called: `APIInstance.async_call_tool` dispatches
+straight to `tool.async_call` (`helpers/llm.py:242-260`) despite its docstring saying it
+validates. Consumer 3 depends on that gap, which is why it is pinned as
+[`core-deltas.md`](core-deltas.md) CD4.
 
 Do not mirror core's area conversion literally: `list(intent.find_areas(...))[0]` raises
 `IndexError` on a miss ([`core-deltas.md`](core-deltas.md) CD3). A resolution failure is a
 `tool_result` the model can act on, not an exception.
+
+#### Scope: `EntitySelector` now, `TargetSelector` as its own slice
+
+A script field can be declared `selector: target:` instead of `selector: entity:`. That
+serializes to `cv.TARGET_FIELDS` (`helpers/llm.py:885` → `helpers/config_validation.py:1310`):
+a dict with optional `entity_id`, `device_id`, `area_id`, `floor_id`, and `label_id`, each a
+list. `ActionTool.async_call` type-checks for `AreaSelector` and `FloorSelector` validators,
+and a `TargetSelector` is neither, so **nothing inside a target dict is resolved** — including
+its `area_id` and `floor_id`, which *do* get name-resolved when they are standalone fields.
+A target field is therefore a strictly larger hole than CD1, not the same one in a different
+wrapper.
+
+We start with scalar `EntitySelector` anyway:
+
+- Different value shape. One string (or a list) versus a nested dict of five list-valued
+  keys, each needing its own registry and its own miss policy.
+- Different failure semantics. "Ambiguous" is answerable for one field; for a target dict
+  where one of five members is ambiguous and the rest resolved, the right behavior is a
+  design question, not an implementation detail.
+- Different upstream patch. The `area_id`-inside-target gap is its own finding and its own
+  core fix, so bundling it muddies the CD1 contribution.
+
+Get one slice right with tests, then take targets with their own ledger entry.
 
 ### The shared primitive — scorer + ambiguity guard
 
@@ -509,7 +577,7 @@ bias.
 
 ---
 
-## The shared referent core (the third consumer, and the boundary it draws)
+## The shared referent core (the exposure-layer consumer, and the boundary it draws)
 
 Consumers 1 and 2 already share one resolve step. A third arrived from the other direction:
 capability selection's miss recovery needs to answer "what in this home could the user have

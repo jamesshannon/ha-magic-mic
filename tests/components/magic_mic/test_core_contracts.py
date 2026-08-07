@@ -207,6 +207,46 @@ async def test_action_tool_resolves_area_names(hass: HomeAssistant) -> None:
     assert calls[0].data["where"] == kitchen.id
 
 
+# CD4: nothing validates tool arguments against the tool schema.
+
+
+async def test_async_call_tool_does_not_validate_arguments(
+    hass: HomeAssistant,
+) -> None:
+    """A value the tool's own selector would reject still reaches the tool (CD4).
+
+    `EntitySelector.__call__` runs `cv.entity_id_or_uuid` and would raise on a friendly
+    name, but `APIInstance.async_call_tool` never calls it. Consumer 3 depends on that
+    string surviving long enough to be resolved. If this starts raising, the resolution
+    step has to move ahead of validation.
+    """
+    _seed_action_tool(hass, {vol.Required("target"): selector.EntitySelector()})
+    calls = _capture_service(hass)
+
+    # The selector rejects the value on its own, which is the half that is not wired up.
+    with pytest.raises(vol.Invalid):
+        selector.EntitySelector()("Office Lamp")
+
+    api = await llm.async_get_api(
+        hass,
+        llm.LLM_API_ASSIST,
+        llm.LLMContext(
+            platform="magic_mic",
+            context=None,
+            language="en",
+            assistant=ASSISTANT,
+            device_id=None,
+        ),
+    )
+    api.tools.append(llm.ActionTool(hass, "script", "targeted"))
+    await api.async_call_tool(
+        llm.ToolInput(tool_name="script__targeted", tool_args={"target": "Office Lamp"})
+    )
+
+    assert len(calls) == 1
+    assert calls[0].data["target"] == "Office Lamp"
+
+
 # CD3: area resolution in ActionTool raises on no match.
 
 

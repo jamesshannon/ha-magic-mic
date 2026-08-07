@@ -152,4 +152,45 @@ into a `tool_result`, the way `MatchFailedError` already flows through `async_ha
 returns `{"error", "error_text"}`). Small, self-contained, and a reasonable
 first upstream patch to pair with CD1.
 
-**Contract test:** `test_action_tool_area_miss_raises`.
+**Contract test:** `test_action_tool_unknown_area_raises_index_error`.
+
+---
+
+## CD4. Nothing validates tool arguments against the tool schema
+
+**Verified against:** Home Assistant 2026.7.4.
+
+**Behavior.** `APIInstance.async_call_tool` is documented as "Call a LLM tool, validate args
+and return the response" (`helpers/llm.py:243`). It traces the call, finds the tool by name,
+and dispatches to `tool.async_call` (`:242-260`). No validation happens, there or in
+`ActionTool.async_call`. The model's arguments reach the service call as typed.
+
+The selectors are perfectly capable of rejecting them. `EntitySelector.__call__` runs
+`cv.entity_id_or_uuid` over each value and enforces the config's `domain`,
+`include_entities`, and `exclude_entities` (`helpers/selector.py:1018`). It is simply
+never invoked on this path, so "Office Lamp" in an entity field is passed along rather than
+refused.
+
+**Why it matters here.** It cuts both ways, which is why it is worth pinning rather than
+enjoying quietly.
+
+- It is what makes CD1's compensation possible. Consumer 3 can only resolve a friendly name
+  in an entity field because that name survives long enough to be seen. If core started
+  validating here, the model's non-id string would raise `vol.Invalid` before any
+  resolution ran, and Consumer 3 would have to move to a different seam or feed the model
+  ids after all.
+- Magic Mic's own tools validate their arguments themselves rather than relying on the
+  caller (`FindEntitiesTool.async_call` calls `self.parameters(tool_input.tool_args)`).
+  That is the correct habit given this behavior, and it is a habit, not something the
+  framework enforces.
+
+**Compensation.** Per-tool argument validation in our capability tools. No workaround for
+the framework gap itself.
+
+**What a core fix looks like.** Either validate in `async_call_tool` and make the docstring
+true, or fix the docstring. If the former, the entity-name case (CD1) needs its resolution
+step to run *before* validation, which is an argument for putting the conversion in
+`ActionTool.async_call` where the area conversion already lives, rather than in a generic
+validating wrapper.
+
+**Contract test:** `test_async_call_tool_does_not_validate_arguments`.
