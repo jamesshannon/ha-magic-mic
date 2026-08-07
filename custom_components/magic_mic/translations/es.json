@@ -15,7 +15,7 @@
   },
   "conversation": {
     "action_targets": {
-      "accepts_name": "También acepta el nombre o alias del dispositivo: cuando la petición nombra el dispositivo, pasa ese nombre aquí directamente en lugar de buscar antes su entity_id. Un nombre que coincide con varios dispositivos se devuelve como candidatos entre los que elegir.",
+      "accepts_name": "También acepta el nombre o alias del dispositivo: cuando la petición nombra el dispositivo, pasa ese nombre aquí directamente en lugar de buscar antes su entity_id. Un nombre que coincide con varios dispositivos se devuelve como candidatos entre los que elegir. Nunca construyas un entity_id a partir de un nombre; el único entity_id válido es el que devuelve una búsqueda.",
       "ambiguous": "Varias entidades podrían coincidir con {value} en el argumento {field}. Pregunta al usuario a cuál se refiere y vuelve a llamar con ese entity_id.",
       "not_found": "No se encontró ninguna entidad que coincida con {value} en el argumento {field}. Búscala con las herramientas disponibles y vuelve a llamar con su entity_id."
     },

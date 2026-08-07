@@ -857,3 +857,117 @@ that needs to name a device.
   portable.
 - **`preferred_area_id` / `preferred_floor_id`** — thread known area from prior
   turns as a ranking bias, not just a hard filter.
+
+---
+
+## Path consistency: the open design problem
+
+Recorded 2026-08-06, after the entity-argument runs. Nothing here is built. It is one problem
+with several partial answers, none of which has survived scrutiny, and the reason it is
+written down rather than fixed is that each candidate fix adds a branch to a decision tree
+that is already the main complaint about this design.
+
+### The problem
+
+A spoken name can reach a target by more than one route, and the routes do not agree.
+
+| route | who decides | near-miss behavior |
+|---|---|---|
+| `find_entities(name=…)` | model chooses to call it | resolves decisively above `ACCEPT`+`MARGIN` (`entities.py:173`) |
+| Consumer 1, intent name miss | core raises, we catch | resolves decisively, retries the intent |
+| Consumer 3, entity argument | model passes a name | **never** resolves on a fuzzy score; returns candidates |
+
+Take "run the evening dim on the reading light" against a home with a "Reading Lamp". Through
+`find_entities`, the scorer clears the accept band ("reading light" resolving to "Reading Lamp"
+is the example `FUZZY_ACCEPT_SCORE` was calibrated on) and the lamp dims. Passed straight into
+the script field, the exact rungs miss, `_suggest` returns candidates, and the model asks which
+lamp you meant.
+
+Same words, same home, different outcome, decided by a route the model picks for free. The
+advertised-name change made this the common case rather than a corner: the model now passes
+names on 6 of 6 cases instead of looking them up.
+
+Consumer 3's asymmetry is deliberate and its reasoning is sound for what it was written
+against, an identifier the model synthesized, where a fuzzy hit resolves a guess to a real
+device. What changed is the traffic. Most values arriving in that field are now names, not
+fabricated ids.
+
+### Candidate: authority follows provenance
+
+If the string came from the user, treat it as user language and grant it the same authority
+`find_entities` has. If the model made it up, keep exact-only.
+
+Stated as "not id-shaped means it came from the user", this is simply wrong, and it is worth
+recording why so nobody re-derives it. The model synthesizes plausible names constantly: "the
+lamp by the couch" becomes `"Couch Lamp"`, "the light in here" becomes
+`"Living Room Ceiling Light"`. Both are names; neither is the user's words. Shape tracks
+format, not provenance.
+
+### Candidate: check the utterance directly
+
+Ask whether the supplied string actually occurs in what the user said. Deterministic, uses
+text we already have, and it is the kind of work §5.4 says belongs in code rather than in the
+model's head. It also separates the two examples above correctly: `"Reading Lamp"` appears in
+"dim the reading lamp"; `"Couch Lamp"` does not appear in "the lamp by the couch", and that
+case *should* return candidates.
+
+Three objections, none fatal, all real:
+
+1. It is another branch. `if supplied in utterance` then one behavior, else a completely
+   different one, is exactly the flowchart this design is already too full of.
+2. It inherits STT. The user's text is a transcription, so a misheard word makes relayed
+   language look synthesized and silently changes which path runs.
+3. It assumes verbatim copying. A model that helpfully title-cases, singularizes, or drops an
+   article defeats a containment check, and defeating it fails toward *more* asking, which is
+   the safe direction but not a predictable one.
+
+It also needs the utterance at a seam that does not carry it: `TurnMetadata` holds device,
+principal, and satellite, not text. Widening a named seam is its own decision (CLAUDE.md,
+"treat named architectural seams and their docstrings as invariants").
+
+### Candidate: level `find_entities` down
+
+Make the lookup tool return candidates too, so nothing auto-resolves on a fuzzy score and the
+three routes agree by having no authority at all. Consistent, and it throws away the feature
+Consumer 1 exists to provide: a paraphrase costs a clarification turn every time. Cheapest to
+implement, worst for the user.
+
+### What was done instead
+
+The prompt now states the invariant rather than the code enforcing it. The entity-field hint
+tells the model never to build an `entity_id` out of a name, and that the only valid one is
+what a lookup returned. This attacks the divergence at its source (a model that does not
+fabricate ids never reaches rung 3, and a model that passes names lands on one route) at the
+cost of one clause and no new branch. It is a prompt, so it is a tendency and not a guarantee;
+rung 3 stays as the net. If rung 3 stops firing in the roster arm, that is the measurement
+saying the prohibition worked.
+
+Note that this changes a measured string. The 2026-08-06 advertise numbers (`find_entities`
+6 → 1, generations 19 → 15) were produced with the earlier wording, which lacked the
+prohibition.
+
+### In-turn candidates: already the behavior
+
+Worth stating plainly, because it is easy to propose as new. When an entity argument does not
+resolve exactly, the model gets `{"error": "unresolved_entity_argument", "candidates": [...]}`
+back in the same turn, so it never needs a separate `find_entities` call to recover. The live
+run shows it working: "under cabinet lights" against "Under Cabinet Lighting" missed the exact
+rungs, came back as candidates, and the model picked the id and called again, at the same
+generation count the lookup path spent. Never worse, sometimes better.
+
+The caveat is real and unfixed: those candidates are scored against the *presumed name* the
+model supplied, not against a search string it composed deliberately. A model that would have
+searched `name=["couch lamp", "floor lamp"]` gets candidates for `"Couch Lamp"` instead, which
+is a narrower query than it intended.
+
+### To try, in rough order of expected value
+
+1. Re-run `--roster --arms off,resolve` with the prohibition in the hint, and count how often
+   rung 3 still fires. Cheap, and it tests the fix actually shipped.
+2. Measure route consistency directly: run the same case repeatedly at fixed configuration and
+   count distinct outcomes. Today nothing measures the variance this section is about, only
+   the mean. A corpus of 6 run once cannot see it at all.
+3. Let the unresolved payload carry the model's own search alternatives, so an in-turn
+   candidate list can be as wide as a deliberate lookup.
+4. Provenance by utterance containment, if 2 shows the variance is real and 1 has not already
+   removed it.

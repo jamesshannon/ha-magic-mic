@@ -44,7 +44,7 @@
   },
   "conversation": {
     "action_targets": {
-      "accepts_name": "Also accepts the device's name or alias: when the request names the device, pass that name here directly instead of looking up its entity_id first. A name that matches several devices comes back as candidates to choose from.",
+      "accepts_name": "Also accepts the device's name or alias: when the request names the device, pass that name here directly instead of looking up its entity_id first. A name that matches several devices comes back as candidates to choose from. Never build an entity_id out of a name; the only valid entity_id is one a lookup returned.",
       "ambiguous": "Several entities could match {value} for the {field} argument. Ask the user which one they mean, then call again with that entity_id.",
       "not_found": "No entity matching {value} was found for the {field} argument. Look it up with the available tools and call again with its entity_id."
     },
