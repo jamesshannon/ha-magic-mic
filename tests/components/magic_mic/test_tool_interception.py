@@ -279,12 +279,18 @@ async def test_provider_hidden_tool_use_is_denied_before_execution_and_followed_
         inner: llm.APIInstance,
         context: ToolPolicyContext,
         *,
+        entity_arguments: bool = True,
         selector: testbed_api.CapabilitySelector | None = None,
         strings: ConversationStrings | None = None,
     ) -> testbed_api.TestbedAPI:
         """Use the real decorator with this test's restrictive registry."""
         return original_wrap(
-            inner, context, registry, selector=selector, strings=strings
+            inner,
+            context,
+            registry,
+            entity_arguments=entity_arguments,
+            selector=selector,
+            strings=strings,
         )
 
     mock_create_stream.return_value = _tool_turn("I couldn't do that.")
@@ -383,12 +389,19 @@ async def test_abnormal_stream_end_cancels_tools_before_clearing_identity(
         inner: llm.APIInstance,
         policy_context: ToolPolicyContext,
         *,
+        entity_arguments: bool = True,
         selector: testbed_api.CapabilitySelector | None = None,
         strings: ConversationStrings | None = None,
     ) -> testbed_api.TestbedAPI:
         """Retain the turn metadata used by the real wrapper."""
         policy_contexts.append(policy_context)
-        return original_wrap(inner, policy_context, selector=selector, strings=strings)
+        return original_wrap(
+            inner,
+            policy_context,
+            entity_arguments=entity_arguments,
+            selector=selector,
+            strings=strings,
+        )
 
     mock_create_stream.side_effect = lambda **_kwargs: broken_stream()
     try:

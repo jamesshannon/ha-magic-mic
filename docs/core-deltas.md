@@ -87,6 +87,12 @@ CD2).
 `test_entity_selector_serializes_as_entity_id`. Behavior tests for the compensation are in
 `test_action_targets.py`.
 
+**Measured by.** `evals/harness/entity_id_tools.py` over
+`evals/corpus/wave1_entity_id_tools.yaml`, paired per case with resolution off and on. Off is
+this entry's behavior, so the arm delta is the size of the problem rather than an assertion
+about it. Unrun against a live model as of 2026-08-06; the arms are proven to differ
+deterministically in `test_entity_id_tools.py`.
+
 **Upstream.** Reported independently on the core issue tracker (2026-08) by a user whose
 exposed script tools received invented ids from Gemini Flash. Their three proposed fixes
 were prompt-side ids, a lookup intent, and a resolution action for script authors to call;

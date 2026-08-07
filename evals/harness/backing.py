@@ -51,6 +51,7 @@ from homeassistant.components.media_player import (
     MediaPlayerEntityFeature,
     MediaPlayerState,
 )
+from homeassistant.components.script.const import DOMAIN as SCRIPT_DOMAIN
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.components.todo import (
     TodoItem,
@@ -485,6 +486,8 @@ async def build_executable_world(hass: HomeAssistant, world: World) -> Executabl
         async_expose_entity(hass, conversation.DOMAIN, entity_id, True)
         resolved[entity.entity_id] = entity_id
 
+    await async_setup_scripts(hass, world)
+
     await hass.async_block_till_done()
     _assert_world_healthy(
         hass, [entity.entity_id for entity in instances] + list(state_only)
@@ -494,3 +497,36 @@ async def build_executable_world(hass: HomeAssistant, world: World) -> Executabl
         _entities=instances,
         _state_only=state_only,
     )
+
+
+async def async_setup_scripts(hass: HomeAssistant, world: World) -> None:
+    """Register the world's scripts through the real `script` component and expose them.
+
+    Real config, not a stand-in: HA builds each script's `ScriptTool` schema from the
+    ``fields`` block through its own selector serializer, which is the exposure path under
+    test when a corpus asks whether the model can target an `entity_id`-typed argument
+    (docs/core-deltas.md CD1). A world declaring no scripts sets nothing up.
+    """
+    if not world.scripts:
+        return
+    config = {
+        script.object_id: {
+            "alias": script.name,
+            "description": script.description,
+            "fields": {
+                key: {
+                    "description": field_.description,
+                    "name": field_.name,
+                    "required": field_.required,
+                    "selector": field_.selector,
+                }
+                for key, field_ in script.fields.items()
+            },
+            "sequence": list(script.sequence),
+        }
+        for script in world.scripts
+    }
+    assert await async_setup_component(hass, SCRIPT_DOMAIN, {SCRIPT_DOMAIN: config})
+    await hass.async_block_till_done()
+    for script in world.scripts:
+        async_expose_entity(hass, conversation.DOMAIN, script.entity_id, True)

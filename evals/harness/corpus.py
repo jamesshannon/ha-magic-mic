@@ -61,11 +61,56 @@ class Entity:
 
 
 @dataclass(frozen=True)
+class ScriptField:
+    """One parameter an exposed script declares, with the selector that types it.
+
+    ``selector`` is the raw HA selector config (``{"entity": {"domain": "light"}}``), passed
+    through to the script's ``fields:`` block unchanged, because the point of a script fixture
+    is to exercise the real serializer and the real `ScriptTool` schema rather than a
+    stand-in. An ``entity`` selector is what makes the script an "entity_id-only tool": the
+    model is asked for an id the prompt never supplied (docs/core-deltas.md CD1).
+    """
+
+    name: str
+    description: str
+    selector: dict[str, Any]
+    required: bool = True
+
+
+@dataclass(frozen=True)
+class Script:
+    """An exposed script, which HA surfaces to the model as its own tool.
+
+    Registered through the real `script` component so the run measures core's own exposure
+    path: `ScriptTool` names the tool by object id and builds its schema from these fields.
+    ``sequence`` is real script config and must actually move a fixture entity, so a case can
+    be scored by the state it leaves behind rather than by the call the model made.
+    """
+
+    object_id: str
+    name: str
+    description: str
+    sequence: tuple[dict[str, Any], ...]
+    fields: dict[str, ScriptField] = field(default_factory=dict)
+
+    @property
+    def entity_id(self) -> str:
+        """The script entity's id in the registry."""
+        return f"script.{self.object_id}"
+
+    @property
+    def tool_name(self) -> str:
+        """The tool name HA exposes this script under (`ScriptTool`, `helpers/llm.py`)."""
+        return f"_{self.object_id}" if self.object_id[:1].isdigit() else self.object_id
+
+
+@dataclass(frozen=True)
 class World:
-    """The fixture home: the areas and entities exposed before a run."""
+    """The fixture home: the areas, entities, and scripts exposed before a run."""
 
     areas: tuple[str, ...]
     entities: tuple[Entity, ...]
+    scripts: tuple[Script, ...] = ()
 
     def entity_ids(self) -> set[str]:
         """Return the set of entity ids present in the world."""
@@ -224,6 +269,38 @@ def _parse_entity(raw: dict[str, Any]) -> Entity:
     )
 
 
+def _parse_script_field(name: str, raw: dict[str, Any]) -> ScriptField:
+    """Parse one declared script parameter."""
+    selector_config = raw.get("selector")
+    if not isinstance(selector_config, dict) or not selector_config:
+        raise CorpusError(f"script field {name!r} must declare a non-empty selector")
+    return ScriptField(
+        name=raw.get("name") or name,
+        description=raw["description"],
+        selector=dict(selector_config),
+        required=bool(raw.get("required", True)),
+    )
+
+
+def _parse_script(raw: dict[str, Any]) -> Script:
+    """Parse one exposed script from a corpus world block."""
+    sequence = raw.get("sequence")
+    if not isinstance(sequence, list) or not sequence:
+        raise CorpusError(
+            f"script {raw.get('object_id', '<unknown>')!r} must declare a sequence"
+        )
+    return Script(
+        object_id=raw["object_id"],
+        name=raw["name"],
+        description=raw["description"],
+        sequence=tuple(sequence),
+        fields={
+            key: _parse_script_field(key, value or {})
+            for key, value in (raw.get("fields") or {}).items()
+        },
+    )
+
+
 def parse_world(raw: dict[str, Any]) -> World:
     """Parse a corpus ``world`` block into a `World`.
 
@@ -232,6 +309,7 @@ def parse_world(raw: dict[str, Any]) -> World:
     return World(
         areas=tuple(raw.get("areas") or ()),
         entities=tuple(_parse_entity(entity) for entity in raw.get("entities") or ()),
+        scripts=tuple(_parse_script(script) for script in raw.get("scripts") or ()),
     )
 
 
@@ -457,6 +535,18 @@ def validate_corpus(corpus: Corpus) -> None:
         for required in case.requires
         if required not in world_ids
     )
+
+    # A script's tool name is what a case's `expected`/`permitted_tools` refer to, and a
+    # collision would make one of two scripts silently unreachable through the roster.
+    script_tools: set[str] = set()
+    for script in corpus.world.scripts:
+        if script.tool_name in script_tools:
+            problems.append(f"world: duplicate script tool name: {script.tool_name}")
+        script_tools.add(script.tool_name)
+        if script.entity_id in world_ids:
+            problems.append(
+                f"world: script {script.object_id!r} collides with a fixture entity"
+            )
 
     world_areas = set(corpus.world.areas)
     if UNPLACED in world_areas:

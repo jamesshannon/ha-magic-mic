@@ -72,8 +72,10 @@ class TestbedAPI(llm.APIInstance):
         inner: llm.APIInstance,
         policy_context: ToolPolicyContext,
         policy_registry: ToolPolicyRegistry,
+        *,
         selector: CapabilitySelector | None = None,
         strings: ConversationStrings | None = None,
+        entity_arguments: bool = True,
     ) -> None:
         """Initialize a filtered view while retaining the original executor.
 
@@ -85,11 +87,17 @@ class TestbedAPI(llm.APIInstance):
         ``strings`` enables the match-layer fuzzy fallback (docs/find-entities.md Consumer 1):
         when present, an intent's exact name miss is retried through the shared resolver
         before the error reaches the model. ``None`` leaves execution unchanged.
+
+        ``entity_arguments`` enables Consumer 3, resolving an ``entity_id``-typed tool argument
+        before the call runs. False reproduces stock Home Assistant behavior, where the model's
+        invented id reaches the service unchanged; the eval harness pairs the two arms to
+        measure what the resolution is worth.
         """
         self._inner = inner
         self._policy_context = policy_context
         self._policy_registry = policy_registry
         self._strings = strings
+        self._entity_arguments = entity_arguments
         self._tool_call_tasks: set[asyncio.Task[Any]] = set()
         exposed_tools = [
             tool for tool in inner.tools if self._is_exposed(tool, record_trace=True)
@@ -112,11 +120,19 @@ class TestbedAPI(llm.APIInstance):
         policy_context: ToolPolicyContext,
         policy_registry: ToolPolicyRegistry = DEFAULT_TOOL_POLICY_REGISTRY,
         *,
+        entity_arguments: bool = True,
         selector: CapabilitySelector | None = None,
         strings: ConversationStrings | None = None,
     ) -> "TestbedAPI":
         """Build the policy decorator around an existing API instance."""
-        return cls(inner, policy_context, policy_registry, selector, strings)
+        return cls(
+            inner,
+            policy_context,
+            policy_registry,
+            entity_arguments=entity_arguments,
+            selector=selector,
+            strings=strings,
+        )
 
     def _apply_selection(
         self, tools: list[llm.Tool], selector: CapabilitySelector
@@ -330,11 +346,12 @@ class TestbedAPI(llm.APIInstance):
     ) -> ArgumentResolution | None:
         """Resolve a call's entity_id arguments, or None to use the model's args verbatim.
 
-        Active only when the entity supplied request-language ``strings`` (the unresolved and
-        ambiguous payloads are localized); ``None`` otherwise leaves the call exactly as HA
-        would have made it, so a caller that does not opt in is unaffected.
+        Active only when Consumer 3 is enabled and the entity supplied request-language
+        ``strings`` (the unresolved and ambiguous payloads are localized); ``None`` otherwise
+        leaves the call exactly as HA would have made it, so a caller that does not opt in is
+        unaffected.
         """
-        if self._strings is None:
+        if self._strings is None or not self._entity_arguments:
             return None
         resolution = resolve_entity_arguments(
             self.api.hass, self.llm_context, tool, tool_args, self._strings

@@ -710,7 +710,20 @@ thresholds. The single-turn LLM runner gates direct resolution and wrong-target 
 is `evals/harness/fuzzy_fallback.py` over `wave1_fuzzy_fallback.yaml`, which state-scores each
 case (so a wrong-target resolution actuates the wrong device and fails) and classifies which
 resolution path each turn took (match-layer fallback, `find_entities`, structured slots, or
-asked). A scripted multi-turn trajectory is required before claiming disambiguation success or
+asked).
+
+**Consumer 3 has its own driver and corpus**, because no other case forces an `entity_id` to
+exist: `evals/harness/entity_id_tools.py` over `wave1_entity_id_tools.yaml`, whose targets are
+exposed scripts with entity-selector parameters. It runs each case **paired**, resolution off
+(stock Home Assistant, where an invented id targets nothing) and on, alternating arm order, and
+state-scores both, so the delta is what the feature is worth rather than a claim about it. It
+also classifies how the model filled the argument: a live id (it got there itself), an
+id-shaped value naming nothing (CD1's bug in the act), or a spoken name (it never tried to
+produce an id). The corpus's load-bearing property is that no object id is derivable from its
+friendly name, which `test_entity_id_tools.py` asserts, since a guessable fixture would let
+both arms pass and measure nothing.
+
+A scripted multi-turn trajectory is required before claiming disambiguation success or
 fewer turns: it must carry the same `conversation_id`, answer the candidate question, permit a
 correction or unrelated replacement command, and score the final world state. Direct fuzzy
 resolution may land before that driver; the clarification claim may not.

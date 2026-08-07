@@ -23,12 +23,23 @@ DEFAULT_ENTITY_SUMMARY = True
 #
 # Off by default since 2026-08-05: measured at 1.45x total spend against summary-only with
 # identical task success, because per-turn names sit inside the single cached system block
-# and re-prefill it every turn. No tool in the Wave 1 roster consumes an entity_id, so the
-# lookup this exists to skip is never taken. Keep the mechanism; re-measure when the first
-# entity_id-consuming tool lands (the Wave 3 scheduling substrate), with the cache-isolated
-# second block (prompt-context.md "Option 2") built at the same time.
+# and re-prefill it every turn. No tool in the shipped roster consumes an entity_id, so the
+# lookup this exists to skip is never taken. Keep the mechanism; the re-measurement no longer
+# waits on the Wave 3 scheduling substrate, since an exposed script with an entity selector is
+# an id consumer and the eval corpus now has one (evals/harness/entity_id_tools.py --names).
+# Build the cache-isolated second block (prompt-context.md "Option 2") before reading much
+# into the result.
 CONF_NAME_INJECTION = "name_injection"
 DEFAULT_NAME_INJECTION = False
+
+# Entity-argument resolution for tools that take an entity_id (docs/find-entities.md
+# Consumer 3, docs/core-deltas.md CD1). On by default: without it an exposed script whose
+# field is an EntitySelector receives whatever id the model invented, and the service call
+# silently targets nothing. Gated separately so the eval harness can A/B it against stock
+# behavior and measure what the resolution is worth
+# (evals/harness/entity_id_tools.py).
+CONF_ENTITY_ARGUMENTS = "entity_arguments"
+DEFAULT_ENTITY_ARGUMENTS = True
 # Top-N names injected per request: enough to cover a room's relevant devices, small
 # enough to stay a bounded tail (the point of retiring the roster). Tunable on the eval.
 NAME_INJECTION_LIMIT = 10

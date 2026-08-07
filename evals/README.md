@@ -18,11 +18,13 @@ evals/
   corpus/
     wave0_golden_set.yaml        the seed cases + the fixture "home" they run against
     wave1_fuzzy_fallback.yaml    spoken-name device cases for the match-layer fuzzy fallback
+    wave1_entity_id_tools.yaml   script tools that take an entity_id (Consumer 3, CD1)
     resolution/seed.yaml         the resolver micro-benchmark (model-free, see below)
   harness/                       corpus loader, scorer, routing measurement, runner
     baseline.py                  the live-baseline entry point (needs a key)
     local_first.py               the faithful prefer-local routing driver (key for fallback)
     fuzzy_fallback.py            the find_entities Consumer 1 driver (summary on, names off)
+    entity_id_tools.py           the Consumer 3 driver (paired: entity-argument resolution off/on)
     console.py                   interactive CLI to hand-drive turns (needs a key)
     backing.py                   real executable entities for the fixture home
     resolution.py                the resolver micro-benchmark loader + runner + scorecard
@@ -30,6 +32,7 @@ evals/
   results/
     wave0_baseline.json          the recorded live baseline Wave 1 measures against
     wave1_fuzzy_fallback.json    the recorded fuzzy-fallback (Consumer 1) run
+    wave1_entity_id_tools.json   the recorded entity_id-argument run (both arms)
     wave1_go_no_go.json          the Wave 1 verdict: what shipped, and what went unmeasured
 ```
 
@@ -63,6 +66,16 @@ Each case is a single-turn `(utterance [, context] -> expected action(s) / answe
 | `expected_llm` | Optional per-scope override of `expected` for the **LLM path**, used where core's Assist API drops the intent (`GetCurrentTime`, `GetState`, `GetWeather`, …) in favor of a general tool (`GetDateTime`, `GetLiveContext`), or where the LLM grounds a target by name where the local template uses an area slot. Same shape as `expected` (single outcome or `any_of`). When absent, both scopes score against `expected`. `expected_for(llm=...)` picks the right one. An empty `tools: []` is a deliberate "no tool, unjudgeable" (e.g. nevermind), distinct from omitting the field. |
 | `template` | For `local` cases, the HASSIL source template the utterance exercises (provenance). |
 | `note` | Why the case earns its place. |
+
+### World fields
+
+| Field | Meaning |
+|---|---|
+| `areas` | Area keys (`living_room`); created by spoken name (`Living Room`) and referenced by `Entity.area` and `satellite_area`. |
+| `entities` | The exposed fixture entities: `entity_id`, `name`, and optional `area`, `device_class`, `state`, `attributes`, `aliases`, `description`. `backing.py` gives the executable domains real platforms; the rest are registered state-only. |
+| `scripts` | Exposed scripts, which HA surfaces to the model as **their own tools** (`ScriptTool`, named by object id). `{object_id, name, description, sequence, fields}`. Each field is `{name, description, required, selector}`, and `selector` is raw HA selector config passed through unchanged, so the run exercises core's real serializer. An `entity` selector is what makes a script an "entity_id-only tool": the model is asked for an id the prompt never supplied (`docs/core-deltas.md` CD1). `sequence` is real script config and should move a fixture entity, so cases can be state-scored. |
+
+A world that declares no `scripts` sets none up, so existing corpora are unaffected.
 
 ### `routing_truth` was grounded in the real dictionaries
 
