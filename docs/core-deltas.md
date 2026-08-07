@@ -66,10 +66,14 @@ which only intent tools raise. A script tool handed a fabricated id never reache
 matcher, so the service call quietly targets nothing. The bug reproduces inside Magic Mic
 today.
 
-**Compensation.** None yet. Planned as Consumer 3 of the resolver primitive: resolve
-`EntitySelector` arguments by name in the proxy before execution, pass through values that
-are already live entity ids, and return the guard's candidate list instead of acting when
-resolution is ambiguous. Tracked in [`find-entities.md`](find-entities.md).
+**Compensation.** `capabilities/action_targets.py` (Consumer 3 of the resolver primitive),
+wired into the proxy's tool-execution seam ahead of argument validation and policy
+evaluation. Three exact rungs (live entity id passes through untouched, exact name or alias,
+de-slugged id matched inside its own domain); when all three miss, fuzzy scoring only
+populates the candidate list the model is asked to choose from. Nothing here resolves on a
+fuzzy score, because the input is an identifier the model synthesized rather than the user's
+own words. Design and the rejected raised-threshold alternative in
+[`find-entities.md`](find-entities.md) "Consumer 3".
 
 **What a core fix looks like.** Give `EntitySelector` fields the same name-to-id
 conversion `AreaSelector` fields already get, inside `ActionTool.async_call`. The blast
@@ -78,8 +82,10 @@ graceful failure, which the area path lacks (see CD3), and it wants a resolution
 can report ambiguity rather than only success or failure, which exact matching cannot (see
 CD2).
 
-**Contract test:** `test_entity_selector_is_not_name_resolved`,
-`test_area_selector_is_name_resolved`.
+**Contract test:** `test_action_tool_does_not_resolve_entity_names`,
+`test_action_tool_resolves_area_names`,
+`test_entity_selector_serializes_as_entity_id`. Behavior tests for the compensation are in
+`test_action_targets.py`.
 
 **Upstream.** Reported independently on the core issue tracker (2026-08) by a user whose
 exposed script tools received invented ids from Gemini Flash. Their three proposed fixes

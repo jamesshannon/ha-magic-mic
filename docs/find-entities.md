@@ -45,11 +45,14 @@
   resolution, each numbered locally in its own doc: proactive name injection at
   prompt-build ([`prompt-context.md`](prompt-context.md) Tier 2) and capability
   selection's miss recovery (§"The shared referent core").
-- **Script tools are a second, uncovered failure path.** The match-layer fallback
+- **Script tools were a second, uncovered failure path.** The match-layer fallback
   catches `MatchFailedError`, which only *intent* tools raise. An exposed script
   whose field is an `EntitySelector` asks the model for an `entity_id` that no
-  prompt ever supplied, and the invented id goes straight to the service call. See
-  §"The `ActionTool` selector asymmetry" and [`core-deltas.md`](core-deltas.md) CD1.
+  prompt ever supplied, and the invented id went straight to the service call.
+  Consumer 3 closes it, **exact-first**: fuzzy suggests candidates there, it never
+  resolves, because the input is an id the model synthesized rather than the user's
+  words. See §"The `ActionTool` selector asymmetry" and
+  [`core-deltas.md`](core-deltas.md) CD1.
 - **Reuse `async_match_targets`** for all *structured* filtering; its only gap is
   the exact name match. rapidfuzz is a **new** HA dep (difflib fallback).
 
@@ -427,7 +430,7 @@ HA's normal English fallback. Failures return a stable machine code (`invalid_ar
 `invalid_floor`, or `assistant_not_configured`) plus a localized `error_text`; capability
 code never builds model-facing English errors.
 
-### Consumer 3 — entity arguments on script tools (planned)
+### Consumer 3 — entity arguments on script tools
 
 The response to the selector asymmetry above, and the only consumer that runs **before**
 execution rather than after a failure or ahead of the turn. An exposed script whose field
@@ -464,13 +467,35 @@ So the ladder, first rung that hits wins:
    actually fixes the reported bug**, and it is easy to miss: the string in the field is
    shaped like an id, not a name, so rungs 2 and 4 both under-perform on it. The model
    slugified a friendly name; we un-slugify it.
-4. **Fuzzy with the guard, at a raised accept threshold**, and only here. Default it
-   **off** until the corpus (below) shows it earns its keep. Everything above is exact and
-   carries no false-resolve risk; this rung is the only one that can invent a target.
+4. **Nothing matched: fuzzy suggests, it never resolves.** The scorer runs over the same
+   scoped set and its ranked candidates go back as the `tool_result` for the model to
+   choose between. The id-shaped value is scored alongside its de-slugged form (the OR-list
+   the scorer already supports) so "light.office_lamp" is not judged as literal text.
 
-Whatever the rung, **ambiguity never acts**: return the guard's candidate list as the
-`tool_result` so the model asks. A script is a behavioral write in the
-[`tool-policy.md`](tool-policy.md) sense far more often than a `HassTurnOn` is.
+> **This replaced a raised-threshold fuzzy rung during the build, and it is the better
+> shape.** The original plan was fuzzy-that-acts, tuned conservatively and default-off. But
+> a threshold high enough to be safe against a synthesized id resolves almost nothing, and
+> the version that is default-off is dead code. Suggest-only gets the same recall with *no*
+> false-resolve risk at any threshold, and the extra generation it costs is the one the
+> model was going to spend asking anyway. The resolution path is now exact end to end: the
+> scorer cannot pick a target here, only offer one.
+
+So **ambiguity never acts**, and there is no threshold to get wrong. A script is a
+behavioral write in the [`tool-policy.md`](tool-policy.md) sense far more often than a
+`HassTurnOn` is.
+
+**As built:** `capabilities/action_targets.py::resolve_entity_arguments`, called from the
+proxy's tool-execution seam (`testbed/api.py`) *before* argument validation and policy
+evaluation. Both orderings are deliberate. Magic Mic normalizes arguments through
+`tool.parameters(...)`, and `EntitySelector.__call__` runs `cv.entity_id_or_uuid`, so
+validating first would reject a friendly name before resolution ever saw it (core does not
+validate at all, CD4, which is a difference worth knowing rather than relying on). And tool
+policy has to judge the entity actually being acted on, not the model's guess at its id.
+
+Rungs 2 and 3 call `intent.async_match_targets` with a `name` constraint, so exposure
+filtering, alias handling, and duplicate-name disambiguation toward the requesting room are
+core's semantics rather than a second implementation. A duplicate name core cannot settle is
+not a match; it falls through to the candidate list and the model asks.
 
 Three details that decide whether the slice is correct rather than merely plausible:
 

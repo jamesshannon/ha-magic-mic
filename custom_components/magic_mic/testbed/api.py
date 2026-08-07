@@ -23,6 +23,7 @@ from homeassistant.components.conversation import (
 from homeassistant.helpers import intent, llm
 from homeassistant.util.json import JsonObjectType
 
+from ..capabilities.action_targets import ArgumentResolution, resolve_entity_arguments
 from ..capabilities.capability_selection import EnforcedSelection
 from ..capabilities.localization import ConversationStrings
 from ..capabilities.match_fallback import resolve_name_miss
@@ -192,10 +193,22 @@ class TestbedAPI(llm.APIInstance):
 
         resolved = self._policy_registry.resolve(tool)
         exposed = is_tool_exposed(resolved, self._policy_context)
+
+        # Resolve entity arguments before validating or evaluating policy
+        # (docs/find-entities.md Consumer 3). A friendly name is not a valid entity_id, so
+        # validating first would reject the input this exists to interpret, and policy must
+        # judge the entity actually being acted on rather than the model's guess at its id.
+        tool_args = tool_input.tool_args
+        if (arguments := self._resolve_entity_arguments(tool, tool_args)) is not None:
+            if arguments.tool_args is None:
+                self._trace_tool_call(tool_input)
+                return arguments.tool_result
+            tool_args = arguments.tool_args
+
         normalized_input = llm.ToolInput(
             external=tool_input.external,
             id=tool_input.id,
-            tool_args=tool.parameters(tool_input.tool_args),
+            tool_args=tool.parameters(tool_args),
             tool_name=tool_input.tool_name,
         )
         decision = evaluate_invocation(
@@ -311,6 +324,32 @@ class TestbedAPI(llm.APIInstance):
             type(disposition).__name__ if disposition is not None else "missing",
         )
         return public_tool_result(result)
+
+    def _resolve_entity_arguments(
+        self, tool: llm.Tool, tool_args: dict[str, Any]
+    ) -> ArgumentResolution | None:
+        """Resolve a call's entity_id arguments, or None to use the model's args verbatim.
+
+        Active only when the entity supplied request-language ``strings`` (the unresolved and
+        ambiguous payloads are localized); ``None`` otherwise leaves the call exactly as HA
+        would have made it, so a caller that does not opt in is unaffected.
+        """
+        if self._strings is None:
+            return None
+        resolution = resolve_entity_arguments(
+            self.api.hass, self.llm_context, tool, tool_args, self._strings
+        )
+        if resolution is not None and resolution.tool_args is not None:
+            LOGGER.debug(
+                "[testbed] resolved entity arguments for %s: %s",
+                tool.name,
+                sorted(
+                    field
+                    for field, value in resolution.tool_args.items()
+                    if tool_args.get(field) != value
+                ),
+            )
+        return resolution
 
     def _resolve_name_miss(self, err: intent.MatchFailedError):
         """Fuzzy-resolve an intent's exact name miss, or None to re-raise the error.
