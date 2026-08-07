@@ -2,13 +2,13 @@
 
 import asyncio
 from collections.abc import AsyncGenerator
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 from anthropic.types import RawMessageStreamEvent
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry, MockUser
 
-from custom_components.magic_mic.capabilities.localization import ConversationStrings
 from custom_components.magic_mic.execution_result import ToolExecutionResult
 from custom_components.magic_mic.identity import (
     DATA_RESOLVED_PRINCIPALS,
@@ -278,20 +278,15 @@ async def test_provider_hidden_tool_use_is_denied_before_execution_and_followed_
     def wrap_with_policy(
         inner: llm.APIInstance,
         context: ToolPolicyContext,
-        *,
-        entity_arguments: bool = True,
-        selector: testbed_api.CapabilitySelector | None = None,
-        strings: ConversationStrings | None = None,
+        **kwargs: Any,
     ) -> testbed_api.TestbedAPI:
-        """Use the real decorator with this test's restrictive registry."""
-        return original_wrap(
-            inner,
-            context,
-            registry,
-            entity_arguments=entity_arguments,
-            selector=selector,
-            strings=strings,
-        )
+        """Use the real decorator with this test's restrictive registry.
+
+        Forwards keyword arguments blind: a stub that names them has to be edited every
+        time `wrap` grows one, and a rejected kwarg surfaces as a hung suite rather than a
+        readable failure, because the tool call raises inside a task nothing awaits.
+        """
+        return original_wrap(inner, context, registry, **kwargs)
 
     mock_create_stream.return_value = _tool_turn("I couldn't do that.")
     with patch.object(testbed_api.TestbedAPI, "wrap", side_effect=wrap_with_policy):
@@ -388,20 +383,11 @@ async def test_abnormal_stream_end_cancels_tools_before_clearing_identity(
     def capture_wrap(
         inner: llm.APIInstance,
         policy_context: ToolPolicyContext,
-        *,
-        entity_arguments: bool = True,
-        selector: testbed_api.CapabilitySelector | None = None,
-        strings: ConversationStrings | None = None,
+        **kwargs: Any,
     ) -> testbed_api.TestbedAPI:
         """Retain the turn metadata used by the real wrapper."""
         policy_contexts.append(policy_context)
-        return original_wrap(
-            inner,
-            policy_context,
-            entity_arguments=entity_arguments,
-            selector=selector,
-            strings=strings,
-        )
+        return original_wrap(inner, policy_context, **kwargs)
 
     mock_create_stream.side_effect = lambda **_kwargs: broken_stream()
     try:

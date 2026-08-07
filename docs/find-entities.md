@@ -726,12 +726,43 @@ both arms pass and measure nothing.
 **First result (2026-08-06, claude-haiku-4-5): the delta is zero.** 5/6 correct in both arms,
 and all 12 turns called `find_entities` before the script tool and handed back a live id.
 Consumer 3 never had an argument to fix. The rung structure is not what failed; nothing
-reached it. Both arms carry `find_entities`, so what the run measures is Consumer 3's value
-*on top of* Consumer 2, and on that question the answer here is none. The environment CD1 was
-reported from had no lookup tool at all, so the remaining test is a third arm with
-`find_entities` withheld. Nothing gates that tool today; adding the gate is the next slice if
-this claim is worth settling. Until then Consumer 3 is insurance whose premium is one exact
-comparison per entity argument, not a measured win.
+reached it.
+
+The run was configured so that it could not have gone otherwise, which is the finding worth
+keeping. With the entity summary on, the prompt carries area/domain counts and not one entity
+name (prompt-context.md Tier 1), and its header tells the model to look names up. So the model
+had no source of names except `find_entities`, and `find_entities` returns exact ids. There
+was never an opportunity to invent one. What the run measured is Consumer 3 on top of Consumer
+2, under a prompt that forces Consumer 2.
+
+Two arms follow from that, both now in the driver:
+
+- `--roster` turns the summary off. HA's full name roster comes back, with names and still no
+  ids, and `find_entities` goes away with it, since the summary and the lookup tool ship as a
+  pair (`testbed/prompt.py`). That is the environment CD1 was reported from, and it needs no
+  new gate.
+- `--arms resolve,advertise` is the more interesting one, below.
+
+## Advertising the resolution
+
+Silent resolution is worth less than it looks, because the model cannot plan around it. The
+field serializes as `{"type": "string", "format": "entity_id"}` and its description belongs to
+the script's author, so a model reading that schema has every reason to go find an id first.
+It pays a generation for a lookup whose answer the resolver already had. On the first run that
+was every single turn.
+
+`annotate_entity_arguments` (`capabilities/action_targets.py`) extends the description of each
+`EntitySelector` field with a localized sentence saying a name or alias is accepted and an
+ambiguous one comes back as candidates. Prompt-side only: the wrapper delegates `async_call`,
+so execution is byte-identical and the declared `format` still says `entity_id`, which keeps
+the affordance additive for a model that already has an id.
+
+Gated as `CONF_ENTITY_ARGUMENT_HINTS`, separately from the resolution itself, because the two
+claims are different. Resolution earns its keep by rescuing a call that would target nothing.
+The hint earns its keep by removing a turn from a call that already works. The hint applies
+only when resolution is on: advertising a name that nothing resolves would send the model
+straight into the failure this consumer exists to prevent, and
+`test_the_proxy_promises_nothing_it_will_not_honor` pins that.
 
 A scripted multi-turn trajectory is required before claiming disambiguation success or
 fewer turns: it must carry the same `conversation_id`, answer the candidate question, permit a

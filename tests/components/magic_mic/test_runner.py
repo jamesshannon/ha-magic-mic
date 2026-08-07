@@ -1,10 +1,10 @@
 """Runner tests: drive the testbed agent with a mocked stream and score the turn."""
 
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.magic_mic.capabilities.localization import ConversationStrings
 from custom_components.magic_mic.testbed import entity as testbed_entity
 from custom_components.magic_mic.tool_policy import ToolPolicyContext
 from evals.harness import Bucket, ObservedEffect, run_case
@@ -172,18 +172,10 @@ async def test_custom_executor_call_is_observed_and_scored_once(
     def wrap_custom_executor(
         inner: llm.APIInstance,
         context: ToolPolicyContext,
-        *,
-        entity_arguments: bool = True,
-        selector: testbed_entity.CapabilitySelector | None = None,
-        strings: ConversationStrings | None = None,
+        **kwargs: Any,
     ) -> testbed_entity.TestbedAPI:
-        return original_wrap(
-            UntracedAPIInstance(inner),
-            context,
-            entity_arguments=entity_arguments,
-            selector=selector,
-            strings=strings,
-        )
+        """Substitute an executor that does not trace, forwarding wrap's own kwargs."""
+        return original_wrap(UntracedAPIInstance(inner), context, **kwargs)
 
     with patch.object(
         testbed_entity.TestbedAPI,

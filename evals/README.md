@@ -24,7 +24,7 @@ evals/
     baseline.py                  the live-baseline entry point (needs a key)
     local_first.py               the faithful prefer-local routing driver (key for fallback)
     fuzzy_fallback.py            the find_entities Consumer 1 driver (summary on, names off)
-    entity_id_tools.py           the Consumer 3 driver (paired: entity-argument resolution off/on)
+    entity_id_tools.py           the Consumer 3 driver (arms: off / resolve / advertise)
     console.py                   interactive CLI to hand-drive turns (needs a key)
     backing.py                   real executable entities for the fixture home
     resolution.py                the resolver micro-benchmark loader + runner + scorecard

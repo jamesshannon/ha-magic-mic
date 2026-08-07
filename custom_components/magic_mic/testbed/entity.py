@@ -24,10 +24,12 @@ from ..capabilities.prompt_context import (
 from ..chat_log import MagicMicChatLog, upgrade_chat_log
 from ..const import (
     CONF_CAPABILITY_SELECTION,
+    CONF_ENTITY_ARGUMENT_HINTS,
     CONF_ENTITY_ARGUMENTS,
     CONF_ENTITY_SUMMARY,
     CONF_NAME_INJECTION,
     DEFAULT_CAPABILITY_SELECTION,
+    DEFAULT_ENTITY_ARGUMENT_HINTS,
     DEFAULT_ENTITY_ARGUMENTS,
     DEFAULT_ENTITY_SUMMARY,
     DEFAULT_NAME_INJECTION,
@@ -139,7 +141,8 @@ class TestbedConversationEntity(ClaudeConversationEntity):
         # fallback (docs/find-entities.md Consumer 1): an intent's exact name miss is
         # retried through the shared resolver before the error reaches the model.
         # ``entity_arguments`` enables Consumer 3, resolving an entity_id-typed tool
-        # argument before the call runs.
+        # argument before the call runs, and ``entity_argument_hints`` tells the model
+        # that resolution exists so it can pass a name instead of looking an id up.
         if magic_chat_log.llm_api is not None:
             strings = await async_get_conversation_strings(
                 self.hass, llm_context.language
@@ -151,6 +154,9 @@ class TestbedConversationEntity(ClaudeConversationEntity):
                     principal=principal,
                     session_state=session_state,
                     turn_metadata=turn_metadata,
+                ),
+                entity_argument_hints=self._options.get(
+                    CONF_ENTITY_ARGUMENT_HINTS, DEFAULT_ENTITY_ARGUMENT_HINTS
                 ),
                 entity_arguments=self._options.get(
                     CONF_ENTITY_ARGUMENTS, DEFAULT_ENTITY_ARGUMENTS

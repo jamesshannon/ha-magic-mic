@@ -16,12 +16,16 @@ from custom_components.magic_mic.identity import UNIDENTIFIED_PRINCIPAL
 from custom_components.magic_mic.session_state import MagicMicSessionState, TurnMetadata
 from custom_components.magic_mic.testbed import api as testbed_api
 from custom_components.magic_mic.tool_policy import ToolPolicyContext
+from evals.harness.baseline import BaselineError
 from evals.harness.corpus import CorpusError, Script, load_corpus, parse_world
 from evals.harness.entity_id_tools import (
+    ARMS,
+    DEFAULT_ARMS,
     ENTITY_ID_CORPUS,
     ArgumentSource,
     ArmResult,
     EntityIdReport,
+    _select_arms,
     build_artifact,
     classify_source,
 )
@@ -114,16 +118,18 @@ def test_a_call_is_judged_by_its_weakest_argument() -> None:
 # The report, which runs only after every live turn has been paid for.
 
 
-def _arm(*, entity_arguments: bool, source: str, correct: bool | None) -> ArmResult:
+def _arm(
+    *, label: str, source: str, correct: bool | None, generations: int = 2
+) -> ArmResult:
     """One scored, classified case in one arm."""
     return ArmResult(
         result=CaseResult(
             case=_case(),
-            observed=ObservedTurn(speech="ok", tools=()),
+            observed=ObservedTurn(speech="ok", tools=(), generations=generations),
             bucket=Bucket.LLM_CORRECT if correct else Bucket.WRONG_ACTION,
             correct=correct,
         ),
-        entity_arguments=entity_arguments,
+        arm=label,
         source=source,
         supplied=(),
         used_find_entities=False,
@@ -132,45 +138,96 @@ def _arm(*, entity_arguments: bool, source: str, correct: bool | None) -> ArmRes
 
 
 def _report() -> EntityIdReport:
-    """A two-case paired report: resolution turns one failure into a success."""
+    """Two cases across both default arms; advertising saves a generation on each."""
     return EntityIdReport(
-        off=(
-            _arm(
-                entity_arguments=False,
-                source=ArgumentSource.INVENTED_ID,
-                correct=False,
+        arms=("resolve", "advertise"),
+        results={
+            "resolve": (
+                _arm(
+                    label="resolve",
+                    source=ArgumentSource.LIVE_ID,
+                    correct=True,
+                    generations=3,
+                ),
+                _arm(
+                    label="resolve",
+                    source=ArgumentSource.LIVE_ID,
+                    correct=False,
+                    generations=3,
+                ),
             ),
-            _arm(entity_arguments=False, source=ArgumentSource.LIVE_ID, correct=True),
-        ),
-        on=(
-            _arm(entity_arguments=True, source=ArgumentSource.LIVE_ID, correct=True),
-            _arm(entity_arguments=True, source=ArgumentSource.LIVE_ID, correct=True),
-        ),
-        orders=("off→on", "on→off"),
+            "advertise": (
+                _arm(
+                    label="advertise",
+                    source=ArgumentSource.NAME,
+                    correct=True,
+                    generations=2,
+                ),
+                _arm(
+                    label="advertise",
+                    source=ArgumentSource.NAME,
+                    correct=True,
+                    generations=2,
+                ),
+            ),
+        },
+        orders=("resolve→advertise", "advertise→resolve"),
     )
 
 
-def test_the_report_renders_and_counts_the_delta() -> None:
-    """Rendering runs after 12 live turns, so a typo here costs a whole run."""
+def test_the_report_renders_every_arm() -> None:
+    """Rendering runs after every live turn is paid for, so a typo costs a whole run."""
     rendered = _report().render()
 
-    assert "correct  off=1  on=2  delta=+1" in rendered
-    assert f"{ArgumentSource.INVENTED_ID:<20} off=  1" in rendered
+    assert "2 cases, 2 arms" in rendered
+    # correct: resolve 1, advertise 2. generations: resolve 6, advertise 4.
+    assert "correct" in rendered
+    assert "generations" in rendered
+    assert ArgumentSource.NAME in rendered
+
+
+def test_the_report_totals_generations_per_arm() -> None:
+    """The advertised arm's whole case is turn count, so it has to be counted right."""
+    report = _report()
+
+    assert report.generations("resolve") == 6
+    assert report.generations("advertise") == 4
 
 
 def test_the_artifact_counts_only_decided_cases() -> None:
     """``correct`` is tri-state; an unjudged case is not a success."""
     report = EntityIdReport(
-        off=(_arm(entity_arguments=False, source=ArgumentSource.NAME, correct=None),),
-        on=(_arm(entity_arguments=True, source=ArgumentSource.LIVE_ID, correct=True),),
-        orders=("off→on",),
+        arms=("resolve", "advertise"),
+        results={
+            "resolve": (
+                _arm(label="resolve", source=ArgumentSource.NAME, correct=None),
+            ),
+            "advertise": (
+                _arm(label="advertise", source=ArgumentSource.LIVE_ID, correct=True),
+            ),
+        },
+        orders=("resolve→advertise",),
     )
 
-    artifact = build_artifact(report, "claude-haiku-4-5", names_on=False)
+    artifact = build_artifact(
+        report, "claude-haiku-4-5", names_on=False, summary_on=True
+    )
 
-    assert artifact["arms"]["off"]["correct"] == 0
-    assert artifact["arms"]["on"]["correct"] == 1
-    assert artifact["run"]["correct_delta"] == 1
+    assert artifact["arms"]["resolve"]["correct"] == 0
+    assert artifact["arms"]["advertise"]["correct"] == 1
+    assert artifact["arms"]["advertise"]["entity_argument_hints"] is True
+    assert artifact["arms"]["resolve"]["entity_argument_hints"] is False
+
+
+def test_an_unknown_arm_is_rejected_before_the_key_is_read() -> None:
+    """A typo in --arms must not surface only after the first live turn is spent."""
+    with pytest.raises(BaselineError, match="unknown arm"):
+        _select_arms("resolve,advertize")
+
+
+def test_the_default_arms_exist() -> None:
+    """The shipped default names real arms."""
+    assert all(arm in ARMS for arm in DEFAULT_ARMS)
 
 
 # The corpus itself.

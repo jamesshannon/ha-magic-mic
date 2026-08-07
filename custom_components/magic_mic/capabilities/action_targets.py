@@ -18,8 +18,11 @@ shared scorer, and localized strings; never on the conversation shell or the pro
 """
 
 from collections.abc import Callable
+import copy
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, override
+
+import voluptuous as vol
 
 from homeassistant.core import HomeAssistant, split_entity_id, valid_entity_id
 from homeassistant.helpers import intent, llm, selector
@@ -282,6 +285,84 @@ def _failure(
     if ambiguous:
         result["candidates"] = candidates
     return result
+
+
+class AnnotatedTool(llm.Tool):
+    """A tool whose entity fields advertise that a spoken name is accepted.
+
+    Prompt-side only. `async_call` delegates to the tool it wraps, so nothing about
+    execution changes and the roster the proxy exposes stays interchangeable with the
+    inner one.
+    """
+
+    def __init__(self, inner: llm.Tool, parameters: vol.Schema) -> None:
+        """Wrap ``inner``, exposing ``parameters`` in place of its own schema."""
+        self._inner = inner
+        self.name = inner.name
+        self.description = inner.description
+        self.parameters = parameters
+
+    @override
+    async def async_call(
+        self,
+        hass: HomeAssistant,
+        tool_input: llm.ToolInput,
+        llm_context: llm.LLMContext,
+    ) -> JsonObjectType:
+        """Delegate to the wrapped tool; the annotation never reaches execution."""
+        return await self._inner.async_call(hass, tool_input, llm_context)
+
+
+def annotate_entity_arguments(tool: llm.Tool, strings: ConversationStrings) -> llm.Tool:
+    """Return ``tool`` with its entity fields documenting that a name is accepted.
+
+    Only meaningful where `resolve_entity_arguments` runs, and the caller is responsible
+    for pairing them: advertising a name on a call that will not resolve one sends the
+    model down a path that silently targets nothing, which is the failure this whole
+    consumer exists to prevent.
+
+    Without this, the affordance is invisible. Core serializes an `EntitySelector` to
+    `{"type": "string", "format": "entity_id"}` (`helpers/llm.py:816`) and the field's own
+    description is the script author's, written before any of this existed. A model reading
+    that schema has no way to know a name would be accepted, so it spends a `find_entities`
+    turn recovering an id the resolver would have found anyway. The hint is what turns
+    Consumer 3 from a repair into a shortcut.
+
+    Returns ``tool`` unchanged when it declares no entity fields, or when their schema keys
+    carry no description to extend (a bare string key has nowhere to put one).
+    """
+    fields = _entity_fields(tool)
+    if not fields:
+        return tool
+    schema = tool.parameters.schema
+    if not isinstance(schema, dict):
+        return tool
+
+    annotated: dict[Any, Any] = {}
+    changed = False
+    for key, validator in schema.items():
+        if str(key) in fields and isinstance(key, vol.Marker):
+            # Copy the marker so the inner tool's schema is untouched; the copy keeps its
+            # class (Required vs Optional) and any default.
+            marker = copy.copy(key)
+            marker.description = _extended_description(
+                key.description, strings.action_targets_accepts_name
+            )
+            annotated[marker] = validator
+            changed = True
+        else:
+            annotated[key] = validator
+    if not changed:
+        return tool
+    return AnnotatedTool(tool, vol.Schema(annotated))
+
+
+def _extended_description(existing: str | None, hint: str) -> str:
+    """Append the hint to the author's own field description, if there is one."""
+    if not existing:
+        return hint
+    separator = " " if existing.rstrip().endswith((".", "!", "?")) else ". "
+    return f"{existing.rstrip()}{separator}{hint}"
 
 
 def _entity_fields(tool: llm.Tool) -> dict[str, selector.EntitySelector]:

@@ -11,8 +11,10 @@ from typing import Any
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 import voluptuous as vol
+from voluptuous_openapi import convert
 
 from custom_components.magic_mic.capabilities.action_targets import (
+    annotate_entity_arguments,
     resolve_entity_arguments,
 )
 from custom_components.magic_mic.capabilities.localization import ConversationStrings
@@ -607,3 +609,171 @@ async def test_proxy_leaves_a_valid_id_untouched(
 
     assert len(calls) == 1
     assert calls[0].data["target"] == entity_id
+
+
+# Advertising the resolution: the field description tells the model a name is accepted.
+
+
+def _described_field() -> dict[vol.Marker, Any]:
+    """An entity field carrying the script author's own description."""
+    return {
+        vol.Required("target", description="The light to switch off."): (
+            selector.EntitySelector()
+        )
+    }
+
+
+def test_the_hint_extends_the_authors_own_description(
+    conversation_strings: ConversationStrings,
+) -> None:
+    """The author's text survives; the hint is appended to it, not substituted."""
+    annotated = annotate_entity_arguments(
+        _tool(_described_field()), conversation_strings
+    )
+
+    description = next(iter(annotated.parameters.schema)).description
+    assert description.startswith("The light to switch off.")
+    assert conversation_strings.action_targets_accepts_name in description
+
+
+def test_a_field_with_no_description_gets_the_hint_alone(
+    conversation_strings: ConversationStrings,
+) -> None:
+    """Nothing to extend, so the hint stands by itself rather than after a stray period."""
+    annotated = annotate_entity_arguments(_tool(_entity_field()), conversation_strings)
+
+    key = next(iter(annotated.parameters.schema))
+    assert key.description == conversation_strings.action_targets_accepts_name
+
+
+def test_a_tool_without_entity_fields_is_returned_unchanged(
+    conversation_strings: ConversationStrings,
+) -> None:
+    """No entity argument means no claim to make, so the tool is passed through as-is."""
+    tool = _tool({vol.Required("area"): selector.AreaSelector()})
+
+    assert annotate_entity_arguments(tool, conversation_strings) is tool
+
+
+def test_annotating_does_not_mutate_the_tool_it_wraps(
+    conversation_strings: ConversationStrings,
+) -> None:
+    """The inner tool is still executed, so its schema must come through untouched."""
+    tool = _tool(_described_field())
+
+    annotate_entity_arguments(tool, conversation_strings)
+
+    assert next(iter(tool.parameters.schema)).description == "The light to switch off."
+
+
+def test_the_annotated_field_still_serializes_as_an_entity_id(
+    conversation_strings: ConversationStrings,
+) -> None:
+    """The hint is added to the description; it does not change the declared type.
+
+    A model that already knows an id passes one, so the affordance is additive: the
+    schema still says `format: entity_id` and the hint says a name works too.
+    """
+    annotated = annotate_entity_arguments(
+        _tool(_described_field()), conversation_strings
+    )
+
+    schema = convert(annotated.parameters, custom_serializer=llm.selector_serializer)
+
+    field = schema["properties"]["target"]
+    assert field["format"] == "entity_id"
+    assert conversation_strings.action_targets_accepts_name in field["description"]
+
+
+def test_an_optional_field_stays_optional(
+    conversation_strings: ConversationStrings,
+) -> None:
+    """The marker is copied, so required-ness and any default survive annotation."""
+    tool = _tool({vol.Optional("target", default="light.a"): selector.EntitySelector()})
+
+    annotated = annotate_entity_arguments(tool, conversation_strings)
+
+    key = next(iter(annotated.parameters.schema))
+    assert isinstance(key, vol.Optional)
+    assert key.default() == "light.a"
+
+
+async def test_the_annotated_tool_delegates_execution(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
+    """Annotation is prompt-side: calling the wrapper runs the tool it wrapped."""
+    called: list[llm.ToolInput] = []
+
+    class _RecordingTool(llm.Tool):
+        """Records the call it receives."""
+
+        def __init__(self) -> None:
+            self.name = "script__targeted"
+            self.description = "test"
+            self.parameters = vol.Schema(_entity_field())
+
+        async def async_call(
+            self,
+            hass: HomeAssistant,
+            tool_input: llm.ToolInput,
+            llm_context: llm.LLMContext,
+        ) -> dict[str, Any]:
+            """Record and return."""
+            called.append(tool_input)
+            return {"success": True}
+
+    annotated = annotate_entity_arguments(_RecordingTool(), conversation_strings)
+    tool_input = llm.ToolInput(
+        tool_name="script__targeted", tool_args={"target": "light.a"}
+    )
+
+    result = await annotated.async_call(hass, tool_input, _context(hass))
+
+    assert result == {"success": True}
+    assert called == [tool_input]
+
+
+async def test_the_proxy_advertises_names_on_an_exposed_script(
+    hass: HomeAssistant, conversation_strings: ConversationStrings
+) -> None:
+    """End to end: the roster the model sees carries the hint on the entity field."""
+    _seed_action_tool(hass, _described_field())
+    api = await _wrapped_api(hass, conversation_strings)
+
+    tool = next(tool for tool in api.tools if tool.name == "script__targeted")
+
+    description = next(iter(tool.parameters.schema)).description
+    assert conversation_strings.action_targets_accepts_name in description
+
+
+@pytest.mark.parametrize(
+    ("entity_arguments", "entity_argument_hints"),
+    [(False, True), (True, False)],
+    ids=["resolution_off", "hints_off"],
+)
+async def test_the_proxy_promises_nothing_it_will_not_honor(
+    hass: HomeAssistant,
+    conversation_strings: ConversationStrings,
+    entity_arguments: bool,
+    entity_argument_hints: bool,
+) -> None:
+    """With resolution off, the hint must not appear: a name would target nothing."""
+    _seed_action_tool(hass, _described_field())
+    inner = await llm.async_get_api(hass, llm.LLM_API_ASSIST, _context(hass))
+    inner.tools.append(llm.ActionTool(hass, "script", "targeted"))
+    api = testbed_api.TestbedAPI.wrap(
+        inner,
+        ToolPolicyContext(
+            principal=UNIDENTIFIED_PRINCIPAL,
+            session_state=MagicMicSessionState(),
+            turn_metadata=TurnMetadata(turn_id="turn"),
+        ),
+        entity_argument_hints=entity_argument_hints,
+        entity_arguments=entity_arguments,
+        strings=conversation_strings,
+    )
+
+    tool = next(tool for tool in api.tools if tool.name == "script__targeted")
+
+    description = next(iter(tool.parameters.schema)).description
+    assert conversation_strings.action_targets_accepts_name not in (description or "")

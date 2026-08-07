@@ -23,7 +23,11 @@ from homeassistant.components.conversation import (
 from homeassistant.helpers import intent, llm
 from homeassistant.util.json import JsonObjectType
 
-from ..capabilities.action_targets import ArgumentResolution, resolve_entity_arguments
+from ..capabilities.action_targets import (
+    ArgumentResolution,
+    annotate_entity_arguments,
+    resolve_entity_arguments,
+)
 from ..capabilities.capability_selection import EnforcedSelection
 from ..capabilities.localization import ConversationStrings
 from ..capabilities.match_fallback import resolve_name_miss
@@ -76,6 +80,7 @@ class TestbedAPI(llm.APIInstance):
         selector: CapabilitySelector | None = None,
         strings: ConversationStrings | None = None,
         entity_arguments: bool = True,
+        entity_argument_hints: bool = True,
     ) -> None:
         """Initialize a filtered view while retaining the original executor.
 
@@ -91,7 +96,10 @@ class TestbedAPI(llm.APIInstance):
         ``entity_arguments`` enables Consumer 3, resolving an ``entity_id``-typed tool argument
         before the call runs. False reproduces stock Home Assistant behavior, where the model's
         invented id reaches the service unchanged; the eval harness pairs the two arms to
-        measure what the resolution is worth.
+        measure what the resolution is worth. ``entity_argument_hints`` additionally tells the
+        model that resolution exists, by extending those fields' descriptions, so it can pass a
+        spoken name instead of spending a lookup turn on an id. It applies only alongside
+        ``entity_arguments``, since the hint describes what that resolution does.
         """
         self._inner = inner
         self._policy_context = policy_context
@@ -105,6 +113,8 @@ class TestbedAPI(llm.APIInstance):
         tools = inner.tools if len(exposed_tools) == len(inner.tools) else exposed_tools
         if selector is not None:
             tools = self._apply_selection(tools, selector)
+        if entity_arguments and entity_argument_hints and strings is not None:
+            tools = [annotate_entity_arguments(tool, strings) for tool in tools]
         super().__init__(
             api=inner.api,
             api_prompt=inner.api_prompt,
@@ -120,6 +130,7 @@ class TestbedAPI(llm.APIInstance):
         policy_context: ToolPolicyContext,
         policy_registry: ToolPolicyRegistry = DEFAULT_TOOL_POLICY_REGISTRY,
         *,
+        entity_argument_hints: bool = True,
         entity_arguments: bool = True,
         selector: CapabilitySelector | None = None,
         strings: ConversationStrings | None = None,
@@ -129,6 +140,7 @@ class TestbedAPI(llm.APIInstance):
             inner,
             policy_context,
             policy_registry,
+            entity_argument_hints=entity_argument_hints,
             entity_arguments=entity_arguments,
             selector=selector,
             strings=strings,

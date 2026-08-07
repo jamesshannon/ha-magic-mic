@@ -94,13 +94,18 @@ about it.
 
 First run, 2026-08-06 on claude-haiku-4-5: **no delta.** 5/6 correct in both arms. Every one
 of the 12 turns called `find_entities` before the script tool and passed back a live id, so
-the compensation never fired and no argument was ever invented. The behavior in this entry is
-real (`test_action_tool_does_not_resolve_entity_names` still passes, and
-`test_entity_id_tools.py::test_the_two_arms_differ_on_this_fixture` still lands the call in
-one arm and not the other); what the run shows is that this model does not walk into it when
-a lookup tool is on the roster. The reported case came from an assistant with no such tool.
-Sizing the entry against that setup needs an arm with `find_entities` withheld, which nothing
-gates today. Artifact: `evals/results/wave1_entity_id_tools.json`.
+the compensation never fired and no argument was ever invented.
+
+That run could not have come out differently. It ran with the entity summary on, which
+replaces HA's name roster with area/domain counts, so the prompt held no entity names and the
+model had to look one up; `find_entities` returns exact ids. The behavior in this entry is
+still real (`test_action_tool_does_not_resolve_entity_names` passes, and
+`test_entity_id_tools.py::test_the_two_arms_differ_on_this_fixture` lands the call in one arm
+and not the other), but the run says nothing about how often a model walks into it. Sizing
+that needs `entity_id_tools.py --roster`, which turns the summary off: HA's full name roster
+returns, and `find_entities` goes with it, since the summary and the lookup tool ship as a
+pair. Names in the prompt, no ids, no lookup, which is the setup the report came from.
+Artifact: `evals/results/wave1_entity_id_tools.json`.
 
 **Upstream.** Reported independently on the core issue tracker (2026-08) by a user whose
 exposed script tools received invented ids from Gemini Flash. Their three proposed fixes

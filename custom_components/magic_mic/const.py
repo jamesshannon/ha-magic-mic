@@ -40,6 +40,17 @@ DEFAULT_NAME_INJECTION = False
 # (evals/harness/entity_id_tools.py).
 CONF_ENTITY_ARGUMENTS = "entity_arguments"
 DEFAULT_ENTITY_ARGUMENTS = True
+
+# Advertising that resolution: the entity field's description tells the model a name is
+# accepted, so it stops paying a find_entities round-trip for an id the resolver would have
+# found. Gated apart from the resolution itself because the two answer different questions.
+# Resolution earns its keep by rescuing a call that would target nothing; the hint earns its
+# keep by removing a turn from a call that already works. The first live run (2026-08-06)
+# measured zero for the first and could not measure the second at all, because the entity
+# summary withholds every name and the model had to look one up regardless. Only meaningful
+# with CONF_ENTITY_ARGUMENTS on: advertising a name that nothing resolves targets nothing.
+CONF_ENTITY_ARGUMENT_HINTS = "entity_argument_hints"
+DEFAULT_ENTITY_ARGUMENT_HINTS = True
 # Top-N names injected per request: enough to cover a room's relevant devices, small
 # enough to stay a bounded tail (the point of retiring the roster). Tunable on the eval.
 NAME_INJECTION_LIMIT = 10

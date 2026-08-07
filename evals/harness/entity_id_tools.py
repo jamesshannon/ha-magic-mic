@@ -7,21 +7,28 @@ is asked for an identifier it was never given. This is the corpus gap `evaluatio
 has carried since the first name-injection run: until now nothing in any corpus forced an
 `entity_id` to exist.
 
-The run is **paired per case**: the same case runs with entity-argument resolution off and on,
-alternating which arm goes first. Off is stock Home Assistant, where the model's invented id
-reaches `hass.services.async_call` and the script targets nothing. Cases are state-scored, so
-that failure is visible as a world that did not move, and the arm delta is what Consumer 3 is
-worth.
+The run is **paired per case**, across the arms in `ARMS`, rotating which one goes first.
+Cases are state-scored, so a call against an id that names nothing is visible as a world that
+did not move.
 
-On top of correctness the run classifies **how the model supplied the argument**, which is the
-question behind the feature: a spoken name means the model never even tried to produce an id
-(so resolution is doing the work), an id-shaped value with no such entity is CD1's bug caught
-in the act, and a live id means the model got there on its own (through `find_entities`, or
-because the prompt happened to carry it).
+The first run (2026-08-06) answered the original question and raised a better one. With the
+entity summary on, the prompt carries no entity names at all, so the model called
+`find_entities` on all 12 turns, always passed back a live id, and the `off` and `resolve`
+arms scored identically. Resolution never fired because nothing was ever broken. What that
+leaves untested is the cost of getting there: every one of those turns spent a generation on a
+lookup. The `advertise` arm says so in the entity field's own description, which is the only
+way the model can know a name would be accepted, so it is scored on **generations** as much as
+correctness.
+
+On top of correctness the run classifies **how the model supplied the argument**: a spoken
+name means it never tried to produce an id (resolution is doing the work), an id-shaped value
+naming nothing is CD1's bug caught in the act, and a live id means it got there on its own.
 
 Run it with a live key:
 
     ANTHROPIC_API_KEY=sk-... .venv/bin/python -m evals.harness.entity_id_tools
+    ... --arms off,resolve,advertise    # all three
+    ... --roster                        # full name roster, no find_entities (CD1's setup)
 """
 
 import argparse
@@ -64,17 +71,66 @@ from .variant import stand_up_testbed  # noqa: E402
 # Default satellite placement for a case that does not set `satellite_area`.
 DEFAULT_AREA = "living_room"
 
-# The module globals the proxy reads for the two gates this run controls. Both arms patch
-# rather than inherit, so an arm cannot silently stop testing what it names when a shipped
+# The module globals the proxy reads for the gates this run controls. Every arm patches
+# rather than inherits, so an arm cannot silently stop testing what it names when a shipped
 # default changes.
 _ENTITY_ARGUMENTS_FLAG = (
     "custom_components.magic_mic.testbed.entity.DEFAULT_ENTITY_ARGUMENTS"
+)
+_ENTITY_ARGUMENT_HINTS_FLAG = (
+    "custom_components.magic_mic.testbed.entity.DEFAULT_ENTITY_ARGUMENT_HINTS"
+)
+_ENTITY_SUMMARY_FLAG = (
+    "custom_components.magic_mic.testbed.entity.DEFAULT_ENTITY_SUMMARY"
 )
 _NAME_INJECTION_FLAG = (
     "custom_components.magic_mic.testbed.entity.DEFAULT_NAME_INJECTION"
 )
 
 _FIND_ENTITIES = "find_entities"
+
+
+@dataclass(frozen=True)
+class Arm:
+    """One configuration of the two Consumer 3 gates, run against every case."""
+
+    label: str
+    entity_arguments: bool
+    entity_argument_hints: bool
+    summary: str
+
+
+# The arms, in the order the questions were asked. `off` is stock Home Assistant: an invented
+# id reaches the service and targets nothing (CD1). `resolve` repairs that argument silently.
+# `advertise` also tells the model resolution exists, which is the only arm where the model
+# can choose to skip the lookup, so it is the one measured on generations rather than
+# correctness alone.
+ARMS: dict[str, Arm] = {
+    "advertise": Arm(
+        label="advertise",
+        entity_arguments=True,
+        entity_argument_hints=True,
+        summary="resolution on, and the entity field says a name is accepted",
+    ),
+    "off": Arm(
+        label="off",
+        entity_arguments=False,
+        entity_argument_hints=False,
+        summary="stock Home Assistant: the model's id reaches the service unchanged",
+    ),
+    "resolve": Arm(
+        label="resolve",
+        entity_arguments=True,
+        entity_argument_hints=False,
+        summary="resolution on, but nothing tells the model it exists",
+    ),
+}
+
+# Default pairing. `off` measured zero on 2026-08-06 because the model looked every id up
+# before calling, so the open question is no longer whether a bad argument gets repaired but
+# whether advertising the repair saves the lookup turn. Run `--arms off,resolve,advertise`
+# for the full picture.
+DEFAULT_ARMS = ("resolve", "advertise")
 
 
 class ArgumentSource:
@@ -99,7 +155,7 @@ class ArmResult:
     """One case under one arm: the scored outcome plus how the argument was supplied."""
 
     result: CaseResult
-    entity_arguments: bool
+    arm: str
     source: str
     supplied: tuple[str, ...]
     used_find_entities: bool
@@ -158,73 +214,76 @@ def _is_entity_id(value: str) -> bool:
 
 @dataclass(frozen=True)
 class EntityIdReport:
-    """Both arms of the paired run, with the per-arm breakdown that explains the delta."""
+    """Every arm of the paired run, with the breakdown that explains the differences."""
 
-    off: tuple[ArmResult, ...]
-    on: tuple[ArmResult, ...]
+    arms: tuple[str, ...]
+    results: dict[str, tuple[ArmResult, ...]]
     orders: tuple[str, ...]
 
-    def scorecard(self, *, entity_arguments: bool) -> Scorecard:
-        """The standard scorecard for one arm."""
-        arm = self.on if entity_arguments else self.off
-        return build_scorecard([item.result for item in arm])
+    @property
+    def cases(self) -> int:
+        """Cases run per arm."""
+        return len(self.results[self.arms[0]])
 
-    def source_counts(self, *, entity_arguments: bool) -> dict[str, int]:
+    def scorecard(self, arm: str) -> Scorecard:
+        """The standard scorecard for one arm."""
+        return build_scorecard([item.result for item in self.results[arm]])
+
+    def source_counts(self, arm: str) -> dict[str, int]:
         """Count of cases by argument source within one arm."""
         counts: dict[str, int] = {}
-        for item in self.on if entity_arguments else self.off:
+        for item in self.results[arm]:
             counts[item.source] = counts.get(item.source, 0) + 1
         return counts
 
-    def find_entities_calls(self, *, entity_arguments: bool) -> int:
+    def find_entities_calls(self, arm: str) -> int:
         """Cases in one arm that reached for the lookup tool."""
-        return sum(
-            1
-            for item in (self.on if entity_arguments else self.off)
-            if item.used_find_entities
-        )
+        return sum(1 for item in self.results[arm] if item.used_find_entities)
+
+    def generations(self, arm: str) -> int:
+        """Model round-trips the arm spent in total.
+
+        The metric the advertised-naming arm lives or dies on: a case that resolves from
+        the utterance costs one generation to call and one to speak, where a case that
+        looks the id up first costs three.
+        """
+        return sum(item.result.observed.generations for item in self.results[arm])
 
     def render(self) -> str:
-        """Render both arms side by side, correctness first, then how it got there."""
-        off_card = self.scorecard(entity_arguments=False)
-        on_card = self.scorecard(entity_arguments=True)
-        off_correct = _correct(off_card)
-        on_correct = _correct(on_card)
+        """Render the arms side by side, correctness first, then how each got there."""
+        width = max(len(arm) for arm in self.arms) + 2
         lines = [
-            f"Entity-id tool arguments ({len(self.off)} cases, paired)",
+            f"Entity-id tool arguments ({self.cases} cases, {len(self.arms)} arms)",
             "",
-            (
-                f"  correct  off={off_correct}  on={on_correct}  "
-                f"delta={on_correct - off_correct:+d}"
-            ),
-            (
-                "  find_entities calls  "
-                f"off={self.find_entities_calls(entity_arguments=False)}  "
-                f"on={self.find_entities_calls(entity_arguments=True)}"
+            *(f"  {arm:<{width}} {ARMS[arm].summary}" for arm in self.arms),
+            "",
+            _row("correct", width, [_correct(self.scorecard(a)) for a in self.arms]),
+            _row("generations", width, [self.generations(a) for a in self.arms]),
+            _row(
+                "find_entities",
+                width,
+                [self.find_entities_calls(a) for a in self.arms],
             ),
             "",
             "  argument source:",
         ]
-        sources = sorted(
-            set(self.source_counts(entity_arguments=False))
-            | set(self.source_counts(entity_arguments=True))
-        )
-        off_sources = self.source_counts(entity_arguments=False)
-        on_sources = self.source_counts(entity_arguments=True)
+        counts = {arm: self.source_counts(arm) for arm in self.arms}
+        sources = sorted(set().union(*(c.keys() for c in counts.values())))
         lines.extend(
-            f"    {source:<20} off={off_sources.get(source, 0):>3}"
-            f"  on={on_sources.get(source, 0):>3}"
+            _row(
+                f"  {source}", width, [counts[arm].get(source, 0) for arm in self.arms]
+            )
             for source in sources
         )
-        lines += [
-            "",
-            "resolution off:",
-            off_card.render(),
-            "",
-            "resolution on:",
-            on_card.render(),
-        ]
+        for arm in self.arms:
+            lines += ["", f"{arm}:", self.scorecard(arm).render()]
         return "\n".join(lines)
+
+
+def _row(label: str, width: int, values: list[int]) -> str:
+    """One aligned metric row across the arms."""
+    cells = "".join(f"{value:<{width}}" for value in values)
+    return f"  {label:<18}{cells}"
 
 
 def _correct(scorecard: Scorecard) -> int:
@@ -236,9 +295,10 @@ def _arm_case_dict(item: ArmResult) -> dict[str, object]:
     """Reduce one arm's scored, classified case to a JSON record."""
     observed = item.result.observed
     return {
+        "arm": item.arm,
         "bucket": item.result.bucket.value,
         "correct": item.result.correct,
-        "entity_arguments": item.entity_arguments,
+        "generations": observed.generations,
         "id": item.result.case.id,
         "satellite_room": item.satellite_room,
         "source": item.source,
@@ -250,38 +310,35 @@ def _arm_case_dict(item: ArmResult) -> dict[str, object]:
     }
 
 
-def build_artifact(report: EntityIdReport, model: str, *, names_on: bool) -> dict:
+def build_artifact(
+    report: EntityIdReport, model: str, *, names_on: bool, summary_on: bool
+) -> dict:
     """Assemble the artifact: metadata, per-arm aggregates, and per-case detail."""
-    off_card = report.scorecard(entity_arguments=False)
-    on_card = report.scorecard(entity_arguments=True)
-    off_correct = _correct(off_card)
-    on_correct = _correct(on_card)
     return {
         "arms": {
-            "off": {
-                "buckets": {b.value: c for b, c in off_card.buckets.items()},
-                "correct": off_correct,
-                "find_entities_calls": report.find_entities_calls(
-                    entity_arguments=False
-                ),
-                "sources": report.source_counts(entity_arguments=False),
-            },
-            "on": {
-                "buckets": {b.value: c for b, c in on_card.buckets.items()},
-                "correct": on_correct,
-                "find_entities_calls": report.find_entities_calls(
-                    entity_arguments=True
-                ),
-                "sources": report.source_counts(entity_arguments=True),
-            },
+            arm: {
+                "buckets": {
+                    bucket.value: count
+                    for bucket, count in report.scorecard(arm).buckets.items()
+                },
+                "correct": _correct(report.scorecard(arm)),
+                "entity_argument_hints": ARMS[arm].entity_argument_hints,
+                "entity_arguments": ARMS[arm].entity_arguments,
+                "find_entities_calls": report.find_entities_calls(arm),
+                "generations": report.generations(arm),
+                "sources": report.source_counts(arm),
+            }
+            for arm in report.arms
         },
-        "cases": [_arm_case_dict(item) for item in (*report.off, *report.on)],
+        "cases": [
+            _arm_case_dict(item) for arm in report.arms for item in report.results[arm]
+        ],
         "run": {
             "kind": "wave1-entity-id-tools",
-            "cases": len(report.off),
+            "arms": list(report.arms),
+            "cases": report.cases,
             "corpus": ENTITY_ID_CORPUS.name,
-            "correct_delta": on_correct - off_correct,
-            "entity_summary": True,
+            "entity_summary": summary_on,
             "model": model,
             "name_injection": names_on,
             "orders": list(report.orders),
@@ -306,50 +363,61 @@ async def run_entity_id_tools(
     cases: Sequence[Case],
     *,
     area: str,
+    arms: Sequence[str],
     names_on: bool,
+    summary_on: bool,
 ) -> EntityIdReport:
-    """Run each case under both resolution arms, alternating which arm goes first."""
+    """Run each case under every arm, rotating which arm goes first."""
     script_tools = frozenset(script.tool_name for script in corpus.world.scripts)
     live_ids = frozenset(corpus.world.entity_ids())
     agent_id, world, satellite, _entry = await stand_up_testbed(
         hass, corpus, api_key, area=area
     )
 
-    off: list[ArmResult] = []
-    on: list[ArmResult] = []
+    collected: dict[str, list[ArmResult]] = {arm: [] for arm in arms}
     orders: list[str] = []
     for index, case in enumerate(cases):
-        off_first = index % 2 == 0
-        orders.append("off→on" if off_first else "on→off")
-        for entity_arguments in (False, True) if off_first else (True, False):
+        # Rotate rather than alternate: with more than two arms a straight flip would leave
+        # one of them always running against a warm cache and a settled world.
+        offset = index % len(arms)
+        order = [*arms[offset:], *arms[:offset]]
+        orders.append("→".join(order))
+        for label in order:
+            arm = ARMS[label]
             await world.reset(hass)
             satellite_room = place_satellite(hass, satellite, case, default=area)
             print(
                 f"  [{index + 1:>2}/{len(cases)}] {case.id} "
-                f"(from {satellite_room}, resolution "
-                f"{'on' if entity_arguments else 'off'}) ...",
+                f"(from {satellite_room}, arm {label}) ...",
                 flush=True,
             )
             with (
-                patch(_ENTITY_ARGUMENTS_FLAG, entity_arguments),
+                patch(_ENTITY_ARGUMENTS_FLAG, arm.entity_arguments),
+                patch(_ENTITY_ARGUMENT_HINTS_FLAG, arm.entity_argument_hints),
+                patch(_ENTITY_SUMMARY_FLAG, summary_on),
                 patch(_NAME_INJECTION_FLAG, names_on),
             ):
                 result = await run_case(
                     hass, agent_id, case, llm=True, device_id=satellite.device_id
                 )
             source, supplied = classify_source(result, script_tools, live_ids)
-            item = ArmResult(
-                result=result,
-                entity_arguments=entity_arguments,
-                source=source,
-                supplied=supplied,
-                used_find_entities=any(
-                    tool.name == _FIND_ENTITIES for tool in result.observed.tools
-                ),
-                satellite_room=satellite_room,
+            collected[label].append(
+                ArmResult(
+                    result=result,
+                    arm=label,
+                    source=source,
+                    supplied=supplied,
+                    used_find_entities=any(
+                        tool.name == _FIND_ENTITIES for tool in result.observed.tools
+                    ),
+                    satellite_room=satellite_room,
+                )
             )
-            (on if entity_arguments else off).append(item)
-    return EntityIdReport(tuple(off), tuple(on), tuple(orders))
+    return EntityIdReport(
+        arms=tuple(arms),
+        results={arm: tuple(items) for arm, items in collected.items()},
+        orders=tuple(orders),
+    )
 
 
 def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
@@ -372,9 +440,26 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         help=f"area to place the satellite in (default {DEFAULT_AREA})",
     )
     parser.add_argument(
+        "--arms",
+        default=",".join(DEFAULT_ARMS),
+        help=(
+            "comma-separated arms to run, from "
+            f"{', '.join(sorted(ARMS))} (default {','.join(DEFAULT_ARMS)})"
+        ),
+    )
+    parser.add_argument(
         "--names",
         action="store_true",
-        help="run both arms with Tier-2 name injection on (default off)",
+        help="run every arm with Tier-2 name injection on (default off)",
+    )
+    parser.add_argument(
+        "--roster",
+        action="store_true",
+        help=(
+            "turn the entity summary off, restoring HA's full name roster. This also "
+            "withholds find_entities, which ships with the summary, so it reproduces the "
+            "environment CD1 was reported from: names in the prompt, no ids, no lookup"
+        ),
     )
     parser.add_argument(
         "--out",
@@ -405,11 +490,26 @@ def _describe_scripts(scripts: Sequence[Script]) -> str:
     return ", ".join(script.tool_name for script in scripts) or "(none)"
 
 
+def _select_arms(requested: str) -> list[str]:
+    """Return the requested arms in the order given, validating each name."""
+    arms = [label.strip() for label in requested.split(",") if label.strip()]
+    if not arms:
+        raise BaselineError("no arms selected")
+    if unknown := [label for label in arms if label not in ARMS]:
+        raise BaselineError(
+            f"unknown arm(s): {', '.join(unknown)}; choose from {', '.join(sorted(ARMS))}"
+        )
+    if len(set(arms)) != len(arms):
+        raise BaselineError("an arm was requested more than once")
+    return arms
+
+
 async def main(argv: Sequence[str] | None = None) -> None:
     """Run the live paired entity-argument measurement and persist the artifact."""
     args = _parse_args(argv)
     corpus = load_corpus(ENTITY_ID_CORPUS)
     cases = _select_cases(corpus, args.cases)
+    arms = _select_arms(args.arms)
     if not cases:
         raise BaselineError("no cases matched the given filters")
 
@@ -420,23 +520,34 @@ async def main(argv: Sequence[str] | None = None) -> None:
 
     api_key = load_api_key()
     model = DEFAULT[CONF_CHAT_MODEL]
+    summary_on = not args.roster
     print(
         f"Running entity-id tool arguments: {len(cases)}/{len(corpus.cases)} cases "
-        f"x 2 arms, model {model}, names "
-        f"{'on' if args.names else 'off'}, area {args.area}\n"
+        f"x {len(arms)} arms ({len(cases) * len(arms)} turns), model {model}, names "
+        f"{'on' if args.names else 'off'}, prompt "
+        f"{'entity summary' if summary_on else 'full roster, no find_entities'}, "
+        f"area {args.area}\n"
         f"  scripts: {_describe_scripts(corpus.world.scripts)}\n"
     )
 
     async with async_test_home_assistant() as hass:
         with pin_pre_magic_roster():
             report = await run_entity_id_tools(
-                hass, corpus, api_key, cases, area=args.area, names_on=args.names
+                hass,
+                corpus,
+                api_key,
+                cases,
+                area=args.area,
+                arms=arms,
+                names_on=args.names,
+                summary_on=summary_on,
             )
 
     print("\n" + report.render())
     out_path = args.out or ENTITY_ID_ARTIFACT
     written = write_artifact(
-        build_artifact(report, model, names_on=args.names), out_path
+        build_artifact(report, model, names_on=args.names, summary_on=summary_on),
+        out_path,
     )
     print(f"\nartifact: {written.relative_to(REPO_ROOT)}")
 
